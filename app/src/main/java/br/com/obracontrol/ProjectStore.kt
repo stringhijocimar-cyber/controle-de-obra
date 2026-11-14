@@ -11,8 +11,8 @@ import java.io.InputStream
 import java.math.BigDecimal
 import java.math.RoundingMode
 
-private const val FORMAT_VERSION = 2
-private const val MAX_BACKUP_BYTES = 5 * 1024 * 1024
+private const val FORMAT_VERSION = 3
+internal const val MAX_BACKUP_BYTES = 5 * 1024 * 1024
 
 internal class ProjectStore(context: Context) {
     private val file = AtomicFile(File(context.filesDir, "project.json"))
@@ -86,6 +86,7 @@ internal object ProjectCodec {
             "discountCents" to purchase.discount,
             "extra" to purchase.extra,
             "notes" to purchase.notes,
+            "documents" to encodeAttachments(purchase.documents),
             "lines" to array(purchase.lines.map { line -> obj(
                 "id" to line.id,
                 "name" to line.name,
@@ -105,6 +106,7 @@ internal object ProjectCodec {
             "method" to payment.method,
             "receipt" to payment.receipt,
             "notes" to payment.notes,
+            "proofs" to encodeAttachments(payment.proofs),
         ) }),
         "issues" to array(project.issues.map { issue -> obj(
             "id" to issue.id, "title" to issue.title, "action" to issue.action, "closed" to issue.closed,
@@ -116,7 +118,7 @@ internal object ProjectCodec {
         val version = if (root.has("version")) root.getInt("version") else 1
         val project = when (version) {
             1 -> migrateLegacy(root)
-            FORMAT_VERSION -> decodeCurrent(root)
+            2, FORMAT_VERSION -> decodeCurrent(root)
             else -> throw IllegalArgumentException("Versão de backup incompatível.")
         }
         project.validate()
@@ -153,6 +155,7 @@ internal object ProjectCodec {
             discount = purchase.cents("discountCents") ?: 0,
             extra = purchase.optBoolean("extra"),
             notes = purchase.string("notes"),
+            documents = purchase.attachments("documents"),
             lines = purchase.objects("lines").map { line -> PurchaseLine(
                 id = line.getString("id"),
                 name = line.string("name"),
@@ -172,6 +175,7 @@ internal object ProjectCodec {
             method = payment.string("method"),
             receipt = payment.string("receipt"),
             notes = payment.string("notes"),
+            proofs = payment.attachments("proofs"),
         ) },
         issues = root.objects("issues").map { issue -> Issue(
             id = issue.getString("id"),
@@ -232,6 +236,15 @@ internal object ProjectCodec {
         method = string("method").takeUnless { it == UNREPORTED }.orEmpty(),
     )
 
+    private fun encodeAttachments(documents: List<DocumentAttachment>) = array(documents.map {
+        obj("id" to it.id, "name" to it.name, "type" to it.type.name, "size" to it.size)
+    })
+
+    private fun JSONObject.attachments(key: String) = optionalObjects(key).map {
+        DocumentAttachment(it.getString("id"), it.getString("name"),
+            DocumentType.valueOf(it.getString("type")), it.getLong("size"))
+    }
+
     private fun obj(vararg fields: Pair<String, Any?>) = JSONObject().apply {
         fields.forEach { (key, value) -> put(key, value ?: JSONObject.NULL) }
     }
@@ -264,8 +277,14 @@ internal fun Project.validate() {
         require(order.stageId == null || stages.any { it.id == order.stageId }) { "A etapa da compra não existe." }
         requireDistinctIds(order.lines.map { it.id })
         order.lines.forEach(PurchaseLine::validate)
+        requireDistinctIds(order.documents.map { it.id })
     }
-    payments.forEach { it.validate(this) }
+    payments.forEach {
+        it.validate(this)
+        requireDistinctIds(it.proofs.map { proof -> proof.id })
+        require(it.proofs.none { proof -> proof.type == DocumentType.XML }) { "Comprovantes precisam ser imagens ou PDFs." }
+    }
+    documentAttachments().forEach(DocumentAttachment::validate)
     require(issues.all { it.title.isNotBlank() }) { "Informe um título para a pendência." }
 }
 

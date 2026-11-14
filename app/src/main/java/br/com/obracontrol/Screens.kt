@@ -146,7 +146,7 @@ internal fun RecoveryScreen(restore: () -> Unit) {
 }
 
 @Composable
-internal fun Dashboard(project: Project, total: Balance, edit: () -> Unit, issues: () -> Unit) {
+internal fun Dashboard(project: Project, total: Balance, edit: () -> Unit, issues: () -> Unit, restore: () -> Unit) {
     val isEmpty = project.stages.isEmpty() && project.purchases.isEmpty() && project.payments.isEmpty()
     ObraList {
         item {
@@ -160,6 +160,7 @@ internal fun Dashboard(project: Project, total: Balance, edit: () -> Unit, issue
                     if (isEmpty) {
                         Text("Cadastre as etapas e as compras para montar o cronograma e o balanço.", color = Color(0xFFCCDCE8))
                         FilledTonalButton(onClick = edit) { Text("Configurar obra") }
+                        TextButton(onClick = restore, colors = ButtonDefaults.textButtonColors(contentColor = Mint)) { Text("Importar dados da obra") }
                     }
                 }
             }
@@ -276,6 +277,7 @@ internal fun PurchaseList(project: Project, total: Balance, add: () -> Unit, ope
                 Tag(total.purchaseStatus(purchase), purchase.forecast == null)
                 LedgerLine("Previsão · pago", "${purchase.forecast.costText()} · ${total.paid(CostKind.MATERIAL, purchase.id).brl()}")
                 if (purchase.extra) Tag("Acréscimo declarado", true)
+                if (purchase.documents.isNotEmpty()) Detail("${purchase.documents.size} documento(s) anexado(s)")
                 TextButton(onClick = { open(purchase.id) }) { Text("Abrir compra") }
             }
         }
@@ -301,6 +303,7 @@ internal fun PaymentsScreen(project: Project, total: Balance, add: () -> Unit, e
                 LedgerLine(payment.date.dateOr(UNREPORTED), payment.amount.brl())
                 Detail("${payment.payer.textOr()} · ${payment.method.textOr()}")
                 if (payment.receipt.isNotBlank()) Detail("Comprovante ${payment.receipt}")
+                if (payment.proofs.isNotEmpty()) Detail("${payment.proofs.size} comprovante(s) anexado(s)")
                 TextButton(onClick = { edit(payment.id) }) { Text("Editar pagamento") }
             }
         }
@@ -319,9 +322,9 @@ internal fun ExportScreen(busy: Boolean, pdf: () -> Unit, openPdf: (() -> Unit)?
         }
         item {
             SheetCard {
-                Heading("Backup da obra", "Exporte o cadastro para transferir a obra ou recuperar os registros em outro aparelho.")
-                OutlinedButton(enabled = !busy, onClick = backup) { Text("Exportar backup JSON") }
-                OutlinedButton(enabled = !busy, onClick = restore) { Text("Restaurar backup JSON") }
+                Heading("Backup da obra", "Exporte o cadastro com os anexos ou importe um arquivo ZIP ou JSON.")
+                OutlinedButton(enabled = !busy, onClick = backup) { Text("Exportar backup com anexos") }
+                OutlinedButton(enabled = !busy, onClick = restore) { Text("Importar dados da obra") }
             }
         }
         if (busy) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }

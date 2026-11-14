@@ -141,6 +141,7 @@ internal data class Purchase(
     val extra: Boolean = false,
     val lines: List<PurchaseLine> = emptyList(),
     val notes: String = "",
+    val documents: List<DocumentAttachment> = emptyList(),
 ) {
     val lineSum: Long? get() = lines.takeIf { it.isNotEmpty() && it.all { line -> line.subtotal != null } }
         ?.sumOf { it.subtotal!! }
@@ -184,6 +185,7 @@ internal data class Payment(
     val method: String = "",
     val receipt: String = "",
     val notes: String = "",
+    val proofs: List<DocumentAttachment> = emptyList(),
 ) {
     fun validate(project: Project) {
         require(project.targets(kind).any { it.first == targetId }) { "Selecione a etapa ou a compra do pagamento." }

@@ -456,6 +456,7 @@ internal object FullReport {
                     paragraph("Diferença de ${it.brl()} entre o total do documento e os itens após desconto.", gold)
                 }
                 if (order.notes.isNotBlank()) paragraph(order.notes)
+                if (order.documents.isNotEmpty()) paragraph("Documentos anexados: ${order.documents.joinToString { it.name }}")
                 y += 7f
             }
         }
@@ -470,7 +471,11 @@ internal object FullReport {
             table(listOf("REFERÊNCIA / TIPO", "VALOR", "DATA", "PAGADOR", "MEIO", "COMPROVANTE / OBSERVAÇÕES"),
                 listOf(194f, 90f, 81f, 109f, 98f, 202f), project.payments.sortedWith(compareBy(nullsLast()) { it.date }).map {
                     listOf("${project.targetName(it)}\n${it.kind.label}", it.amount.brl(), it.date.dateOr(UNREPORTED),
-                        it.payer.textOr(), it.method.textOr(), listOf(it.receipt.textOr(), it.notes).filter(String::isNotBlank).joinToString("\n"))
+                        it.payer.textOr(), it.method.textOr(), buildList {
+                            if (it.receipt.isNotBlank()) add(it.receipt)
+                            addAll(it.proofs.map { proof -> proof.name })
+                            if (it.notes.isNotBlank()) add(it.notes)
+                        }.ifEmpty { listOf(UNREPORTED) }.joinToString("\n"))
                 }, "Nenhum pagamento registrado.")
             if (total.payers.isNotEmpty()) {
                 heading("CONSOLIDADO POR PAGADOR")

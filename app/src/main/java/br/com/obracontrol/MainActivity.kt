@@ -14,13 +14,13 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -44,6 +44,8 @@ import java.io.IOException
 
 class MainActivity : ComponentActivity() {
     private lateinit var store: ProjectStore
+    private lateinit var documents: DocumentFiles
+    private lateinit var backups: PortableBackup
     private var project by mutableStateOf(Project())
     private var loadFailed by mutableStateOf(false)
 
@@ -51,13 +53,19 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(statusBarStyle = SystemBarStyle.dark(Navy.toArgb()))
         store = ProjectStore(this)
-        runCatching(store::load).onSuccess { project = it }.onFailure { loadFailed = true }
+        documents = DocumentFiles(applicationContext)
+        backups = PortableBackup(documents)
+        runCatching(store::load).onSuccess {
+            project = it
+            documents.removeOldDrafts(it)
+        }.onFailure { loadFailed = true }
         setContent { ObraTheme { Screen() } }
     }
 
     private fun save(updated: Project) {
         check(!loadFailed) { "Restaure um backup válido antes de editar a obra." }
         updated.validate()
+        updated.documentAttachments().forEach(documents::requireFile)
         store.save(updated)
         project = updated
     }
@@ -67,6 +75,7 @@ class MainActivity : ComponentActivity() {
         var tab by rememberSaveable { mutableStateOf(Section.DASHBOARD.name) }
         var route by rememberSaveable { mutableStateOf("") }
         var pendingRestore by remember { mutableStateOf<Project?>(null) }
+        var confirmReplace by remember { mutableStateOf(false) }
         var activeFileOperation by remember { mutableStateOf(false) }
         var exportedPdf by rememberSaveable { mutableStateOf<String?>(null) }
         val snackbar = remember { SnackbarHostState() }
@@ -106,54 +115,82 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-        val makeBackup = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        val makeBackup = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
             if (uri != null) {
                 val snapshot = project
                 runFileOperation {
                     withContext(Dispatchers.IO) {
-                        contentResolver.openOutputStream(uri, "wt")?.bufferedWriter(Charsets.UTF_8)?.use {
-                            it.write(ProjectCodec.encode(snapshot))
-                        } ?: throw IOException("Sem acesso ao backup")
+                        contentResolver.openOutputStream(uri, "wt")?.use { backups.write(it, snapshot) }
+                            ?: throw IOException("Sem acesso ao backup")
                     }
-                    "Backup salvo."
+                    "Backup com anexos salvo."
                 }
             }
         }
-        val readJson = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        val readProject = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             if (uri != null) {
                 runFileOperation {
                     pendingRestore = withContext(Dispatchers.IO) {
-                        contentResolver.openInputStream(uri)?.use { ProjectCodec.decode(readBackup(it)) }
+                        contentResolver.openInputStream(uri)?.use(backups::read)
                             ?: throw IOException("Sem acesso ao backup")
                     }
+                    confirmReplace = false
                     null
                 }
             }
         }
-        val openRestore = { readJson.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) }
+        val openRestore = { readProject.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/json", "text/plain", "application/octet-stream")) }
 
         fun goBack() { route = backRoute(route) }
         BackHandler(route.isNotEmpty() && !activeFileOperation) { goBack() }
         pendingRestore?.let { backup ->
+            val existing = !loadFailed && project.hasWork()
+            val same = existing && project.isSameWork(backup)
+            val details = "${backup.stages.size} etapas, ${backup.purchases.size} compras, ${backup.payments.size} pagamentos e ${backup.documentAttachments().size} anexos."
+            fun finishImport(merge: Boolean) {
+                runFileOperation {
+                    val result = if (merge) project.mergeFrom(backup) else ProjectImport(backup, 0)
+                    result.project.validate()
+                    result.project.documentAttachments().forEach(documents::requireFile)
+                    store.save(result.project)
+                    project = result.project
+                    pendingRestore = null
+                    confirmReplace = false
+                    loadFailed = false
+                    exportedPdf = null
+                    route = ""
+                    tab = Section.DASHBOARD.name
+                    if (!merge) "Obra importada."
+                    else if (result.added == 0) "Cadastro conferido. Nenhum lançamento duplicado."
+                    else "Importação concluída. ${result.added} registros ou anexos adicionados."
+                }
+            }
             AlertDialog(
-                onDismissRequest = { pendingRestore = null },
-                title = { Text("Carregar ${backup.name}?") },
-                text = { Text("O backup tem ${backup.stages.size} etapas, ${backup.purchases.size} compras e ${backup.payments.size} pagamentos. O cadastro neste aparelho será substituído.") },
-                confirmButton = {
-                    TextButton(onClick = {
-                        pendingRestore = null
-                        runFileOperation {
-                            store.save(backup)
-                            project = backup
-                            loadFailed = false
-                            exportedPdf = null
-                            route = ""
-                            tab = Section.DASHBOARD.name
-                            "Obra restaurada."
-                        }
-                    }) { Text("Restaurar") }
+                onDismissRequest = { if (!activeFileOperation) { pendingRestore = null; confirmReplace = false } },
+                title = { Text(if (confirmReplace) "Substituir a obra atual?" else "Importar ${backup.name}?") },
+                text = {
+                    Text(when {
+                        confirmReplace -> "Os registros e anexos do cadastro atual serão substituídos pelos deste arquivo."
+                        same -> "$details Você pode acrescentar os registros e anexos que faltam e manter suas edições."
+                        existing -> "$details Este arquivo pertence a outra obra. A substituição troca o cadastro atual."
+                        else -> details
+                    })
                 },
-                dismissButton = { TextButton(onClick = { pendingRestore = null }) { Text("Cancelar") } },
+                confirmButton = {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        TextButton(enabled = !activeFileOperation, onClick = {
+                            when {
+                                confirmReplace || !existing -> finishImport(merge = false)
+                                same -> finishImport(merge = true)
+                                else -> confirmReplace = true
+                            }
+                        }) { Text(if (confirmReplace) "Confirmar substituição" else if (same) "Mesclar lançamentos" else if (existing) "Substituir obra" else "Importar") }
+                        if (same && !confirmReplace) TextButton(enabled = !activeFileOperation, onClick = { confirmReplace = true }) {
+                            Text("Substituir obra")
+                        }
+                    }
+                },
+                dismissButton = { TextButton(enabled = !activeFileOperation, onClick = { pendingRestore = null; confirmReplace = false }) { Text("Cancelar") } },
             )
         }
 
@@ -182,7 +219,7 @@ class MainActivity : ComponentActivity() {
                 } else if (editor) {
                     EditorScreen(route, project, balance, ::save, { route = it })
                 } else when (section) {
-                    Section.DASHBOARD -> Dashboard(project, balance, { route = "obra" }, { route = "pendencias" })
+                    Section.DASHBOARD -> Dashboard(project, balance, { route = "obra" }, { route = "pendencias" }, openRestore)
                     Section.STAGES -> StageList(project, balance, { route = "etapa/nova" }, { route = "etapa/$it" })
                     Section.PURCHASES -> PurchaseList(project, balance, { route = "compra/nova" }, { route = "compra/$it" })
                     Section.PAYMENTS -> PaymentsScreen(project, balance, { route = "pagamento/novo" }, { route = "pagamento/$it" })
@@ -202,7 +239,7 @@ class MainActivity : ComponentActivity() {
                                 Unit
                             }
                         },
-                        { makeBackup.launch("ObraControl_Backup.json") },
+                        { makeBackup.launch("ObraControl_Backup.zip") },
                         openRestore,
                     )
                 }

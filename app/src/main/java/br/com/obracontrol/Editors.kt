@@ -181,13 +181,20 @@ private fun PurchaseEditor(
     var discount by rememberSaveable { mutableStateOf(order.discount.takeUnless { it == 0L }.moneyInput()) }
     var extra by rememberSaveable { mutableStateOf(order.extra) }
     var notes by rememberSaveable { mutableStateOf(order.notes) }
+    var documents by rememberAttachments(order.documents)
+    var processing by remember { mutableStateOf(false) }
     fun readFields() = order.copy(name = name.trim(), supplier = supplier.trim(), document = document.trim(),
         documentDate = parseDate(documentDate), dueDate = parseDate(dueDate),
         stageId = stageId.takeIf(String::isNotBlank), total = parseMoney(total),
-        discount = parseMoney(discount) ?: 0, extra = extra, notes = notes.trim())
+        discount = parseMoney(discount) ?: 0, extra = extra, notes = notes.trim(), documents = documents)
 
-    Form(remove = remove, deletePrompt = "Excluir esta compra e os seus itens?", save = { save(readFields(), null) }) {
+    Form(remove = remove, deletePrompt = "Excluir esta compra e os seus itens?", available = !processing, save = { save(readFields(), null) }) {
         Field("Nome da compra ou material", name, { name = it })
+        DocumentEditor(RecognitionScope.PURCHASE, documents, { documents = it }, { processing = it }) { amount, field ->
+            if (field == MoneyField.DISCOUNT) discount = amount.cents.moneyInput()
+            else total = amount.cents.moneyInput()
+        }
+        HorizontalDivider()
         Field("Fornecedor", supplier, { supplier = it })
         Field("Número ou referência do documento", document, { document = it })
         Field("Data do documento (dd/mm/aaaa)", documentDate, { documentDate = it }, KeyboardType.Number, date = true)
@@ -209,11 +216,11 @@ private fun PurchaseEditor(
             key(line.id) {
                 LedgerLine(line.name, line.subtotal.costText())
                 Detail(listOf(line.quantity.quantityInput(), line.unit, line.unitPrice?.brl().orEmpty()).filter(String::isNotBlank).joinToString(" · "))
-                TextButton(onClick = { submit { save(readFields(), line.id) } }) { Text("Editar item") }
+                TextButton(enabled = !processing, onClick = { submit { save(readFields(), line.id) } }) { Text("Editar item") }
                 HorizontalDivider()
             }
         }
-        OutlinedButton(onClick = { submit { save(readFields(), "nova") } }) {
+        OutlinedButton(enabled = !processing, onClick = { submit { save(readFields(), "nova") } }) {
             Text(if (exists) "Adicionar item" else "Salvar e adicionar item")
         }
     }
@@ -249,10 +256,12 @@ private fun PaymentEditor(project: Project, payment: Payment, remove: (() -> Uni
     var method by rememberSaveable { mutableStateOf(payment.method) }
     var receipt by rememberSaveable { mutableStateOf(payment.receipt) }
     var notes by rememberSaveable { mutableStateOf(payment.notes) }
+    var proofs by rememberAttachments(payment.proofs)
+    var processing by remember { mutableStateOf(false) }
     val targets = project.targets(CostKind.valueOf(kind))
-    Form(remove = remove, deletePrompt = "Excluir este pagamento? Os totais do painel serão recalculados.", save = {
+    Form(remove = remove, deletePrompt = "Excluir este pagamento? Os totais do painel serão recalculados.", available = !processing, save = {
         save(payment.copy(kind = CostKind.valueOf(kind), targetId = target, amount = parseMoney(amount) ?: 0,
-            date = parseDate(date), payer = payer.trim(), method = method.trim(), receipt = receipt.trim(), notes = notes.trim()))
+            date = parseDate(date), payer = payer.trim(), method = method.trim(), receipt = receipt.trim(), notes = notes.trim(), proofs = proofs))
     }) {
         Select("Tipo", kind, CostKind.entries.map { it.name to it.label }) {
             if (kind != it) { kind = it; target = "" }
@@ -264,6 +273,9 @@ private fun PaymentEditor(project: Project, payment: Payment, remove: (() -> Uni
         Field("Quem pagou", payer, { payer = it })
         Field("Meio de pagamento", method, { method = it })
         Field("Referência do comprovante", receipt, { receipt = it })
+        DocumentEditor(RecognitionScope.PAYMENT, proofs, { proofs = it }, { processing = it }) { recognized, _ ->
+            amount = recognized.cents.moneyInput()
+        }
         Field("Observações do pagamento", notes, { notes = it }, multiline = true)
     }
 }
@@ -307,6 +319,7 @@ private class FormActions(val submit: (() -> Unit) -> Unit)
 private fun Form(
     remove: (() -> Unit)? = null,
     deletePrompt: String = "",
+    available: Boolean = true,
     save: () -> Unit,
     body: @Composable FormActions.() -> Unit,
 ) {
@@ -336,9 +349,9 @@ private fun Form(
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
                     if (remove != null) {
-                        OutlinedButton(onClick = { deleting = true }, colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Excluir") }
+                        OutlinedButton(enabled = available, onClick = { deleting = true }, colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Excluir") }
                     }
-                    Button(onClick = { actions.submit(save) }) { Text("Salvar") }
+                    Button(enabled = available, onClick = { actions.submit(save) }) { Text("Salvar") }
                 }
             }
         }
