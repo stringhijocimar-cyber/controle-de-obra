@@ -1,24 +1,28 @@
-# ObraControl — Gestão de Obras para Android
+# ObraControl
 
-Aplicativo Android em Kotlin + Jetpack Compose para controle de obras. A versão **v1.1** foi preparada em ZIP nesta conversa, com dashboard, edição de etapas e compras, backup JSON e relatório PDF multipágina (inclui Gantt, indicadores, materiais discriminados, pagamentos, saldos e riscos).
+Aplicativo Android para cadastrar etapas, acompanhar a execução da obra, controlar compras e pagamentos e emitir o relatório executivo em PDF. O cadastro fica no aparelho. O aplicativo funciona sem internet.
 
-## Situação de publicação
+## Controle da obra
 
-**Este repositório contém por enquanto a documentação.** O ZIP completo `ObraControl_Android_Completo_v1_1.zip` foi entregue na conversa e precisa ser descompactado e publicado na raiz deste repositório. O APK ainda não foi compilado/testado. Não confundir código preparado com versão publicada ou instalada.
+- **Painel** reúne previsão parcial, pagamentos, saldo conhecido, acréscimos e avanço físico médio entre as etapas.
+- **Etapas** registra datas previstas e reais, avanço de 0 a 100%, orçamento e data prevista de pagamento.
+- **Compras** registra fornecedor, documento, desconto, vínculo com uma etapa, classificação de acréscimo e itens com quantidades, unidade, preço unitário e subtotal.
+- **Pagamentos** aceita vários desembolsos por etapa ou compra, incluindo adiantamentos e pagamentos parciais. Cada registro inclui valor, data, pagador, meio e referência de comprovante.
+- **Pendências** registra ações e aponta valores em aberto, divergências de documentos, pagamentos a maior e etapas sem data ou valor.
+- **Relatório** gera o PDF integral e exporta ou restaura o cadastro em JSON, incluindo os backups da versão anterior.
 
-## Dados iniciais — área gourmet
+O valor do documento tem prioridade sobre a soma dos itens. A diferença após descontos aparece na conciliação. O contrato global de mão de obra, quando preenchido, é a referência do balanço. Valores ainda a cotar permanecem em aberto. Pagamentos são somados pelos lançamentos, independentemente da etapa estar concluída.
 
-- Previsão parcial: R$ 45.428,10
-- Já pago: R$ 20.428,10
-- Saldo previsto: R$ 25.000,00
-- Materiais futuros: R$ 11.000,00
-- Acréscimo declarado: R$ 1.018,60
-- Obra iniciada em 03/11/2026; primeira etapa concluída em 13/11/2026, paga em 06/11/2026.
+## Instalação e primeiro uso
 
-## Funcionalidades e limites
+O APK requer Android 8.0 ou mais recente. Após abrir o app, cadastre a obra em **Dados da obra**. Para carregar um cadastro existente, abra **Relatório → Restaurar backup JSON**, selecione o arquivo e confirme. Para exportar o relatório, use **Relatório → Gerar PDF completo**.
 
-Os dados são armazenados localmente. O PDF é regenerado integralmente a partir do cadastro e apresenta divergências entre totais dos pedidos e linhas transcritas para revisão. A interface ainda não permite editar individualmente todas as linhas detalhadas dos pedidos, e não há validação de compilação ou teste em dispositivo.
+## Compilar
 
-## Como publicar e compilar
+Use JDK 17 e Android SDK 35 com Build Tools 35.0.0. Abra a raiz no Android Studio ou execute:
 
-Descompactar o ZIP e enviar **o conteúdo da pasta ObraControl** para a raiz deste repositório. Depois executar o workflow `Build Android APK` na aba Actions. O APK será um artefato de debug apenas se o build for concluído.
+```sh
+./gradlew :app:testDebugUnitTest :app:assembleDebug
+```
+
+Em Windows, use `gradlew.bat`. O instalador é gerado em `app/build/outputs/apk/debug/app-debug.apk`.
