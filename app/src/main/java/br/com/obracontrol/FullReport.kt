@@ -56,8 +56,6 @@ internal object FullReport {
 
     private data class Tile(val label: String, val value: String, val detail: String, val color: Int = ink)
     private data class Bar(val label: String, val amount: Long, val color: Int)
-    private data class Period(val start: LocalDate, val end: LocalDate)
-    private data class ScheduleRow(val stage: Stage, val planned: Period?, val actual: Period?)
 
     private class Report(
         private val pdf: PdfDocument,
@@ -298,13 +296,8 @@ internal object FullReport {
         fun schedule() {
             section("CRONOGRAMA FÍSICO  |  VISÃO GANTT",
                 "Verde = realizado  •  Azul = previsto  •  Âmbar = data-base quando dentro da escala")
-            val rows = project.stages.map { stage ->
-                val planned = stage.plannedStart?.let { start -> stage.plannedEnd?.let { Period(start, it) } }
-                val actual = stage.actualStart?.let { start ->
-                    (stage.actualEnd ?: (project.referenceDate ?: today)).takeIf { it >= start }?.let { Period(start, it) }
-                } ?: stage.actualEnd?.let { Period(it, it) }
-                ScheduleRow(stage, planned, actual)
-            }
+            val asOf = project.referenceDate ?: today
+            val rows = project.stages.map { it.ganttRow(asOf) }
             val periods = rows.flatMap { listOfNotNull(it.planned, it.actual) }
             if (rows.isEmpty()) paragraph("Nenhuma etapa cadastrada.")
             if (rows.isNotEmpty() && periods.isEmpty()) paragraph("Informe início e fim previstos ou datas reais para gerar as barras do Gantt.")
@@ -327,11 +320,8 @@ internal object FullReport {
                         text(LEFT + 7, band + 28, "${row.stage.status} · ${row.stage.progress}%", 8.1f, muted, width = 200f)
                         row.planned?.let { period -> box(x(period.start), band + 7, (x(period.end.plusDays(1)) - x(period.start)).coerceAtLeast(1.5f), 8f, blue, 2f) }
                         row.actual?.let { period -> box(x(period.start), band + 19, (x(period.end.plusDays(1)) - x(period.start)).coerceAtLeast(1.5f), 8f, green, 2f) }
-                        text(graphRight + 9, band + 13, if (row.planned != null) "Prev. ${range(row.planned)}" else "Prev. a definir", 8.2f, if (row.planned == null) muted else blue, width = 174f)
-                        val actualLabel = row.actual?.let {
-                            if (row.stage.actualEnd == null) "Real ${it.start.dateText()} · em curso" else "Real ${range(it)}"
-                        } ?: "Real a definir"
-                        text(graphRight + 9, band + 26, actualLabel, 8.2f, if (row.actual == null) muted else green, width = 174f)
+                        text(graphRight + 9, band + 13, "Prev. ${row.plannedDates}", 8.2f, if (row.planned == null) muted else blue, width = 174f)
+                        text(graphRight + 9, band + 26, "Real ${row.actualDates}", 8.2f, if (row.actual == null) muted else green, width = 174f)
                     }
                     val step = ceil(days / 6.0).toLong().coerceAtLeast(1)
                     (0L until days step step).forEach { offset ->
@@ -339,7 +329,7 @@ internal object FullReport {
                         line(x(date), top - 4, x(date), bottom, track)
                         text(x(date), top - 10, date.format(shortDate), 8.3f, muted)
                     }
-                    (project.referenceDate ?: today).takeIf { it in first..last }?.let { base ->
+                    asOf.takeIf { it in first..last }?.let { base ->
                         line(x(base), top - 3, x(base), bottom, gold, dashed = true)
                     }
                     text(LEFT + 7, top - 10, "ETAPA", 9.5f, ink, true)
@@ -352,8 +342,6 @@ internal object FullReport {
             callout("MARCOS E PREVISÕES", "Início da obra: ${project.start.dateOr()}. Última conclusão registrada: ${completed.dateOr()}. Última data prevista informada: ${forecast.dateOr()}.")
             paragraph("O calendário depende da execução, das entregas de materiais e da disponibilidade da equipe. Etapas sem datas continuam abertas no cronograma.")
         }
-
-        private fun range(period: Period): String = "${period.start.dateText()} a ${period.end.dateText()}"
 
         fun labor() {
             val laborShare = if (total.laborForecast > 0) total.laborPaid.toDouble() / total.laborForecast else 0.0

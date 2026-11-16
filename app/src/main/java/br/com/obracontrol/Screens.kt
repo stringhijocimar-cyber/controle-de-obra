@@ -5,15 +5,21 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import java.text.NumberFormat
+import java.time.LocalDate
 
 internal val Navy = Color(0xFF14263B)
 internal val Mint = Color(0xFF48C6A3)
@@ -257,9 +263,30 @@ internal fun LedgerLine(label: String, value: String) {
 }
 
 @Composable
-internal fun StageList(project: Project, total: Balance, add: () -> Unit, edit: (String) -> Unit) {
+internal fun StageList(project: Project, total: Balance, today: LocalDate, add: () -> Unit, edit: (String) -> Unit) {
+    var showGantt by rememberSaveable { mutableStateOf(false) }
+    val chartScroll = rememberScrollState()
+    Column(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 10.dp)) {
+            ListHeading("Etapas da obra", "Nova etapa", add)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = !showGantt, onClick = { showGantt = false }, label = { Text("Lista") })
+                FilterChip(selected = showGantt, onClick = { showGantt = true }, label = { Text("Gantt") })
+            }
+        }
+        Box(Modifier.weight(1f)) {
+            if (showGantt && project.stages.isNotEmpty()) {
+                StageGantt(project.stages, today, chartScroll, edit)
+            } else {
+                StageCards(project, total, edit)
+            }
+        }
+    }
+}
+
+@Composable
+private fun StageCards(project: Project, total: Balance, edit: (String) -> Unit) {
     ObraList {
-        item { ListHeading("Etapas da obra", "Nova etapa", add) }
         if (project.stages.isEmpty()) item { SheetCard { Detail("Cadastre a primeira etapa para montar o cronograma.") } }
         items(project.stages, key = { it.id }) { stage ->
             SheetCard {

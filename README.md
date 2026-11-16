@@ -7,7 +7,7 @@ Aplicativo Android para cadastrar etapas, acompanhar a execução da obra, contr
 - **Painel** reúne previsão parcial, pagamentos, saldo conhecido, acréscimos e avanço físico médio entre as etapas.
 - **Agenda**, no Painel, mostra as etapas, entregas e pagamentos em aberto por prazo. Os atalhos abrem o cadastro correspondente ou iniciam um pagamento já vinculado.
 - **Diário de obra**, no Painel, registra atividades, ocorrências e anexos por data, com vínculo opcional a uma etapa.
-- **Etapas** registra datas previstas e reais, avanço de 0 a 100%, orçamento e data prevista de pagamento.
+- **Etapas** registra datas previstas e reais, avanço de 0 a 100%, orçamento e data prevista de pagamento. Em **Etapas → Gantt**, deslize a linha do tempo, compare previsto e realizado e toque em uma etapa para editar.
 - **Compras** registra fornecedor, documento, desconto, vínculo com uma etapa, classificação de acréscimo e itens com quantidades, unidade, preço unitário e subtotal. A previsão de entrega e o recebimento são registrados no cadastro da compra.
 - **Pagamentos** aceita vários desembolsos por etapa ou compra, incluindo adiantamentos e pagamentos parciais. Cada registro inclui valor, data, pagador, meio, referência e comprovantes em PDF ou imagem.
 - **Pendências** registra ações e aponta valores em aberto, divergências de documentos, pagamentos a maior e etapas sem data ou valor.

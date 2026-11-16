@@ -177,6 +177,7 @@ class MainActivity : ComponentActivity() {
                     exportedPdf = null
                     history = arrayListOf()
                     listState.removeState("agenda")
+                    listState.removeState("etapas")
                     tab = Section.DASHBOARD.name
                     if (!merge) "Obra importada."
                     else if (result.added == 0) "Cadastro conferido. Nenhum lançamento duplicado."
@@ -241,7 +242,9 @@ class MainActivity : ComponentActivity() {
                 } else when (section) {
                     Section.DASHBOARD -> Dashboard(project, balance, agenda, { navigate("obra") }, { navigate("pendencias") }, openRestore,
                         { navigate("agenda") }, { navigate("diario") })
-                    Section.STAGES -> StageList(project, balance, { navigate("etapa/nova") }, { navigate("etapa/$it") })
+                    Section.STAGES -> listState.SaveableStateProvider("etapas") {
+                        StageList(project, balance, today, { navigate("etapa/nova") }, { navigate("etapa/$it") })
+                    }
                     Section.PURCHASES -> PurchaseList(project, balance, { navigate("compra/nova") }, { navigate("compra/$it") })
                     Section.PAYMENTS -> PaymentsScreen(project, balance, { navigate("pagamento/novo") }, { navigate("pagamento/$it") })
                     Section.REPORT -> ExportScreen(
