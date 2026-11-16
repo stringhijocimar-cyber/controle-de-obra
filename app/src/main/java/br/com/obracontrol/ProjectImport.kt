@@ -80,9 +80,22 @@ internal fun Project.mergeFrom(incoming: Project): ProjectImport {
             added++
         }
     }
+    val diary = diaryEntries.associateBy { it.id }.toMutableMap()
+    for (entry in incoming.diaryEntries) {
+        val current = diary[entry.id]
+        if (current == null) {
+            diary[entry.id] = entry.copy(stageId = entry.stageId?.let(stageIds::getValue))
+            added += 1 + entry.attachments.size
+        } else {
+            val attachments = (current.attachments + entry.attachments).distinctBy { it.id }
+            diary[entry.id] = current.copy(attachments = attachments)
+            added += attachments.size - current.attachments.size
+        }
+    }
     val merged = copy(start = start ?: incoming.start, referenceDate = referenceDate ?: incoming.referenceDate,
         laborBudget = laborBudget ?: incoming.laborBudget, notes = notes.ifBlank { incoming.notes },
-        stages = importedStages, purchases = importedPurchases, payments = importedPayments, issues = importedIssues)
+        stages = importedStages, purchases = importedPurchases, payments = importedPayments, issues = importedIssues,
+        diaryEntries = diary.values.toList())
     return ProjectImport(merged, added)
 }
 

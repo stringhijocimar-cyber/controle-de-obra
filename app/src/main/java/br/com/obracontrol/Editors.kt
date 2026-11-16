@@ -20,10 +20,11 @@ internal fun EditorScreen(
     total: Balance,
     save: (Project) -> Unit,
     navigate: (String) -> Unit,
+    back: () -> Unit,
+    openLine: (String, String) -> Unit,
 ) {
     val parts = route.split('/')
     val id = parts.getOrNull(1)
-    val back: () -> Unit = { navigate("") }
     key(route) {
         when (parts.first()) {
             "obra" -> ProjectEditor(project) { save(it); back() }
@@ -35,7 +36,8 @@ internal fun EditorScreen(
                         "Exclua ou transfira os pagamentos vinculados antes de remover esta etapa."
                     }
                     save(project.copy(stages = project.stages.filterNot { it.id == stage.id },
-                        purchases = project.purchases.map { if (it.stageId == stage.id) it.copy(stageId = null) else it }))
+                        purchases = project.purchases.map { if (it.stageId == stage.id) it.copy(stageId = null) else it },
+                        diaryEntries = project.diaryEntries.map { if (it.stageId == stage.id) it.copy(stageId = null) else it }))
                     back()
                 }) else null
                 StageEditor(stage, onDelete) { next ->
@@ -56,7 +58,7 @@ internal fun EditorScreen(
                 PurchaseEditor(order, project.stages, existing != null, onDelete,
                     { next, line ->
                         save(project.copy(purchases = project.purchases.upsert(next, Purchase::id)))
-                        if (line != null) navigate("linha/${next.id}/$line") else back()
+                        if (line != null) openLine(next.id, line) else back()
                     },
                 )
             }
@@ -67,10 +69,9 @@ internal fun EditorScreen(
                 } else {
                     val existing = order.lines.firstOrNull { it.id == parts.getOrNull(2) }
                     val line = existing ?: remember { PurchaseLine() }
-                    val returnToOrder = { navigate("compra/${order.id}") }
                     val update: (List<PurchaseLine>) -> Unit = { lines ->
                         save(project.copy(purchases = project.purchases.upsert(order.copy(lines = lines), Purchase::id)))
-                        returnToOrder()
+                        back()
                     }
                     LineEditor(line, if (existing != null) ({ update(order.lines.filterNot { it.id == line.id }) }) else null) {
                         update(order.lines.upsert(it, PurchaseLine::id))
@@ -79,8 +80,11 @@ internal fun EditorScreen(
             }
             "pagamento" -> {
                 val existing = project.payments.firstOrNull { it.id == id }
-                val defaultKind = if (project.stages.isEmpty()) CostKind.MATERIAL else CostKind.LABOR
-                val payment = existing ?: remember { Payment(kind = defaultKind, date = java.time.LocalDate.now()) }
+                val requestedKind = parts.getOrNull(2)?.let(CostKind::valueOf)
+                val defaultKind = requestedKind ?: if (project.stages.isEmpty()) CostKind.MATERIAL else CostKind.LABOR
+                val payment = existing ?: remember {
+                    Payment(kind = defaultKind, targetId = parts.getOrNull(3).orEmpty(), date = java.time.LocalDate.now())
+                }
                 PaymentEditor(project, payment, if (existing != null) ({
                     save(project.copy(payments = project.payments.filterNot { it.id == payment.id }))
                     back()
@@ -89,17 +93,28 @@ internal fun EditorScreen(
                     back()
                 }
             }
+            "diario" -> DiaryScreen(project, { navigate("registro/novo") }) { navigate("registro/$it") }
+            "registro" -> {
+                val existing = project.diaryEntries.firstOrNull { it.id == id }
+                val entry = existing ?: remember { DiaryEntry() }
+                DiaryEditor(entry, project.stages, if (existing != null) ({
+                    save(project.copy(diaryEntries = project.diaryEntries.filterNot { it.id == entry.id }))
+                    back()
+                }) else null) {
+                    save(project.copy(diaryEntries = project.diaryEntries.upsert(it, DiaryEntry::id)))
+                    back()
+                }
+            }
             "pendencias" -> IssuesScreen(project, total, { navigate("pendencia/nova") }) { navigate("pendencia/$it") }
             "pendencia" -> {
                 val existing = project.issues.firstOrNull { it.id == id }
                 val issue = existing ?: remember { Issue() }
-                val returnToIssues = { navigate("pendencias") }
                 IssueEditor(issue, if (existing != null) ({
                     save(project.copy(issues = project.issues.filterNot { it.id == issue.id }))
-                    returnToIssues()
+                    back()
                 }) else null) {
                     save(project.copy(issues = project.issues.upsert(it, Issue::id)))
-                    returnToIssues()
+                    back()
                 }
             }
         }
@@ -126,8 +141,8 @@ private fun ProjectEditor(project: Project, save: (Project) -> Unit) {
             laborBudget = parseMoney(budget), notes = notes.trim()))
     }) {
         Field("Nome da obra", name, { name = it })
-        Field("Início da obra (dd/mm/aaaa)", start, { start = it }, KeyboardType.Number, date = true)
-        Field("Data-base do relatório (dd/mm/aaaa)", reference, { reference = it }, KeyboardType.Number, date = true)
+        CalendarField("Início da obra", start, { start = it })
+        CalendarField("Data-base do relatório", reference, { reference = it })
         Field("Contrato de mão de obra (R$)", budget, { budget = it }, KeyboardType.Decimal)
         Detail("Quando o valor do contrato está em branco, a previsão usa os valores conhecidos das etapas.")
         Field("Observações da obra", notes, { notes = it }, multiline = true)
@@ -145,7 +160,7 @@ private fun StageEditor(stage: Stage, remove: (() -> Unit)?, save: (Stage) -> Un
     var dueDate by rememberSaveable { mutableStateOf(stage.dueDate.dateText()) }
     var completion by rememberSaveable { mutableStateOf(stage.progress.toString()) }
     var notes by rememberSaveable { mutableStateOf(stage.notes) }
-    Form(remove = remove, deletePrompt = "Excluir esta etapa? As compras ficarão sem o vínculo com ela.", save = {
+    Form(remove = remove, deletePrompt = "Excluir esta etapa? Compras e registros do diário ficarão sem o vínculo com ela.", save = {
         val progress = completion.toIntOrNull() ?: throw IllegalArgumentException("Informe o avanço em número inteiro.")
         save(stage.copy(name = name.trim(), budget = parseMoney(budget), plannedStart = parseDate(plannedStart),
             plannedEnd = parseDate(plannedEnd), actualStart = parseDate(actualStart), actualEnd = parseDate(actualEnd),
@@ -154,11 +169,11 @@ private fun StageEditor(stage: Stage, remove: (() -> Unit)?, save: (Stage) -> Un
         Field("Nome da etapa", name, { name = it })
         Field("Avanço físico (%)", completion, { completion = it }, KeyboardType.Number)
         Field("Valor da etapa (R$)", budget, { budget = it }, KeyboardType.Decimal)
-        Field("Início previsto (dd/mm/aaaa)", plannedStart, { plannedStart = it }, KeyboardType.Number, date = true)
-        Field("Fim previsto (dd/mm/aaaa)", plannedEnd, { plannedEnd = it }, KeyboardType.Number, date = true)
-        Field("Início real (dd/mm/aaaa)", actualStart, { actualStart = it }, KeyboardType.Number, date = true)
-        Field("Fim real (dd/mm/aaaa)", actualEnd, { actualEnd = it }, KeyboardType.Number, date = true)
-        Field("Pagamento previsto (dd/mm/aaaa)", dueDate, { dueDate = it }, KeyboardType.Number, date = true)
+        CalendarField("Início previsto", plannedStart, { plannedStart = it })
+        CalendarField("Fim previsto", plannedEnd, { plannedEnd = it })
+        CalendarField("Início real", actualStart, { actualStart = it })
+        CalendarField("Fim real", actualEnd, { actualEnd = it })
+        CalendarField("Pagamento previsto", dueDate, { dueDate = it })
         Field("Observações da etapa", notes, { notes = it }, multiline = true)
     }
 }
@@ -176,6 +191,8 @@ private fun PurchaseEditor(
     var document by rememberSaveable { mutableStateOf(order.document) }
     var documentDate by rememberSaveable { mutableStateOf(order.documentDate.dateText()) }
     var dueDate by rememberSaveable { mutableStateOf(order.dueDate.dateText()) }
+    var delivery by rememberSaveable { mutableStateOf(order.deliveryExpected.dateText()) }
+    var received by rememberSaveable { mutableStateOf(order.receivedDate.dateText()) }
     var stageId by rememberSaveable { mutableStateOf(order.stageId.orEmpty()) }
     var total by rememberSaveable { mutableStateOf(order.total.moneyInput()) }
     var discount by rememberSaveable { mutableStateOf(order.discount.takeUnless { it == 0L }.moneyInput()) }
@@ -185,20 +202,23 @@ private fun PurchaseEditor(
     var processing by remember { mutableStateOf(false) }
     fun readFields() = order.copy(name = name.trim(), supplier = supplier.trim(), document = document.trim(),
         documentDate = parseDate(documentDate), dueDate = parseDate(dueDate),
+        deliveryExpected = parseDate(delivery), receivedDate = parseDate(received),
         stageId = stageId.takeIf(String::isNotBlank), total = parseMoney(total),
         discount = parseMoney(discount) ?: 0, extra = extra, notes = notes.trim(), documents = documents)
 
     Form(remove = remove, deletePrompt = "Excluir esta compra e os seus itens?", available = !processing, save = { save(readFields(), null) }) {
         Field("Nome da compra ou material", name, { name = it })
-        DocumentEditor(RecognitionScope.PURCHASE, documents, { documents = it }, { processing = it }) { amount, field ->
+        DocumentEditor(DocumentUse.PURCHASE, documents, { documents = it }, { processing = it }) { amount, field ->
             if (field == MoneyField.DISCOUNT) discount = amount.cents.moneyInput()
             else total = amount.cents.moneyInput()
         }
         HorizontalDivider()
         Field("Fornecedor", supplier, { supplier = it })
         Field("Número ou referência do documento", document, { document = it })
-        Field("Data do documento (dd/mm/aaaa)", documentDate, { documentDate = it }, KeyboardType.Number, date = true)
-        Field("Pagamento previsto (dd/mm/aaaa)", dueDate, { dueDate = it }, KeyboardType.Number, date = true)
+        CalendarField("Data do documento", documentDate, { documentDate = it })
+        CalendarField("Pagamento previsto", dueDate, { dueDate = it })
+        CalendarField("Entrega prevista", delivery, { delivery = it })
+        CalendarField("Recebido em", received, { received = it })
         if (stages.isNotEmpty()) {
             Select("Etapa vinculada", stageId, listOf("" to "Sem vínculo") + stages.map { it.id to it.name }) { stageId = it }
         }
@@ -269,14 +289,39 @@ private fun PaymentEditor(project: Project, payment: Payment, remove: (() -> Uni
         if (targets.isEmpty()) Detail("Cadastre uma etapa ou compra desse tipo antes de lançar um pagamento.")
         else Select(if (kind == CostKind.LABOR.name) "Etapa" else "Compra", target, targets) { target = it }
         Field("Valor pago (R$)", amount, { amount = it }, KeyboardType.Decimal)
-        Field("Data do pagamento (dd/mm/aaaa)", date, { date = it }, KeyboardType.Number, date = true)
+        CalendarField("Data do pagamento", date, { date = it })
         Field("Quem pagou", payer, { payer = it })
         Field("Meio de pagamento", method, { method = it })
         Field("Referência do comprovante", receipt, { receipt = it })
-        DocumentEditor(RecognitionScope.PAYMENT, proofs, { proofs = it }, { processing = it }) { recognized, _ ->
+        DocumentEditor(DocumentUse.PAYMENT, proofs, { proofs = it }, { processing = it }) { recognized, _ ->
             amount = recognized.cents.moneyInput()
         }
         Field("Observações do pagamento", notes, { notes = it }, multiline = true)
+    }
+}
+
+@Composable
+private fun DiaryEditor(entry: DiaryEntry, stages: List<Stage>, remove: (() -> Unit)?, save: (DiaryEntry) -> Unit) {
+    var date by rememberSaveable { mutableStateOf(entry.date.dateText()) }
+    var title by rememberSaveable { mutableStateOf(entry.title) }
+    var stageId by rememberSaveable { mutableStateOf(entry.stageId.orEmpty()) }
+    var activities by rememberSaveable { mutableStateOf(entry.activities) }
+    var occurrences by rememberSaveable { mutableStateOf(entry.occurrences) }
+    var attachments by rememberAttachments(entry.attachments)
+    var processing by remember { mutableStateOf(false) }
+    Form(remove = remove, deletePrompt = "Excluir este registro do diário?", available = !processing, save = {
+        val day = requireNotNull(parseDate(date)) { "Informe a data do registro." }
+        save(entry.copy(date = day, title = title.trim(), stageId = stageId.takeIf(String::isNotBlank),
+            activities = activities.trim(), occurrences = occurrences.trim(), attachments = attachments))
+    }) {
+        CalendarField("Data do registro", date, { date = it }, optional = false)
+        Field("Título", title, { title = it })
+        if (stages.isNotEmpty()) {
+            Select("Etapa vinculada", stageId, listOf("" to "Sem vínculo") + stages.map { it.id to it.name }) { stageId = it }
+        }
+        Field("Atividades realizadas", activities, { activities = it }, multiline = true)
+        Field("Ocorrências e impedimentos", occurrences, { occurrences = it }, multiline = true)
+        DocumentEditor(DocumentUse.DIARY, attachments, { attachments = it }, { processing = it })
     }
 }
 
@@ -365,17 +410,10 @@ private fun Field(
     change: (String) -> Unit,
     keyboard: KeyboardType = KeyboardType.Text,
     multiline: Boolean = false,
-    date: Boolean = false,
 ) {
     OutlinedTextField(
         value = value,
-        onValueChange = { input ->
-            if (date) {
-                val digits = input.filter(Char::isDigit).take(8)
-                val formatted = listOf(digits.take(2), digits.drop(2).take(2), digits.drop(4)).filter(String::isNotEmpty).joinToString("/")
-                change(formatted)
-            } else change(input)
-        },
+        onValueChange = change,
         label = { Text(label) }, keyboardOptions = KeyboardOptions(keyboardType = keyboard),
         modifier = Modifier.fillMaxWidth(), singleLine = !multiline, minLines = if (multiline) 2 else 1,
     )

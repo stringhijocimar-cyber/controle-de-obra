@@ -84,14 +84,17 @@ internal data class Project(
     val payments: List<Payment> = emptyList(),
     val issues: List<Issue> = emptyList(),
     val notes: String = "",
+    val diaryEntries: List<DiaryEntry> = emptyList(),
 ) {
     fun targets(kind: CostKind): List<Pair<String, String>> = when (kind) {
         CostKind.LABOR -> stages.map { it.id to it.name }
         CostKind.MATERIAL -> purchases.map { it.id to it.name }
     }
 
+    fun stageName(id: String?): String? = stages.firstOrNull { it.id == id }?.name
+
     fun targetName(payment: Payment): String = when (payment.kind) {
-        CostKind.LABOR -> stages.firstOrNull { it.id == payment.targetId }?.name
+        CostKind.LABOR -> stageName(payment.targetId)
         CostKind.MATERIAL -> purchases.firstOrNull { it.id == payment.targetId }?.name
     }.textOr(UNDEFINED)
 }
@@ -142,6 +145,8 @@ internal data class Purchase(
     val lines: List<PurchaseLine> = emptyList(),
     val notes: String = "",
     val documents: List<DocumentAttachment> = emptyList(),
+    val deliveryExpected: LocalDate? = null,
+    val receivedDate: LocalDate? = null,
 ) {
     val lineSum: Long? get() = lines.takeIf { it.isNotEmpty() && it.all { line -> line.subtotal != null } }
         ?.sumOf { it.subtotal!! }
@@ -201,6 +206,7 @@ internal data class Issue(
 )
 
 internal data class Disbursement(
+    val targetId: String,
     val name: String,
     val kind: CostKind,
     val date: LocalDate?,
@@ -237,10 +243,10 @@ internal class Balance(private val project: Project) {
     val laborDisbursements = project.stages.mapNotNull { stage ->
         val outstanding = stage.budget?.minus(paid(CostKind.LABOR, stage.id))
         if (outstanding != null && outstanding <= 0) null
-        else Disbursement(stage.name, CostKind.LABOR, stage.dueDate, outstanding)
+        else Disbursement(stage.id, stage.name, CostKind.LABOR, stage.dueDate, outstanding)
     }
     val disbursements = (projectedPurchases.map {
-        Disbursement(it.name, CostKind.MATERIAL, it.dueDate, materialOutstanding(it))
+        Disbursement(it.id, it.name, CostKind.MATERIAL, it.dueDate, materialOutstanding(it))
     } + laborDisbursements).sortedWith(compareBy(nullsLast()) { it.date })
 
     fun materialOutstanding(purchase: Purchase): Long? = purchase.forecast?.let {

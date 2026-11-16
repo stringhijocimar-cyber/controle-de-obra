@@ -57,21 +57,27 @@ private val attachmentsSaver = Saver<List<DocumentAttachment>, ArrayList<Bundle>
 internal fun rememberAttachments(initial: List<DocumentAttachment>) =
     rememberSaveable(stateSaver = attachmentsSaver) { mutableStateOf(initial) }
 
+internal enum class DocumentUse(val title: String, val help: String, val scan: RecognitionScope?) {
+    PURCHASE("Ler nota ou orçamento", "Confira os valores sugeridos antes de salvar a compra.", RecognitionScope.PURCHASE),
+    PAYMENT("Comprovantes", "Fotografe ou selecione um PDF ou imagem do pagamento.", RecognitionScope.PAYMENT),
+    DIARY("Fotos e documentos", "Fotografe a execução ou anexe uma imagem ou PDF.", null),
+}
+
 internal val documentPickerTypes = arrayOf("image/*", "application/pdf", "application/octet-stream")
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun DocumentEditor(
-    mode: RecognitionScope,
+    mode: DocumentUse,
     attachments: List<DocumentAttachment>,
     change: (List<DocumentAttachment>) -> Unit,
     busyChange: (Boolean) -> Unit,
-    applyAmount: (MoneyCandidate, MoneyField) -> Unit,
+    applyAmount: (MoneyCandidate, MoneyField) -> Unit = { _, _ -> },
 ) {
     val context = LocalContext.current
     val files = remember(context) { DocumentFiles(context.applicationContext) }
     val recognizer = remember(files) { DocumentRecognizer(files) }
-    val isPurchase = mode == RecognitionScope.PURCHASE
+    val isPurchase = mode == DocumentUse.PURCHASE
     val scope = rememberCoroutineScope()
     var photoName by rememberSaveable { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
@@ -109,7 +115,8 @@ internal fun DocumentEditor(
             amounts = emptyList()
             limit = 12
         }
-        val result = recognizer.scan(file, mode, start)
+        val recognition = mode.scan ?: return
+        val result = recognizer.scan(file, recognition, start)
         scanned = file
         amounts = sortedAmounts(amounts + result.amounts)
         nextPage = result.nextPage
@@ -119,8 +126,11 @@ internal fun DocumentEditor(
 
     suspend fun add(file: DocumentAttachment) {
         if (attachments.none { it.id == file.id }) change(attachments + file)
-        status = if (isPurchase) "Documento anexado. Salve a compra para manter o vínculo."
-            else "Comprovante anexado. Salve o pagamento para manter o vínculo."
+        status = when (mode) {
+            DocumentUse.PURCHASE -> "Documento anexado. Salve a compra para manter o vínculo."
+            DocumentUse.PAYMENT -> "Comprovante anexado. Salve o pagamento para manter o vínculo."
+            DocumentUse.DIARY -> "Arquivo anexado. Salve o registro para manter o vínculo."
+        }
         if (isPurchase) scan(file)
     }
 
@@ -137,9 +147,9 @@ internal fun DocumentEditor(
     }
 
     HorizontalDivider()
-    Heading(if (isPurchase) "Ler nota ou orçamento" else "Comprovantes")
+    Heading(mode.title)
     if (attachments.isEmpty()) {
-        Detail(if (isPurchase) "Confira os valores sugeridos antes de salvar a compra." else "Fotografe ou selecione um PDF ou imagem do pagamento.")
+        Detail(mode.help)
     }
     FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
         OutlinedButton(enabled = !busy, onClick = {
@@ -164,7 +174,7 @@ internal fun DocumentEditor(
     attachments.forEach { file ->
         Detail(file.name)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            TextButton(enabled = !busy, onClick = { work { scan(file) } }) {
+            if (mode.scan != null) TextButton(enabled = !busy, onClick = { work { scan(file) } }) {
                 Text(if (isPurchase) "Ler valores" else "Ler valor pago")
             }
             if (file.type != DocumentType.XML) TextButton(enabled = !busy, onClick = {

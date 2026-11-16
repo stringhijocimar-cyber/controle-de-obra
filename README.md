@@ -5,13 +5,17 @@ Aplicativo Android para cadastrar etapas, acompanhar a execução da obra, contr
 ## Controle da obra
 
 - **Painel** reúne previsão parcial, pagamentos, saldo conhecido, acréscimos e avanço físico médio entre as etapas.
+- **Agenda**, no Painel, mostra as etapas, entregas e pagamentos em aberto por prazo. Os atalhos abrem o cadastro correspondente ou iniciam um pagamento já vinculado.
+- **Diário de obra**, no Painel, registra atividades, ocorrências e anexos por data, com vínculo opcional a uma etapa.
 - **Etapas** registra datas previstas e reais, avanço de 0 a 100%, orçamento e data prevista de pagamento.
-- **Compras** registra fornecedor, documento, desconto, vínculo com uma etapa, classificação de acréscimo e itens com quantidades, unidade, preço unitário e subtotal.
+- **Compras** registra fornecedor, documento, desconto, vínculo com uma etapa, classificação de acréscimo e itens com quantidades, unidade, preço unitário e subtotal. A previsão de entrega e o recebimento são registrados no cadastro da compra.
 - **Pagamentos** aceita vários desembolsos por etapa ou compra, incluindo adiantamentos e pagamentos parciais. Cada registro inclui valor, data, pagador, meio, referência e comprovantes em PDF ou imagem.
 - **Pendências** registra ações e aponta valores em aberto, divergências de documentos, pagamentos a maior e etapas sem data ou valor.
-- **Relatório** gera o PDF integral e exporta o cadastro e os anexos em um ZIP e importa backups ZIP e os JSON das versões anteriores.
+- **Relatório** gera o PDF completo com a agenda e o diário. Também exporta o cadastro e os anexos em ZIP e importa backups ZIP e JSON das versões anteriores.
 
 O valor do documento tem prioridade sobre a soma dos itens. A diferença após descontos aparece na conciliação. O contrato global de mão de obra, quando preenchido, é a referência do balanço. Valores ainda a cotar permanecem em aberto. Pagamentos são somados pelos lançamentos, independentemente da etapa estar concluída.
+
+Ao tocar em um campo de data, selecione um dia no calendário e toque em **Aplicar**. **Hoje** preenche a data atual e **Limpar data** remove uma data opcional.
 
 ## Leitura e anexos
 
@@ -21,7 +25,7 @@ Em **Pagamentos**, abra um lançamento e adicione os comprovantes com a câmera 
 
 ## Instalação e primeiro uso
 
-O APK requer Android 8.0 ou mais recente. Após abrir o app, cadastre a obra em **Dados da obra**. Para carregar um cadastro existente, abra **Relatório → Importar dados da obra** e selecione o arquivo. Quando o cadastro já tem a mesma obra, **Mesclar lançamentos** acrescenta registros e anexos ausentes e preserva as edições locais. **Substituir obra** exige confirmação. Use o backup ZIP para transferir também os documentos. Para exportar o relatório, use **Relatório → Gerar PDF completo**.
+O APK requer Android 8.0 ou mais recente. A edição 1.4.0 aparece como **ObraControl Gestão** e pode ser instalada ao lado da anterior. Para levar lançamentos e comprovantes do app anterior, abra **Relatório → Exportar backup com anexos** nele. No **ObraControl Gestão**, abra **Relatório → Importar dados da obra**, selecione o ZIP e confirme. Para começar do zero, cadastre a obra em **Dados da obra**. Quando o cadastro já tem a mesma obra, **Mesclar lançamentos** acrescenta registros e anexos ausentes e preserva as edições locais. **Substituir obra** exige confirmação. Use o backup ZIP para transferir também os documentos. Para exportar o relatório, use **Relatório → Gerar PDF completo**.
 
 ## Compilar
 

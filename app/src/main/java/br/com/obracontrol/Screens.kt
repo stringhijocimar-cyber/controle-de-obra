@@ -146,7 +146,16 @@ internal fun RecoveryScreen(restore: () -> Unit) {
 }
 
 @Composable
-internal fun Dashboard(project: Project, total: Balance, edit: () -> Unit, issues: () -> Unit, restore: () -> Unit) {
+internal fun Dashboard(
+    project: Project,
+    total: Balance,
+    agenda: WorkAgenda,
+    edit: () -> Unit,
+    issues: () -> Unit,
+    restore: () -> Unit,
+    openAgenda: () -> Unit,
+    openDiary: () -> Unit,
+) {
     val isEmpty = project.stages.isEmpty() && project.purchases.isEmpty() && project.payments.isEmpty()
     ObraList {
         item {
@@ -177,6 +186,7 @@ internal fun Dashboard(project: Project, total: Balance, edit: () -> Unit, issue
                 Metric("Acréscimos", total.extras.brl(), Amber, Modifier.weight(1f))
             }
         }
+        item { ManagementOverview(agenda, openAgenda, openDiary) }
         item {
             SheetCard {
                 Heading("Execução da obra")
@@ -276,6 +286,8 @@ internal fun PurchaseList(project: Project, total: Balance, add: () -> Unit, ope
                 Heading(purchase.name, listOf(purchase.supplier, purchase.document).filter(String::isNotBlank).joinToString(" · ").takeIf(String::isNotBlank))
                 Tag(total.purchaseStatus(purchase), purchase.forecast == null)
                 LedgerLine("Previsão · pago", "${purchase.forecast.costText()} · ${total.paid(CostKind.MATERIAL, purchase.id).brl()}")
+                purchase.deliveryExpected?.let { Detail("Entrega prevista em ${it.dateText()}") }
+                purchase.receivedDate?.let { Detail("Recebido em ${it.dateText()}", Green) }
                 if (purchase.extra) Tag("Acréscimo declarado", true)
                 if (purchase.documents.isNotEmpty()) Detail("${purchase.documents.size} documento(s) anexado(s)")
                 TextButton(onClick = { open(purchase.id) }) { Text("Abrir compra") }
@@ -315,7 +327,7 @@ internal fun ExportScreen(busy: Boolean, pdf: () -> Unit, openPdf: (() -> Unit)?
     ObraList {
         item {
             SheetCard {
-                Heading("Relatório executivo em PDF", "Painel, gráficos, Gantt, cronograma físico-financeiro, balanço, projeções, compras detalhadas, pagamentos e pendências.")
+                Heading("Relatório executivo em PDF", "Painel, gráficos, Gantt, cronograma físico-financeiro, balanço, projeções, compras detalhadas, pagamentos, pendências, agenda e diário.")
                 Button(enabled = !busy, onClick = pdf) { Text("Gerar PDF completo") }
                 if (openPdf != null) TextButton(enabled = !busy, onClick = openPdf) { Text("Abrir último PDF gerado") }
             }

@@ -11,7 +11,7 @@ import java.io.InputStream
 import java.math.BigDecimal
 import java.math.RoundingMode
 
-private const val FORMAT_VERSION = 3
+private const val FORMAT_VERSION = 4
 internal const val MAX_BACKUP_BYTES = 5 * 1024 * 1024
 
 internal class ProjectStore(context: Context) {
@@ -80,6 +80,8 @@ internal object ProjectCodec {
             "supplier" to purchase.supplier,
             "document" to purchase.document,
             "documentDate" to purchase.documentDate.dateText(),
+            "deliveryExpected" to purchase.deliveryExpected.dateText(),
+            "receivedDate" to purchase.receivedDate.dateText(),
             "dueDate" to purchase.dueDate.dateText(),
             "stageId" to purchase.stageId,
             "totalCents" to purchase.total,
@@ -108,6 +110,15 @@ internal object ProjectCodec {
             "notes" to payment.notes,
             "proofs" to encodeAttachments(payment.proofs),
         ) }),
+        "diaryEntries" to array(project.diaryEntries.map { entry -> obj(
+            "id" to entry.id,
+            "date" to entry.date.dateText(),
+            "title" to entry.title,
+            "stageId" to entry.stageId,
+            "activities" to entry.activities,
+            "occurrences" to entry.occurrences,
+            "attachments" to encodeAttachments(entry.attachments),
+        ) }),
         "issues" to array(project.issues.map { issue -> obj(
             "id" to issue.id, "title" to issue.title, "action" to issue.action, "closed" to issue.closed,
         ) }),
@@ -118,7 +129,7 @@ internal object ProjectCodec {
         val version = if (root.has("version")) root.getInt("version") else 1
         val project = when (version) {
             1 -> migrateLegacy(root)
-            2, FORMAT_VERSION -> decodeCurrent(root)
+            2, 3, FORMAT_VERSION -> decodeCurrent(root)
             else -> throw IllegalArgumentException("Versão de backup incompatível.")
         }
         project.validate()
@@ -149,6 +160,8 @@ internal object ProjectCodec {
             supplier = purchase.string("supplier"),
             document = purchase.string("document"),
             documentDate = purchase.date("documentDate"),
+            deliveryExpected = purchase.date("deliveryExpected"),
+            receivedDate = purchase.date("receivedDate"),
             dueDate = purchase.date("dueDate"),
             stageId = purchase.string("stageId").takeIf(String::isNotBlank),
             total = purchase.cents("totalCents"),
@@ -176,6 +189,15 @@ internal object ProjectCodec {
             receipt = payment.string("receipt"),
             notes = payment.string("notes"),
             proofs = payment.attachments("proofs"),
+        ) },
+        diaryEntries = root.optionalObjects("diaryEntries").map { entry -> DiaryEntry(
+            id = entry.getString("id"),
+            date = requireNotNull(entry.date("date")) { "O diário contém um registro sem data." },
+            title = entry.string("title"),
+            stageId = entry.string("stageId").takeIf(String::isNotBlank),
+            activities = entry.string("activities"),
+            occurrences = entry.string("occurrences"),
+            attachments = entry.attachments("attachments"),
         ) },
         issues = root.objects("issues").map { issue -> Issue(
             id = issue.getString("id"),
@@ -271,6 +293,7 @@ internal fun Project.validate() {
     requireDistinctIds(purchases.map { it.id })
     requireDistinctIds(payments.map { it.id })
     requireDistinctIds(issues.map { it.id })
+    requireDistinctIds(diaryEntries.map { it.id })
     stages.forEach(Stage::validate)
     purchases.forEach { order ->
         require(order.name.isNotBlank()) { "Informe o nome da compra." }
@@ -283,6 +306,12 @@ internal fun Project.validate() {
         it.validate(this)
         requireDistinctIds(it.proofs.map { proof -> proof.id })
         require(it.proofs.none { proof -> proof.type == DocumentType.XML }) { "Comprovantes precisam ser imagens ou PDFs." }
+    }
+    diaryEntries.forEach { entry ->
+        require(entry.title.isNotBlank()) { "Informe um título para o registro do diário." }
+        require(entry.stageId == null || stageName(entry.stageId) != null) { "A etapa do diário não existe." }
+        requireDistinctIds(entry.attachments.map { it.id })
+        require(entry.attachments.none { it.type == DocumentType.XML }) { "Anexe imagens ou PDFs ao diário." }
     }
     documentAttachments().forEach(DocumentAttachment::validate)
     require(issues.all { it.title.isNotBlank() }) { "Informe um título para a pendência." }

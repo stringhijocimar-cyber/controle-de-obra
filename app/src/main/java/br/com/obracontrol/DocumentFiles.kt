@@ -60,7 +60,7 @@ internal data class DocumentAttachment(val id: String, val name: String, val typ
 }
 
 internal fun Project.documentAttachments(): List<DocumentAttachment> =
-    purchases.flatMap { it.documents } + payments.flatMap { it.proofs }
+    purchases.flatMap { it.documents } + payments.flatMap { it.proofs } + diaryEntries.flatMap { it.attachments }
 
 internal data class CameraFile(val file: File, val uri: Uri)
 

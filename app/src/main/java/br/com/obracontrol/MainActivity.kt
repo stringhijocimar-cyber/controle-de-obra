@@ -29,18 +29,22 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CancellationException
 import java.io.IOException
+import java.time.LocalDate
 
 class MainActivity : ComponentActivity() {
     private lateinit var store: ProjectStore
@@ -73,14 +77,23 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun Screen() {
         var tab by rememberSaveable { mutableStateOf(Section.DASHBOARD.name) }
-        var route by rememberSaveable { mutableStateOf("") }
+        var history by rememberSaveable { mutableStateOf(arrayListOf<String>()) }
+        val route = history.lastOrNull().orEmpty()
         var pendingRestore by remember { mutableStateOf<Project?>(null) }
         var confirmReplace by remember { mutableStateOf(false) }
         var activeFileOperation by remember { mutableStateOf(false) }
         var exportedPdf by rememberSaveable { mutableStateOf<String?>(null) }
         val snackbar = remember { SnackbarHostState() }
+        val listState = rememberSaveableStateHolder()
         val scope = rememberCoroutineScope()
         val balance = remember(project) { Balance(project) }
+        val today by produceState(initialValue = LocalDate.now()) {
+            while (true) {
+                value = LocalDate.now()
+                delay(60_000)
+            }
+        }
+        val agenda = remember(project, balance, today) { WorkAgenda(project, balance, today) }
         val section = Section.valueOf(tab)
 
         fun runFileOperation(operation: suspend () -> String?) {
@@ -141,12 +154,16 @@ class MainActivity : ComponentActivity() {
         }
         val openRestore = { readProject.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/json", "text/plain", "application/octet-stream")) }
 
-        fun goBack() { route = backRoute(route) }
+        fun navigate(destination: String) { history = ArrayList(history + destination) }
+        fun goBack() { if (history.isNotEmpty()) history = ArrayList(history.dropLast(1)) }
+        fun openLine(order: String, line: String) {
+            history = ArrayList(history.dropLast(1) + listOf("compra/$order", "linha/$order/$line"))
+        }
         BackHandler(route.isNotEmpty() && !activeFileOperation) { goBack() }
         pendingRestore?.let { backup ->
             val existing = !loadFailed && project.hasWork()
             val same = existing && project.isSameWork(backup)
-            val details = "${backup.stages.size} etapas, ${backup.purchases.size} compras, ${backup.payments.size} pagamentos e ${backup.documentAttachments().size} anexos."
+            val details = "${backup.stages.size} etapas, ${backup.purchases.size} compras, ${backup.payments.size} pagamentos, ${backup.diaryEntries.size} registros no diário e ${backup.documentAttachments().size} anexos."
             fun finishImport(merge: Boolean) {
                 runFileOperation {
                     val result = if (merge) project.mergeFrom(backup) else ProjectImport(backup, 0)
@@ -158,7 +175,8 @@ class MainActivity : ComponentActivity() {
                     confirmReplace = false
                     loadFailed = false
                     exportedPdf = null
-                    route = ""
+                    history = arrayListOf()
+                    listState.removeState("agenda")
                     tab = Section.DASHBOARD.name
                     if (!merge) "Obra importada."
                     else if (result.added == 0) "Cadastro conferido. Nenhum lançamento duplicado."
@@ -204,7 +222,7 @@ class MainActivity : ComponentActivity() {
                         title = if (editor) editorTitle(route) else "ObraControl",
                         subtitle = if (editor) project.name else section.title,
                         onBack = if (editor) ::goBack else null,
-                        onSettings = if (!editor && !loadFailed) ({ route = "obra" }) else null,
+                        onSettings = if (!editor && !loadFailed) ({ navigate("obra") }) else null,
                     )
                 }
             },
@@ -216,13 +234,16 @@ class MainActivity : ComponentActivity() {
             Column(Modifier.fillMaxSize().padding(inset).imePadding()) {
                 if (loadFailed) {
                     RecoveryScreen(openRestore)
+                } else if (route == "agenda") {
+                    listState.SaveableStateProvider("agenda") { AgendaScreen(agenda, ::navigate) }
                 } else if (editor) {
-                    EditorScreen(route, project, balance, ::save, { route = it })
+                    EditorScreen(route, project, balance, ::save, ::navigate, ::goBack, ::openLine)
                 } else when (section) {
-                    Section.DASHBOARD -> Dashboard(project, balance, { route = "obra" }, { route = "pendencias" }, openRestore)
-                    Section.STAGES -> StageList(project, balance, { route = "etapa/nova" }, { route = "etapa/$it" })
-                    Section.PURCHASES -> PurchaseList(project, balance, { route = "compra/nova" }, { route = "compra/$it" })
-                    Section.PAYMENTS -> PaymentsScreen(project, balance, { route = "pagamento/novo" }, { route = "pagamento/$it" })
+                    Section.DASHBOARD -> Dashboard(project, balance, agenda, { navigate("obra") }, { navigate("pendencias") }, openRestore,
+                        { navigate("agenda") }, { navigate("diario") })
+                    Section.STAGES -> StageList(project, balance, { navigate("etapa/nova") }, { navigate("etapa/$it") })
+                    Section.PURCHASES -> PurchaseList(project, balance, { navigate("compra/nova") }, { navigate("compra/$it") })
+                    Section.PAYMENTS -> PaymentsScreen(project, balance, { navigate("pagamento/novo") }, { navigate("pagamento/$it") })
                     Section.REPORT -> ExportScreen(
                         activeFileOperation,
                         { makePdf.launch("ObraControl_Relatorio.pdf") },
@@ -248,17 +269,11 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private fun backRoute(route: String): String {
-    val parts = route.split('/')
-    return when (parts.first()) {
-        "linha" -> "compra/${parts[1]}"
-        "pendencia" -> "pendencias"
-        else -> ""
-    }
-}
-
 private fun editorTitle(route: String): String = when (route.substringBefore('/')) {
     "obra" -> "Dados da obra"
+    "agenda" -> "Agenda"
+    "diario" -> "Diário"
+    "registro" -> "Registro de obra"
     "etapa" -> "Etapa da obra"
     "compra" -> "Ficha da compra"
     "linha" -> "Item da compra"

@@ -43,6 +43,8 @@ internal object FullReport {
                 report.materials()
                 report.payments()
                 report.issues()
+                report.agenda()
+                report.diary()
             } finally {
                 report.finish()
             }
@@ -435,11 +437,14 @@ internal object FullReport {
             if (project.purchases.isEmpty()) paragraph("Nenhuma compra cadastrada.")
             project.purchases.forEach { order ->
                 ensure(100f)
-                val stageName = project.stages.firstOrNull { it.id == order.stageId }?.name
+                val stageName = project.stageName(order.stageId)
                 heading(order.name)
                 paragraph(listOf(order.supplier.takeIf(String::isNotBlank), order.document.takeIf(String::isNotBlank),
                     order.documentDate.dateText().takeIf(String::isNotBlank), stageName, total.purchaseStatus(order),
                     if (order.extra) "Acréscimo declarado" else null).filterNotNull().joinToString("  •  "))
+                if (order.deliveryExpected != null || order.receivedDate != null) {
+                    paragraph("Entrega prevista: ${order.deliveryExpected.dateOr()}  •  Recebido em: ${order.receivedDate.dateOr()}")
+                }
                 table(listOf("DESCRIÇÃO", "QUANTIDADE", "UNIDADE", "PREÇO UNITÁRIO", "SUBTOTAL"),
                     listOf(374f, 87f, 78f, 113f, 122f), order.lines.map { item ->
                         listOf(item.name, item.quantity.quantityInput().textOr(UNDEFINED), item.unit.textOr(),
@@ -497,5 +502,32 @@ internal object FullReport {
             heading("REGRAS DE ATUALIZAÇÃO")
             paragraph("Registre os dados do documento de cada compra. Vincule cada pagamento à compra ou etapa e informe o comprovante. Marque como acréscimo somente o que for confirmado. Mantenha as datas previstas e reais atualizadas conforme a execução.")
         }
+
+        fun agenda() {
+            val agenda = WorkAgenda(project, total, today)
+            section("AGENDA DA OBRA", "Compromissos em aberto  •  Período de ${today.dateText()} a ${agenda.cutoff.dateText()}")
+            val dueSoon = agenda.paymentsIn(AgendaWindow.NEXT_SEVEN_DAYS)
+            tiles(
+                Tile("PRAZOS ATRASADOS", agenda.inWindow(AgendaWindow.OVERDUE).size.toString(), "Etapas, entregas e pagamentos", gold),
+                Tile("COMPROMISSOS ATÉ 7 DIAS", agenda.inWindow(AgendaWindow.NEXT_SEVEN_DAYS).size.toString(), "Inclui os vencimentos de hoje"),
+                Tile("VALORES A PAGAR ATÉ 7 DIAS", dueSoon.sumOf { it.amount ?: 0 }.brl(), "${dueSoon.count { it.amount == null }} pagamento(s) com valor a definir", blue),
+            )
+            table(listOf("REFERÊNCIA", "COMPROMISSO", "PRAZO", "SITUAÇÃO", "SALDO A PAGAR"),
+                listOf(295f, 142f, 101f, 121f, 115f), agenda.entries.map {
+                    listOf(it.name, it.kind.label, it.date.dateOr("Sem data"), agenda.window(it.date).label,
+                        if (it.isPayment) it.amount.costText() else "—")
+                }, "Nenhum compromisso em aberto.")
+        }
+
+        fun diary() {
+            section("DIÁRIO DE OBRA", "Atividades, ocorrências e arquivos vinculados ao registro")
+            table(listOf("DATA", "REGISTRO / ETAPA", "ATIVIDADES REALIZADAS", "OCORRÊNCIAS E IMPEDIMENTOS", "ARQUIVOS"),
+                listOf(83f, 151f, 201f, 205f, 134f), project.diaryNewestFirst().map {
+                    listOf(it.date.dateText(), listOfNotNull(it.title, project.stageName(it.stageId)).joinToString("\n"),
+                        it.activities.ifBlank { "—" }, it.occurrences.ifBlank { "—" },
+                        it.attachments.joinToString("\n") { attachment -> attachment.name }.ifBlank { "—" })
+                }, "Nenhum registro no diário.")
+        }
+
     }
 }
