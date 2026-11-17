@@ -1,6 +1,7 @@
 package br.com.obracontrol
 
 import android.graphics.pdf.PdfRenderer
+import android.os.Build
 import android.os.ParcelFileDescriptor
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
@@ -51,7 +52,10 @@ class ManagementFlowTest {
         )
         val photo = files.save(ByteArrayInputStream(bytes), "vistoria-teste.png")
         val today = LocalDate.of(2026, 11, 16)
-        val project = Project(name = "Obra teste", purchases = listOf(Purchase(name = "Telhas", deliveryExpected = today)),
+        val stage = Stage(name = "Instalação do forro", budget = 120_000, plannedStart = today, plannedEnd = today.plusDays(2))
+        val payment = Payment(targetId = stage.id, amount = 20_000, date = today)
+        val project = Project(name = "Obra teste", stages = listOf(stage), payments = listOf(payment),
+            purchases = listOf(Purchase(name = "Telhas", deliveryExpected = today)),
             diaryEntries = listOf(DiaryEntry(date = today, title = "Vistoria", attachments = listOf(photo))))
         val output = ByteArrayOutputStream()
         backups.write(output, project)
@@ -64,7 +68,18 @@ class ManagementFlowTest {
         try {
             report.outputStream().use { FullReport.write(it, restored, today) }
             val fd = ParcelFileDescriptor.open(report, ParcelFileDescriptor.MODE_READ_ONLY)
-            PdfRenderer(fd).use { assertTrue(it.pageCount >= 10) }
+            PdfRenderer(fd).use { pdf ->
+                assertTrue(pdf.pageCount >= 10)
+                if (Build.VERSION.SDK_INT >= 35) {
+                    val pages = (0 until pdf.pageCount).map { index ->
+                        pdf.openPage(index).use { page -> page.textContents.joinToString(" ") { it.text } }
+                    }
+                    val gantt = pages.single { it.contains("VISÃO GANTT") }
+                    assertTrue(gantt.contains(stage.name) && gantt.replace('\u00a0', ' ').contains(120_000L.brl()))
+                    assertTrue(pages.any { it.contains("DESEMBOLSOS DE MÃO DE OBRA POR SEMANA") })
+                    assertTrue(pages.any { it.contains("Estimativa pelo fim previsto") })
+                }
+            }
         } finally {
             report.delete()
         }

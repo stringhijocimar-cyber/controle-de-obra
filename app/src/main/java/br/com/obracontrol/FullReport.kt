@@ -9,7 +9,6 @@ import android.graphics.pdf.PdfDocument
 import java.io.OutputStream
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
-import java.time.temporal.ChronoUnit
 import kotlin.math.ceil
 
 internal object FullReport {
@@ -29,6 +28,7 @@ internal object FullReport {
     private val gold = Color.rgb(145, 80, 9)
     private val goldTint = Color.rgb(255, 242, 221)
     private val shortDate = DateTimeFormatter.ofPattern("dd/MM", brazil)
+    private val shortDateWithYear = DateTimeFormatter.ofPattern("dd/MM/yy", brazil)
 
     fun write(output: OutputStream, project: Project, today: LocalDate = LocalDate.now()) {
         val document = PdfDocument()
@@ -63,6 +63,7 @@ internal object FullReport {
         private val today: LocalDate,
     ) {
         private val total = Balance(project)
+        private val laborSpend = LaborSpendCalendar(project, total)
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         private val normal = Typeface.create("sans-serif", Typeface.NORMAL)
         private val bold = Typeface.create("sans-serif", Typeface.BOLD)
@@ -295,42 +296,59 @@ internal object FullReport {
 
         fun schedule() {
             section("CRONOGRAMA FÍSICO  |  VISÃO GANTT",
-                "Verde = realizado  •  Azul = previsto  •  Âmbar = data-base quando dentro da escala")
+                "Barras azul/verde = previsto/realizado  •  Pontos azul-escuro/âmbar = pago/a pagar  •  Linha tracejada = data-base")
             val asOf = project.referenceDate ?: today
-            val rows = project.stages.map { it.ganttRow(asOf) }
-            val periods = rows.flatMap { listOfNotNull(it.planned, it.actual) }
+            val rows = project.stages.map { it.ganttRow(asOf, laborSpend.byStage[it.id].orEmpty()) }
+            val axis = GanttAxis.from(rows)
             if (rows.isEmpty()) paragraph("Nenhuma etapa cadastrada.")
-            if (rows.isNotEmpty() && periods.isEmpty()) paragraph("Informe início e fim previstos ou datas reais para gerar as barras do Gantt.")
-            if (periods.isNotEmpty()) {
-                val first = periods.minOf { it.start }
-                val last = periods.maxOf { it.end }
-                val days = ChronoUnit.DAYS.between(first, last) + 1
+            if (rows.isNotEmpty() && axis == null) paragraph("Informe as datas da execução ou do pagamento para montar o Gantt.")
+            if (rows.isNotEmpty()) {
                 val graphLeft = 258f
                 val graphRight = 621f
-                fun x(date: LocalDate) = graphLeft + (graphRight - graphLeft) *
-                    (ChronoUnit.DAYS.between(first, date).toDouble() / days).toFloat()
-                rows.chunked(10).forEachIndexed { batch, group ->
+                fun x(fraction: Float) = graphLeft + (graphRight - graphLeft) * fraction
+                val rowsPerPage = if (axis == null) 8 else 9
+                val bandHeight = 43f
+                rows.chunked(rowsPerPage).forEachIndexed { batch, group ->
                     if (batch > 0) startPage(continuation = true)
                     val top = y + 36f
-                    val bottom = top + group.size * 35f
+                    val bottom = top + group.size * bandHeight
                     group.forEachIndexed { index, row ->
-                        val band = top + index * 35f
-                        if (index % 2 == 0) box(LEFT, band, CONTENT, 35f, light, 1f)
-                        text(LEFT + 7, band + 15, "${batch * 10 + index + 1}. ${row.stage.name}", 9.7f, ink, true, graphLeft - LEFT - 16f)
-                        text(LEFT + 7, band + 28, "${row.stage.status} · ${row.stage.progress}%", 8.1f, muted, width = 200f)
-                        row.planned?.let { period -> box(x(period.start), band + 7, (x(period.end.plusDays(1)) - x(period.start)).coerceAtLeast(1.5f), 8f, blue, 2f) }
-                        row.actual?.let { period -> box(x(period.start), band + 19, (x(period.end.plusDays(1)) - x(period.start)).coerceAtLeast(1.5f), 8f, green, 2f) }
+                        val band = top + index * bandHeight
+                        if (index % 2 == 0) box(LEFT, band, CONTENT, bandHeight, light, 1f)
+                        text(LEFT + 7, band + 13, "${batch * rowsPerPage + index + 1}. ${row.stage.name}", 9.7f, ink, true, graphLeft - LEFT - 16f)
+                        text(LEFT + 7, band + 25, "${row.stage.status} · ${row.stage.progress}%", 8.1f, muted, width = 200f)
+                        text(LEFT + 7, band + 37, "Mão de obra ${row.stage.budget.costText()}", 8.4f, ink, true, width = 200f)
+                        if (axis != null) {
+                            fun bar(period: GanttPeriod, offset: Float, color: Int) {
+                                val left = x(axis.boundary(period.start))
+                                val right = x(axis.boundary(period.end.plusDays(1)))
+                                box(left, band + offset, (right - left).coerceAtLeast(1.5f), 8f, color, 2f)
+                            }
+                            row.planned?.let { bar(it, 5f, blue) }
+                            row.actual?.let { bar(it, 16f, green) }
+                            for (event in row.spend) {
+                                val date = event.date ?: continue
+                                val center = x(axis.dayCenter(date))
+                                paint.color = if (event.paid) ink else gold
+                                canvas.drawCircle(center, band + if (event.paid) 30f else 37f, 2.7f, paint)
+                            }
+                        }
                         text(graphRight + 9, band + 13, "Prev. ${row.plannedDates}", 8.2f, if (row.planned == null) muted else blue, width = 174f)
                         text(graphRight + 9, band + 26, "Real ${row.actualDates}", 8.2f, if (row.actual == null) muted else green, width = 174f)
                     }
-                    val step = ceil(days / 6.0).toLong().coerceAtLeast(1)
-                    (0L until days step step).forEach { offset ->
-                        val date = first.plusDays(offset)
-                        line(x(date), top - 4, x(date), bottom, track)
-                        text(x(date), top - 10, date.format(shortDate), 8.3f, muted)
-                    }
-                    asOf.takeIf { it in first..last }?.let { base ->
-                        line(x(base), top - 3, x(base), bottom, gold, dashed = true)
+                    if (axis != null) {
+                        val step = ceil(axis.days / 6.0).toLong().coerceAtLeast(1)
+                        val format = if (axis.start.year == axis.end.year) shortDate else shortDateWithYear
+                        (0L until axis.days step step).forEach { offset ->
+                            val date = axis.start.plusDays(offset)
+                            val tick = x(axis.boundary(date))
+                            line(tick, top - 4, tick, bottom, track)
+                            text(tick, top - 10, date.format(format), 8.3f, muted)
+                        }
+                        if (asOf in axis.start..axis.end) {
+                            val base = x(axis.dayCenter(asOf))
+                            line(base, top - 3, base, bottom, muted, dashed = true)
+                        }
                     }
                     text(LEFT + 7, top - 10, "ETAPA", 9.5f, ink, true)
                     text(graphRight + 9, top - 10, "DATAS", 9.5f, ink, true)
@@ -414,9 +432,15 @@ internal object FullReport {
             }, "Nenhuma compra com saldo conhecido.")
             heading("CALENDÁRIO DE DESEMBOLSOS")
             table(listOf("REFERÊNCIA", "TIPO", "DATA PREVISTA", "VALOR A PAGAR"),
-                listOf(355f, 137f, 136f, 146f), total.disbursements.map {
-                    listOf(it.name, it.kind.label, it.date.dateOr(), it.amount.costText())
+                listOf(355f, 137f, 136f, 146f), total.disbursements.sortedWith(compareBy(nullsLast()) { it.forecastDate }).map {
+                    val date = it.forecastDate.dateOr("Sem data")
+                    listOf(it.name, it.kind.label, if (it.dateEstimated) "$date\nEstimativa pelo fim previsto" else date, it.amount.costText())
                 }, "Nenhum desembolso previsto foi cadastrado.")
+            heading("DESEMBOLSOS DE MÃO DE OBRA POR SEMANA")
+            table(listOf("SEMANA", "TOTAL PAGO", "SALDO CONHECIDO A PAGAR", "VALORES A DEFINIR"),
+                listOf(250f, 135f, 205f, 184f), laborSpend.weeks.map {
+                    listOf(it.label, it.paid.brl(), it.balance.brl(), it.undefined.toString())
+                }, "Nenhum desembolso de mão de obra registrado ou previsto.")
             callout("CRITÉRIO DE CONTROLE", "Compras previstas permanecem no escopo da obra. Acréscimos são sinalizados apenas nas compras marcadas como acréscimo. Datas e valores em aberto aguardam confirmação.")
         }
 

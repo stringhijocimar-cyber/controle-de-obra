@@ -10,7 +10,12 @@ internal data class GanttPeriod(val start: LocalDate, val end: LocalDate) {
     fun dates(): String = if (start == end) start.dateText() else "${start.dateText()} a ${end.dateText()}"
 }
 
-internal data class GanttRow(val stage: Stage, val planned: GanttPeriod?, val actual: GanttPeriod?) {
+internal data class GanttRow(
+    val stage: Stage,
+    val planned: GanttPeriod?,
+    val actual: GanttPeriod?,
+    val spend: List<LaborSpendEntry>,
+) {
     val plannedDates: String get() = planned?.dates() ?: UNDEFINED
 
     val actualDates: String get() {
@@ -21,7 +26,7 @@ internal data class GanttRow(val stage: Stage, val planned: GanttPeriod?, val ac
     }
 }
 
-internal fun Stage.ganttRow(asOf: LocalDate): GanttRow {
+internal fun Stage.ganttRow(asOf: LocalDate, spend: List<LaborSpendEntry> = emptyList()): GanttRow {
     val planned = plannedStart?.let { start -> plannedEnd?.let { GanttPeriod(start, it) } }
     val actual = when {
         actualStart != null && actualEnd != null -> GanttPeriod(actualStart, actualEnd)
@@ -32,7 +37,7 @@ internal fun Stage.ganttRow(asOf: LocalDate): GanttRow {
         actualEnd != null -> GanttPeriod(actualEnd, actualEnd)
         else -> null
     }
-    return GanttRow(this, planned, actual)
+    return GanttRow(this, planned, actual, spend)
 }
 
 internal class GanttAxis private constructor(val start: LocalDate, val end: LocalDate) {
@@ -54,8 +59,9 @@ internal class GanttAxis private constructor(val start: LocalDate, val end: Loca
     companion object {
         fun from(rows: List<GanttRow>): GanttAxis? {
             val periods = rows.flatMap { listOfNotNull(it.planned, it.actual) }
-            val first = periods.minOfOrNull { it.start } ?: return null
-            val last = periods.maxOf { it.end }
+            val dates = rows.flatMap { row -> row.spend.mapNotNull { it.date } }
+            val first = listOfNotNull(periods.minOfOrNull { it.start }, dates.minOrNull()).minOrNull() ?: return null
+            val last = listOfNotNull(periods.maxOfOrNull { it.end }, dates.maxOrNull()).max()
             if (DAYS.between(first, last) < 14) {
                 return GanttAxis(first, maxOf(last, first.plusDays(6)))
             }

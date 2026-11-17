@@ -11,6 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -262,23 +263,30 @@ internal fun LedgerLine(label: String, value: String) {
     }
 }
 
+private enum class StageView(val label: String) {
+    LIST("Lista"), GANTT("Gantt"), SPEND("Desembolsos"),
+}
+
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun StageList(project: Project, total: Balance, today: LocalDate, add: () -> Unit, edit: (String) -> Unit) {
-    var showGantt by rememberSaveable { mutableStateOf(false) }
+    var view by rememberSaveable { mutableStateOf(StageView.LIST) }
     val chartScroll = rememberScrollState()
+    val spend = remember(project, total) { LaborSpendCalendar(project, total) }
     Column(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 10.dp)) {
             ListHeading("Etapas da obra", "Nova etapa", add)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = !showGantt, onClick = { showGantt = false }, label = { Text("Lista") })
-                FilterChip(selected = showGantt, onClick = { showGantt = true }, label = { Text("Gantt") })
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                StageView.entries.forEach { option ->
+                    FilterChip(selected = view == option, onClick = { view = option }, label = { Text(option.label) })
+                }
             }
         }
         Box(Modifier.weight(1f)) {
-            if (showGantt && project.stages.isNotEmpty()) {
-                StageGantt(project.stages, today, chartScroll, edit)
-            } else {
-                StageCards(project, total, edit)
+            when (view) {
+                StageView.LIST -> StageCards(project, total, edit)
+                StageView.GANTT -> StageGantt(project.stages, spend, today, chartScroll, edit)
+                StageView.SPEND -> LaborSpendScreen(spend, edit)
             }
         }
     }

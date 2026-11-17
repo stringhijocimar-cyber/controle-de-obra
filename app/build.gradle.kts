@@ -10,11 +10,11 @@ android {
     buildToolsVersion = "35.0.0"
 
     defaultConfig {
-        applicationId = "br.com.obracontrol.gestao"
+        applicationId = "br.com.obracontrol.financeiro"
         minSdk = 26
         targetSdk = 35
-        versionCode = 150
-        versionName = "1.5.0"
+        versionCode = 160
+        versionName = "1.6.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

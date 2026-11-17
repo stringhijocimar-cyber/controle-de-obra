@@ -211,7 +211,10 @@ internal data class Disbursement(
     val kind: CostKind,
     val date: LocalDate?,
     val amount: Long?,
-)
+    val forecastDate: LocalDate? = date,
+) {
+    val dateEstimated get() = date == null && forecastDate != null
+}
 
 internal data class PayerGroup(val payer: String, val method: String, val kind: CostKind, val amount: Long)
 
@@ -243,7 +246,8 @@ internal class Balance(private val project: Project) {
     val laborDisbursements = project.stages.mapNotNull { stage ->
         val outstanding = stage.budget?.minus(paid(CostKind.LABOR, stage.id))
         if (outstanding != null && outstanding <= 0) null
-        else Disbursement(stage.id, stage.name, CostKind.LABOR, stage.dueDate, outstanding)
+        else Disbursement(stage.id, stage.name, CostKind.LABOR, stage.dueDate, outstanding,
+            forecastDate = stage.dueDate ?: stage.plannedEnd)
     }
     val disbursements = (projectedPurchases.map {
         Disbursement(it.id, it.name, CostKind.MATERIAL, it.dueDate, materialOutstanding(it))

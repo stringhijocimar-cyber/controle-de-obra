@@ -7,11 +7,12 @@ Aplicativo Android para cadastrar etapas, acompanhar a execução da obra, contr
 - **Painel** reúne previsão parcial, pagamentos, saldo conhecido, acréscimos e avanço físico médio entre as etapas.
 - **Agenda**, no Painel, mostra as etapas, entregas e pagamentos em aberto por prazo. Os atalhos abrem o cadastro correspondente ou iniciam um pagamento já vinculado.
 - **Diário de obra**, no Painel, registra atividades, ocorrências e anexos por data, com vínculo opcional a uma etapa.
-- **Etapas** registra datas previstas e reais, avanço de 0 a 100%, orçamento e data prevista de pagamento. Em **Etapas → Gantt**, deslize a linha do tempo, compare previsto e realizado e toque em uma etapa para editar.
+- **Etapas** registra datas previstas e reais, avanço de 0 a 100%, valor da mão de obra e data prevista de pagamento. Em **Etapas → Gantt**, veja o custo de cada etapa e os pontos de pagamento na linha do tempo. Toque na etapa para editar.
+- **Etapas → Desembolsos** mostra o total pago e o saldo de mão de obra a pagar por semana. O app abate os pagamentos da etapa e usa a data cadastrada em **Pagamento previsto**. Quando esse campo está vazio, o fim previsto da etapa aparece como estimativa. Lançamentos sem data aparecem em **Sem data**.
 - **Compras** registra fornecedor, documento, desconto, vínculo com uma etapa, classificação de acréscimo e itens com quantidades, unidade, preço unitário e subtotal. A previsão de entrega e o recebimento são registrados no cadastro da compra.
 - **Pagamentos** aceita vários desembolsos por etapa ou compra, incluindo adiantamentos e pagamentos parciais. Cada registro inclui valor, data, pagador, meio, referência e comprovantes em PDF ou imagem.
 - **Pendências** registra ações e aponta valores em aberto, divergências de documentos, pagamentos a maior e etapas sem data ou valor.
-- **Relatório** gera o PDF completo com a agenda e o diário. Também exporta o cadastro e os anexos em ZIP e importa backups ZIP e JSON das versões anteriores.
+- **Relatório** gera o PDF completo com Gantt, desembolsos de mão de obra por semana, agenda e diário. Também exporta o cadastro e os anexos em ZIP e importa backups ZIP e JSON das versões anteriores.
 
 O valor do documento tem prioridade sobre a soma dos itens. A diferença após descontos aparece na conciliação. O contrato global de mão de obra, quando preenchido, é a referência do balanço. Valores ainda a cotar permanecem em aberto. Pagamentos são somados pelos lançamentos, independentemente da etapa estar concluída.
 
@@ -25,7 +26,7 @@ Em **Pagamentos**, abra um lançamento e adicione os comprovantes com a câmera 
 
 ## Instalação e primeiro uso
 
-O APK requer Android 8.0 ou mais recente. A edição 1.4.0 aparece como **ObraControl Gestão** e pode ser instalada ao lado da anterior. Para levar lançamentos e comprovantes do app anterior, abra **Relatório → Exportar backup com anexos** nele. No **ObraControl Gestão**, abra **Relatório → Importar dados da obra**, selecione o ZIP e confirme. Para começar do zero, cadastre a obra em **Dados da obra**. Quando o cadastro já tem a mesma obra, **Mesclar lançamentos** acrescenta registros e anexos ausentes e preserva as edições locais. **Substituir obra** exige confirmação. Use o backup ZIP para transferir também os documentos. Para exportar o relatório, use **Relatório → Gerar PDF completo**.
+O APK requer Android 8.0 ou mais recente. A versão 1.6.0 aparece como **ObraControl Financeiro** e pode ser instalada ao lado do **ObraControl Gestão**. Para levar etapas, lançamentos e comprovantes, abra **Relatório → Exportar backup com anexos** no app anterior. No **ObraControl Financeiro**, abra **Relatório → Importar dados da obra**, selecione o ZIP e confirme. Para começar do zero, cadastre a obra em **Dados da obra**. Quando o cadastro já tem a mesma obra, **Mesclar lançamentos** acrescenta registros e anexos ausentes e preserva as edições locais. **Substituir obra** exige confirmação. Para exportar o relatório, use **Relatório → Gerar PDF completo**.
 
 ## Compilar
 

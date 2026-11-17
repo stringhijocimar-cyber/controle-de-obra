@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -55,15 +56,23 @@ private val yearTick = DateTimeFormatter.ofPattern("dd/MM/yy", brazil)
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun StageGantt(stages: List<Stage>, today: LocalDate, scroll: ScrollState, edit: (String) -> Unit) {
-    val rows = remember(stages, today) { stages.map { it.ganttRow(today) } }
+internal fun StageGantt(
+    stages: List<Stage>, spend: LaborSpendCalendar, today: LocalDate, scroll: ScrollState, edit: (String) -> Unit,
+) {
+    val rows = remember(stages, spend, today) { stages.map { it.ganttRow(today, spend.byStage[it.id].orEmpty()) } }
     val axis = remember(rows) { GanttAxis.from(rows) }
     if (axis == null) {
         ObraList {
-            item { SheetCard { Detail("Informe o início e o fim previstos ou registre datas reais para montar o Gantt.") } }
+            item {
+                SheetCard {
+                    Detail(if (stages.isEmpty()) "Cadastre a primeira etapa para montar o cronograma."
+                        else "Informe as datas da execução ou do pagamento para montar o Gantt.")
+                }
+            }
             itemsIndexed(rows, key = { _, row -> row.stage.id }) { _, row ->
                 SheetCard {
                     Heading(row.stage.name, "Datas a definir")
+                    LedgerLine("Mão de obra", row.stage.budget.costText())
                     TextButton(onClick = { edit(row.stage.id) }) { Text("Editar etapa") }
                 }
             }
@@ -76,13 +85,15 @@ internal fun StageGantt(stages: List<Stage>, today: LocalDate, scroll: ScrollSta
     BoxWithConstraints(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, bottom = 12.dp)) {
         val labelWidth = (maxWidth * 0.39f).coerceIn(105.dp, 188.dp)
         val chartWidth = maxOf(maxWidth - labelWidth, axis.preferredWidth.dp)
-        val rowHeight = maxOf(68.dp, (60 * density.fontScale).dp)
+        val rowHeight = maxOf(85.dp, (94 * density.fontScale).dp)
         val headerHeight = maxOf(33.dp, (29 * density.fontScale).dp)
         Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 GanttLegend("Previsto", Blue)
                 GanttLegend("Realizado", Green)
-                if (marker != null) GanttLegend("Data de hoje", Amber)
+                GanttLegend("Pago", Navy, day = true)
+                GanttLegend("A pagar", Amber, day = true)
+                if (marker != null) GanttLegend("Hoje", Muted)
             }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("${axis.start.dateText()} a ${axis.end.dateText()}", Modifier.weight(1f),
@@ -101,7 +112,7 @@ internal fun StageGantt(stages: List<Stage>, today: LocalDate, scroll: ScrollSta
             ) {
                 Column(Modifier.fillMaxSize()) {
                     Row(Modifier.fillMaxWidth().height(headerHeight).background(Navy), verticalAlignment = Alignment.CenterVertically) {
-                        Text("Etapa", Modifier.width(labelWidth).padding(start = 10.dp), color = Color.White,
+                        Text("Etapa / custo", Modifier.width(labelWidth).padding(start = 10.dp), color = Color.White,
                             style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                         Box(Modifier.weight(1f).horizontalScroll(scroll)) {
                             DateAxis(axis, chartWidth, headerHeight)
@@ -127,6 +138,8 @@ internal fun StageGantt(stages: List<Stage>, today: LocalDate, scroll: ScrollSta
                                     }
                                     Text("$status · ${stage.progress}%", color = if (overdue) Amber else Muted,
                                         style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(stage.budget.costText(), color = Navy, style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold)
                                 }
                                 Box(Modifier.weight(1f).horizontalScroll(scroll)) {
                                     StageBars(axis, marker, row, chartWidth, rowHeight)
@@ -142,9 +155,10 @@ internal fun StageGantt(stages: List<Stage>, today: LocalDate, scroll: ScrollSta
 }
 
 @Composable
-private fun GanttLegend(label: String, color: Color) {
+private fun GanttLegend(label: String, color: Color, day: Boolean = false) {
     Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(width = 12.dp, height = 7.dp).background(color, RoundedCornerShape(3.dp)))
+        Box(Modifier.size(width = if (day) 7.dp else 12.dp, height = 7.dp)
+            .background(color, if (day) CircleShape else RoundedCornerShape(3.dp)))
         Text(label, style = MaterialTheme.typography.labelMedium, color = Muted)
     }
 }
@@ -170,18 +184,30 @@ private fun DateAxis(axis: GanttAxis, width: Dp, height: Dp) {
 
 @Composable
 private fun StageBars(axis: GanttAxis, marker: LocalDate?, row: GanttRow, width: Dp, height: Dp) {
-    val description = "Previsto ${row.plannedDates} · Realizado ${row.actualDates}"
+    val description = buildString {
+        append("Previsto ${row.plannedDates} · Realizado ${row.actualDates}")
+        row.spend.forEach { item ->
+            append(" · ${item.status.label} ${item.amount.costText()} em ${item.date.dateOr("data a definir")}")
+        }
+    }
     Canvas(Modifier.size(width, height).semantics { contentDescription = description }) {
         for (tick in axis.ticks) {
             val x = size.width * axis.boundary(tick)
             drawLine(Line, Offset(x, 0f), Offset(x, size.height), 0.8.dp.toPx())
         }
-        row.planned?.let { drawPeriod(it, axis, size.height / 2 - 15.dp.toPx(), Blue) }
-        row.actual?.let { drawPeriod(it, axis, size.height / 2 + 3.dp.toPx(), Green) }
+        row.planned?.let { drawPeriod(it, axis, size.height / 2 - 26.dp.toPx(), Blue) }
+        row.actual?.let { drawPeriod(it, axis, size.height / 2 - 8.dp.toPx(), Green) }
         marker?.let {
             val x = size.width * axis.dayCenter(it)
-            drawLine(Amber, Offset(x, 0f), Offset(x, size.height), strokeWidth = 1.5.dp.toPx(),
+            drawLine(Muted, Offset(x, 0f), Offset(x, size.height), strokeWidth = 1.5.dp.toPx(),
                 pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx())))
+        }
+        row.spend.forEach { item ->
+            item.date?.let { date ->
+                val x = size.width * axis.dayCenter(date)
+                val y = size.height / 2 + if (item.paid) 14.dp.toPx() else 26.dp.toPx()
+                drawCircle(if (item.paid) Navy else Amber, 4.dp.toPx(), Offset(x, y))
+            }
         }
     }
 }

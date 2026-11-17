@@ -5,7 +5,7 @@
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@drawable/ic_obra"
-        android:label="ObraControl Gestão"
+        android:label="ObraControl Financeiro"
         android:supportsRtl="true"
         android:theme="@style/Theme.ObraControl">
         <provider
