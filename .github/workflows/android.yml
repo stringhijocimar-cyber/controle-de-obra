@@ -58,3 +58,12 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-boot-anim -noaudio -no-snapshot
           script: ./gradlew :app:connectedDebugAndroidTest
+      - name: Guardar diagnóstico se um teste Android falhar
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Diagnostico-Android
+          path: |
+            app/build/outputs/androidTest-results/connected/
+            app/build/reports/androidTests/connected/
+          if-no-files-found: ignore

@@ -3,6 +3,7 @@ package br.com.obracontrol
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
@@ -34,7 +35,8 @@ class PurchaseFlowTest {
             assertTrue(store.load().payerNames.contains("Pagador de teste"))
             app.onNodeWithText("Registrar pagamento nesta compra").performScrollTo().performClick()
             app.onNodeWithText("Valor pago (R$)").performScrollTo().performTextReplacement("400,00")
-            app.onNodeWithText("Salvar").performClick()
+            app.onNodeWithText("Salvar").assertExists("Primeiro pagamento\n" + app.onRoot(useUnmergedTree = true).printToString())
+                .performClick()
 
             val saved = store.load()
             val purchase = saved.purchases.single()
@@ -44,7 +46,8 @@ class PurchaseFlowTest {
             assertEquals(40_000L, saved.payments.single().amount)
             assertEquals(80_000L, Balance(saved).materialOutstanding(purchase))
             app.onNodeWithText("Abrir compra").performClick()
-            app.onNodeWithText("Salvar").performClick()
+            app.onNodeWithText("Salvar").assertExists("Edição da compra\n" + app.onRoot(useUnmergedTree = true).printToString())
+                .performClick()
             assertEquals(saved.payments, store.load().payments)
 
             app.activityRule.scenario.recreate()
