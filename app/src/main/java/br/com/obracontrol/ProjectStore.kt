@@ -11,7 +11,7 @@ import java.io.InputStream
 import java.math.BigDecimal
 import java.math.RoundingMode
 
-private const val FORMAT_VERSION = 4
+private const val FORMAT_VERSION = 5
 internal const val MAX_BACKUP_BYTES = 5 * 1024 * 1024
 
 internal class ProjectStore(context: Context) {
@@ -62,6 +62,7 @@ internal object ProjectCodec {
         "referenceDate" to project.referenceDate.dateText(),
         "laborBudgetCents" to project.laborBudget,
         "notes" to project.notes,
+        "payerNames" to JSONArray(project.payerNames),
         "stages" to array(project.stages.map { stage -> obj(
             "id" to stage.id,
             "name" to stage.name,
@@ -82,6 +83,8 @@ internal object ProjectCodec {
             "documentDate" to purchase.documentDate.dateText(),
             "deliveryExpected" to purchase.deliveryExpected.dateText(),
             "receivedDate" to purchase.receivedDate.dateText(),
+            "payer" to purchase.payer,
+            "method" to purchase.method,
             "dueDate" to purchase.dueDate.dateText(),
             "stageId" to purchase.stageId,
             "totalCents" to purchase.total,
@@ -129,7 +132,7 @@ internal object ProjectCodec {
         val version = if (root.has("version")) root.getInt("version") else 1
         val project = when (version) {
             1 -> migrateLegacy(root)
-            2, 3, FORMAT_VERSION -> decodeCurrent(root)
+            2, 3, 4, FORMAT_VERSION -> decodeCurrent(root)
             else -> throw IllegalArgumentException("Versão de backup incompatível.")
         }
         project.validate()
@@ -142,6 +145,9 @@ internal object ProjectCodec {
         referenceDate = root.date("referenceDate"),
         laborBudget = root.cents("laborBudgetCents"),
         notes = root.string("notes"),
+        payerNames = root.optJSONArray("payerNames")?.let { names ->
+            (0 until names.length()).map { names.getString(it) }
+        }.orEmpty(),
         stages = root.objects("stages").map { stage -> Stage(
             id = stage.getString("id"),
             name = stage.string("name"),
@@ -162,6 +168,8 @@ internal object ProjectCodec {
             documentDate = purchase.date("documentDate"),
             deliveryExpected = purchase.date("deliveryExpected"),
             receivedDate = purchase.date("receivedDate"),
+            payer = purchase.string("payer"),
+            method = purchase.string("method"),
             dueDate = purchase.date("dueDate"),
             stageId = purchase.string("stageId").takeIf(String::isNotBlank),
             total = purchase.cents("totalCents"),
@@ -289,6 +297,7 @@ internal object ProjectCodec {
 
 internal fun Project.validate() {
     require(name.isNotBlank()) { "Informe o nome da obra." }
+    require(payerNames.all(String::isNotBlank)) { "O cadastro contém um pagador sem nome." }
     requireDistinctIds(stages.map { it.id })
     requireDistinctIds(purchases.map { it.id })
     requireDistinctIds(payments.map { it.id })

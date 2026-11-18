@@ -457,6 +457,9 @@ internal object FullReport {
                 if (order.deliveryExpected != null || order.receivedDate != null) {
                     paragraph("Entrega prevista: ${order.deliveryExpected.dateOr()}  •  Recebido em: ${order.receivedDate.dateOr()}")
                 }
+                if (order.method.isNotBlank() || order.payer.isNotBlank()) {
+                    paragraph("Método de pagamento: ${order.method.textOr()}  •  Quem pagou: ${order.payer.textOr()}")
+                }
                 table(listOf("DESCRIÇÃO", "QUANTIDADE", "UNIDADE", "PREÇO UNITÁRIO", "SUBTOTAL"),
                     listOf(374f, 87f, 78f, 113f, 122f), order.lines.map { item ->
                         listOf(item.name, item.quantity.quantityInput().textOr(UNDEFINED), item.unit.textOr(),

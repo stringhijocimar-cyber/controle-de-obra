@@ -321,6 +321,8 @@ internal fun PurchaseList(project: Project, total: Balance, add: () -> Unit, ope
                 Heading(purchase.name, listOf(purchase.supplier, purchase.document).filter(String::isNotBlank).joinToString(" · ").takeIf(String::isNotBlank))
                 Tag(total.purchaseStatus(purchase), purchase.forecast == null)
                 LedgerLine("Previsão · pago", "${purchase.forecast.costText()} · ${total.paid(CostKind.MATERIAL, purchase.id).brl()}")
+                if (purchase.method.isNotBlank()) Detail("Método de pagamento · ${purchase.method}")
+                if (purchase.payer.isNotBlank()) Detail("Quem pagou · ${purchase.payer}")
                 purchase.deliveryExpected?.let { Detail("Entrega prevista em ${it.dateText()}") }
                 purchase.receivedDate?.let { Detail("Recebido em ${it.dateText()}", Green) }
                 if (purchase.extra) Tag("Acréscimo declarado", true)

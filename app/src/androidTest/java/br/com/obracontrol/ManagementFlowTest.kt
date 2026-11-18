@@ -55,7 +55,8 @@ class ManagementFlowTest {
         val stage = Stage(name = "Instalação do forro", budget = 120_000, plannedStart = today, plannedEnd = today.plusDays(2))
         val payment = Payment(targetId = stage.id, amount = 20_000, date = today)
         val project = Project(name = "Obra teste", stages = listOf(stage), payments = listOf(payment),
-            purchases = listOf(Purchase(name = "Telhas", deliveryExpected = today)),
+            purchases = listOf(Purchase(name = "Telhas", deliveryExpected = today, payer = "Pagador de teste", method = "Pix")),
+            payerNames = listOf("Pagador de teste"),
             diaryEntries = listOf(DiaryEntry(date = today, title = "Vistoria", attachments = listOf(photo))))
         val output = ByteArrayOutputStream()
         backups.write(output, project)
@@ -78,6 +79,7 @@ class ManagementFlowTest {
                     assertTrue(gantt.contains(stage.name) && gantt.replace('\u00a0', ' ').contains(120_000L.brl()))
                     assertTrue(pages.any { it.contains("DESEMBOLSOS DE MÃO DE OBRA POR SEMANA") })
                     assertTrue(pages.any { it.contains("Estimativa pelo fim previsto") })
+                    assertTrue(pages.any { it.contains("Método de pagamento") && it.contains("Pagador de teste") })
                 }
             }
         } finally {

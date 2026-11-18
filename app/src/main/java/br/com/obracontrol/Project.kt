@@ -85,7 +85,12 @@ internal data class Project(
     val issues: List<Issue> = emptyList(),
     val notes: String = "",
     val diaryEntries: List<DiaryEntry> = emptyList(),
+    val payerNames: List<String> = emptyList(),
 ) {
+    val payerOptions: List<String> get() = (payerNames + purchases.map { it.payer } + payments.map { it.payer })
+        .map(String::trim).filter(String::isNotBlank).distinctBy { it.lowercase(brazil) }
+        .sortedBy { it.lowercase(brazil) }
+
     fun targets(kind: CostKind): List<Pair<String, String>> = when (kind) {
         CostKind.LABOR -> stages.map { it.id to it.name }
         CostKind.MATERIAL -> purchases.map { it.id to it.name }
@@ -147,6 +152,8 @@ internal data class Purchase(
     val documents: List<DocumentAttachment> = emptyList(),
     val deliveryExpected: LocalDate? = null,
     val receivedDate: LocalDate? = null,
+    val payer: String = "",
+    val method: String = "",
 ) {
     val lineSum: Long? get() = lines.takeIf { it.isNotEmpty() && it.all { line -> line.subtotal != null } }
         ?.sumOf { it.subtotal!! }

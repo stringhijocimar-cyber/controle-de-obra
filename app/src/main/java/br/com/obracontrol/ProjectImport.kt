@@ -49,7 +49,10 @@ internal fun Project.mergeFrom(incoming: Project): ProjectImport {
             }
             val documents = (current.documents + order.documents).distinctBy { it.id }
             added += documents.size - current.documents.size
-            importedPurchases[index] = current.copy(lines = lines, documents = documents)
+            if (current.payer.isBlank() && order.payer.isNotBlank()) added++
+            if (current.method.isBlank() && order.method.isNotBlank()) added++
+            importedPurchases[index] = current.copy(lines = lines, documents = documents,
+                payer = current.payer.ifBlank { order.payer }, method = current.method.ifBlank { order.method })
             purchaseIds[order.id] = current.id
         }
     }
@@ -92,10 +95,13 @@ internal fun Project.mergeFrom(incoming: Project): ProjectImport {
             added += attachments.size - current.attachments.size
         }
     }
+    val names = (payerNames + incoming.payerNames).distinctBy { it.trim().lowercase(brazil) }
+    added += names.size - payerNames.size
     val merged = copy(start = start ?: incoming.start, referenceDate = referenceDate ?: incoming.referenceDate,
         laborBudget = laborBudget ?: incoming.laborBudget, notes = notes.ifBlank { incoming.notes },
         stages = importedStages, purchases = importedPurchases, payments = importedPayments, issues = importedIssues,
-        diaryEntries = diary.values.toList())
+        diaryEntries = diary.values.toList(),
+        payerNames = names)
     return ProjectImport(merged, added)
 }
 

@@ -9,7 +9,8 @@ Aplicativo Android para cadastrar etapas, acompanhar a execução da obra, contr
 - **Diário de obra**, no Painel, registra atividades, ocorrências e anexos por data, com vínculo opcional a uma etapa.
 - **Etapas** registra datas previstas e reais, avanço de 0 a 100%, valor da mão de obra e data prevista de pagamento. Em **Etapas → Gantt**, veja o custo de cada etapa e os pontos de pagamento na linha do tempo. Toque na etapa para editar.
 - **Etapas → Desembolsos** mostra o total pago e o saldo de mão de obra a pagar por semana. O app abate os pagamentos da etapa e usa a data cadastrada em **Pagamento previsto**. Quando esse campo está vazio, o fim previsto da etapa aparece como estimativa. Lançamentos sem data aparecem em **Sem data**.
-- **Compras** registra fornecedor, documento, desconto, vínculo com uma etapa, classificação de acréscimo e itens com quantidades, unidade, preço unitário e subtotal. A previsão de entrega e o recebimento são registrados no cadastro da compra.
+- **Compras** registra fornecedor, documento, desconto, vínculo com uma etapa, classificação de acréscimo e itens com quantidades, unidade, preço unitário e subtotal. O cadastro inclui **Método de pagamento**, **Quem pagou** e **Cadastrar pagador**. Os nomes cadastrados e os pagadores dos lançamentos anteriores ficam disponíveis para seleção nas próximas compras e pagamentos. A previsão de entrega e o recebimento são registrados no cadastro da compra.
+- Ao ativar **Registrar pagamento nesta compra**, informe o valor pago, a data e os comprovantes. O pagamento é salvo junto da compra e atualiza o painel, o saldo e a prestação de contas. Para pagamentos parciais, informe o valor efetivamente pago.
 - **Pagamentos** aceita vários desembolsos por etapa ou compra, incluindo adiantamentos e pagamentos parciais. Cada registro inclui valor, data, pagador, meio, referência e comprovantes em PDF ou imagem.
 - **Pendências** registra ações e aponta valores em aberto, divergências de documentos, pagamentos a maior e etapas sem data ou valor.
 - **Relatório** gera o PDF completo com Gantt, desembolsos de mão de obra por semana, agenda e diário. Também exporta o cadastro e os anexos em ZIP e importa backups ZIP e JSON das versões anteriores.
@@ -26,7 +27,9 @@ Em **Pagamentos**, abra um lançamento e adicione os comprovantes com a câmera 
 
 ## Instalação e primeiro uso
 
-O APK requer Android 8.0 ou mais recente. A versão 1.6.0 aparece como **ObraControl Financeiro** e pode ser instalada ao lado do **ObraControl Gestão**. Para levar etapas, lançamentos e comprovantes, abra **Relatório → Exportar backup com anexos** no app anterior. No **ObraControl Financeiro**, abra **Relatório → Importar dados da obra**, selecione o ZIP e confirme. Para começar do zero, cadastre a obra em **Dados da obra**. Quando o cadastro já tem a mesma obra, **Mesclar lançamentos** acrescenta registros e anexos ausentes e preserva as edições locais. **Substituir obra** exige confirmação. Para exportar o relatório, use **Relatório → Gerar PDF completo**.
+O APK requer Android 8.0 ou mais recente. A edição 1.7.0 aparece como **ObraControl**, com assinatura permanente, e pode ser instalada ao lado do **ObraControl Financeiro** ou do **ObraControl Gestão**. Para transferir etapas, lançamentos, diário e comprovantes, abra **Relatório → Exportar backup com anexos** no app anterior. No novo **ObraControl**, abra **Relatório → Importar dados da obra**, selecione o ZIP e confirme. Confira o cadastro importado antes de desinstalar a edição anterior. Os backups JSON e ZIP das versões 1 a 4 do formato continuam aceitos.
+
+Para começar do zero, cadastre a obra em **Dados da obra**. Quando o cadastro já tem a mesma obra, **Mesclar lançamentos** acrescenta registros, pagadores e anexos ausentes e preserva as edições locais. **Substituir obra** exige confirmação. Para exportar o relatório, use **Relatório → Gerar PDF completo**.
 
 ## Compilar
 
@@ -37,3 +40,5 @@ Use JDK 17 e Android SDK 35 com Build Tools 35.0.0. Abra a raiz no Android Studi
 ```
 
 Em Windows, use `gradlew.bat`. O instalador é gerado em `app/build/outputs/apk/debug/app-debug.apk`.
+
+O workflow do GitHub gera o APK de testes. Para compilar a distribuição assinada, forneça `OBRACONTROL_KEYSTORE_FILE` e `OBRACONTROL_KEYSTORE_PASSWORD`, usando o alias `obracontrol`, e execute `./gradlew :app:assembleRelease`. A chave e sua senha ficam no arquivo privado de assinatura do projeto. As próximas distribuições devem reutilizar essa chave e o identificador `br.com.obracontrol.app` para atualizar o aplicativo instalado.

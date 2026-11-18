@@ -1,6 +1,7 @@
 package br.com.obracontrol
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -10,8 +11,10 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import java.time.LocalDate
 
 @Composable
 internal fun EditorScreen(
@@ -47,7 +50,8 @@ internal fun EditorScreen(
             }
             "compra" -> {
                 val existing = project.purchases.firstOrNull { it.id == id }
-                val order = existing ?: remember { Purchase() }
+                val draftId = rememberSaveable { newId() }
+                val order = existing ?: remember(draftId) { Purchase(id = draftId) }
                 val onDelete = if (existing != null) ({
                     require(project.payments.none { it.kind == CostKind.MATERIAL && it.targetId == order.id }) {
                         "Exclua ou transfira os pagamentos vinculados antes de remover esta compra."
@@ -55,9 +59,10 @@ internal fun EditorScreen(
                     save(project.copy(purchases = project.purchases.filterNot { it.id == order.id }))
                     back()
                 }) else null
-                PurchaseEditor(order, project.stages, existing != null, onDelete,
-                    { next, line ->
-                        save(project.copy(purchases = project.purchases.upsert(next, Purchase::id)))
+                PurchaseEditor(order, project, total, existing != null, onDelete,
+                    registerPayer = { save(project.registerPayer(it)) },
+                    save = { next, payment, line ->
+                        save(project.recordPurchase(next, payment))
                         if (line != null) openLine(next.id, line) else back()
                     },
                 )
@@ -83,13 +88,17 @@ internal fun EditorScreen(
                 val requestedKind = parts.getOrNull(2)?.let(CostKind::valueOf)
                 val defaultKind = requestedKind ?: if (project.stages.isEmpty()) CostKind.MATERIAL else CostKind.LABOR
                 val payment = existing ?: remember {
-                    Payment(kind = defaultKind, targetId = parts.getOrNull(3).orEmpty(), date = java.time.LocalDate.now())
+                    val targetId = parts.getOrNull(3).orEmpty()
+                    val purchase = project.purchases.firstOrNull { it.id == targetId && defaultKind == CostKind.MATERIAL }
+                    Payment(kind = defaultKind, targetId = targetId, date = LocalDate.now(),
+                        payer = purchase?.payer.orEmpty(), method = purchase?.method.orEmpty())
                 }
                 PaymentEditor(project, payment, if (existing != null) ({
                     save(project.copy(payments = project.payments.filterNot { it.id == payment.id }))
                     back()
-                }) else null) {
-                    save(project.copy(payments = project.payments.upsert(it, Payment::id)))
+                }) else null, registerPayer = { save(project.registerPayer(it)) }) {
+                    val next = project.copy(payments = project.payments.upsert(it, Payment::id))
+                    save(if (it.payer.isBlank()) next else next.registerPayer(it.payer))
                     back()
                 }
             }
@@ -120,9 +129,6 @@ internal fun EditorScreen(
         }
     }
 }
-
-private fun <T> List<T>.upsert(value: T, id: (T) -> String): List<T> =
-    if (any { id(it) == id(value) }) map { if (id(it) == id(value)) value else it } else this + value
 
 @Composable
 private fun MissingRecord(back: () -> Unit) {
@@ -181,10 +187,12 @@ private fun StageEditor(stage: Stage, remove: (() -> Unit)?, save: (Stage) -> Un
 @Composable
 private fun PurchaseEditor(
     order: Purchase,
-    stages: List<Stage>,
+    project: Project,
+    balance: Balance,
     exists: Boolean,
     remove: (() -> Unit)?,
-    save: (Purchase, String?) -> Unit,
+    registerPayer: (String) -> Unit,
+    save: (Purchase, Payment?, String?) -> Unit,
 ) {
     var name by rememberSaveable { mutableStateOf(order.name) }
     var supplier by rememberSaveable { mutableStateOf(order.supplier) }
@@ -199,14 +207,29 @@ private fun PurchaseEditor(
     var extra by rememberSaveable { mutableStateOf(order.extra) }
     var notes by rememberSaveable { mutableStateOf(order.notes) }
     var documents by rememberAttachments(order.documents)
+    var payer by rememberSaveable { mutableStateOf(order.payer) }
+    var method by rememberSaveable { mutableStateOf(order.method) }
+    var recordPayment by rememberSaveable { mutableStateOf(false) }
+    val paymentId = rememberSaveable { newId() }
+    var paidAmount by rememberSaveable { mutableStateOf("") }
+    var paidDate by rememberSaveable { mutableStateOf(LocalDate.now().dateText()) }
+    var proofs by rememberAttachments(emptyList())
     var processing by remember { mutableStateOf(false) }
     fun readFields() = order.copy(name = name.trim(), supplier = supplier.trim(), document = document.trim(),
         documentDate = parseDate(documentDate), dueDate = parseDate(dueDate),
         deliveryExpected = parseDate(delivery), receivedDate = parseDate(received),
         stageId = stageId.takeIf(String::isNotBlank), total = parseMoney(total),
-        discount = parseMoney(discount) ?: 0, extra = extra, notes = notes.trim(), documents = documents)
+        discount = parseMoney(discount) ?: 0, extra = extra, notes = notes.trim(), documents = documents,
+        payer = payer.trim(), method = method.trim())
 
-    Form(remove = remove, deletePrompt = "Excluir esta compra e os seus itens?", available = !processing, save = { save(readFields(), null) }) {
+    fun saveFields(line: String?) {
+        val payment = if (recordPayment) Payment(id = paymentId, kind = CostKind.MATERIAL, targetId = order.id,
+            amount = parseMoney(paidAmount) ?: 0, date = parseDate(paidDate), payer = payer.trim(),
+            method = method.trim(), proofs = proofs) else null
+        save(readFields(), payment, line)
+    }
+
+    Form(remove = remove, deletePrompt = "Excluir esta compra e os seus itens?", available = !processing, save = { saveFields(null) }) {
         Field("Nome da compra ou material", name, { name = it })
         DocumentEditor(DocumentUse.PURCHASE, documents, { documents = it }, { processing = it }) { amount, field ->
             if (field == MoneyField.DISCOUNT) discount = amount.cents.moneyInput()
@@ -219,13 +242,35 @@ private fun PurchaseEditor(
         CalendarField("Pagamento previsto", dueDate, { dueDate = it })
         CalendarField("Entrega prevista", delivery, { delivery = it })
         CalendarField("Recebido em", received, { received = it })
-        if (stages.isNotEmpty()) {
-            Select("Etapa vinculada", stageId, listOf("" to "Sem vínculo") + stages.map { it.id to it.name }) { stageId = it }
+        if (project.stages.isNotEmpty()) {
+            Select("Etapa vinculada", stageId, listOf("" to "Sem vínculo") + project.stages.map { it.id to it.name }) { stageId = it }
         }
         Field("Total do documento ou da cotação (R$)", total, { total = it }, KeyboardType.Decimal)
         Field("Desconto total (R$)", discount, { discount = it }, KeyboardType.Decimal)
         Detail("O valor do documento tem prioridade. Se ficar em branco, o app calcula o total quando todos os itens tiverem subtotal.")
         Check("Acréscimo declarado", extra) { extra = it }
+        HorizontalDivider()
+        Heading("Pagamento da compra")
+        PaymentDetailsFields(project, payer, { payer = it }, method, { method = it }) { person ->
+            registerPayer(person)
+        }
+        val alreadyPaid = balance.paid(CostKind.MATERIAL, order.id)
+        if (alreadyPaid > 0) LedgerLine("Pagamentos já registrados", alreadyPaid.brl())
+        Check("Registrar pagamento nesta compra", recordPayment) { checked ->
+            recordPayment = checked
+            if (checked && paidAmount.isBlank()) {
+                submit {
+                    paidAmount = readFields().forecast?.minus(alreadyPaid)?.takeIf { it > 0 }.moneyInput()
+                }
+            }
+        }
+        if (recordPayment) {
+            Field("Valor pago (R$)", paidAmount, { paidAmount = it }, KeyboardType.Decimal)
+            CalendarField("Data do pagamento", paidDate, { paidDate = it })
+            DocumentEditor(DocumentUse.PAYMENT, proofs, { proofs = it }, { processing = it }) { amount, _ ->
+                paidAmount = amount.cents.moneyInput()
+            }
+        }
         Field("Observações da compra", notes, { notes = it }, multiline = true)
         HorizontalDivider()
         Heading("Itens da compra")
@@ -236,11 +281,11 @@ private fun PurchaseEditor(
             key(line.id) {
                 LedgerLine(line.name, line.subtotal.costText())
                 Detail(listOf(line.quantity.quantityInput(), line.unit, line.unitPrice?.brl().orEmpty()).filter(String::isNotBlank).joinToString(" · "))
-                TextButton(enabled = !processing, onClick = { submit { save(readFields(), line.id) } }) { Text("Editar item") }
+                TextButton(enabled = !processing, onClick = { submit { saveFields(line.id) } }) { Text("Editar item") }
                 HorizontalDivider()
             }
         }
-        OutlinedButton(enabled = !processing, onClick = { submit { save(readFields(), "nova") } }) {
+        OutlinedButton(enabled = !processing, onClick = { submit { saveFields("nova") } }) {
             Text(if (exists) "Adicionar item" else "Salvar e adicionar item")
         }
     }
@@ -267,7 +312,9 @@ private fun LineEditor(line: PurchaseLine, remove: (() -> Unit)?, save: (Purchas
 }
 
 @Composable
-private fun PaymentEditor(project: Project, payment: Payment, remove: (() -> Unit)?, save: (Payment) -> Unit) {
+private fun PaymentEditor(
+    project: Project, payment: Payment, remove: (() -> Unit)?, registerPayer: (String) -> Unit, save: (Payment) -> Unit,
+) {
     var kind by rememberSaveable { mutableStateOf(payment.kind.name) }
     var target by rememberSaveable { mutableStateOf(payment.targetId) }
     var amount by rememberSaveable { mutableStateOf(payment.amount.takeUnless { it == 0L }.moneyInput()) }
@@ -290,13 +337,81 @@ private fun PaymentEditor(project: Project, payment: Payment, remove: (() -> Uni
         else Select(if (kind == CostKind.LABOR.name) "Etapa" else "Compra", target, targets) { target = it }
         Field("Valor pago (R$)", amount, { amount = it }, KeyboardType.Decimal)
         CalendarField("Data do pagamento", date, { date = it })
-        Field("Quem pagou", payer, { payer = it })
-        Field("Meio de pagamento", method, { method = it })
+        PaymentDetailsFields(project, payer, { payer = it }, method, { method = it }) { person ->
+            registerPayer(person)
+        }
         Field("Referência do comprovante", receipt, { receipt = it })
         DocumentEditor(DocumentUse.PAYMENT, proofs, { proofs = it }, { processing = it }) { recognized, _ ->
             amount = recognized.cents.moneyInput()
         }
         Field("Observações do pagamento", notes, { notes = it }, multiline = true)
+    }
+}
+
+@Composable
+private fun PaymentDetailsFields(
+    project: Project,
+    payer: String,
+    changePayer: (String) -> Unit,
+    method: String,
+    changeMethod: (String) -> Unit,
+    registerPayer: (String) -> Unit,
+) {
+    var adding by rememberSaveable { mutableStateOf(false) }
+    var person by rememberSaveable { mutableStateOf("") }
+    var error by rememberSaveable { mutableStateOf<String?>(null) }
+    val methods = (listOf("Pix", "Dinheiro", "Cartão de crédito", "Cartão de débito", "Boleto", "Transferência bancária")
+        + project.purchases.map { it.method } + project.payments.map { it.method })
+        .map(String::trim).filter(String::isNotBlank).distinctBy { it.lowercase(brazil) }
+    SuggestedField("Método de pagamento", method, methods, changeMethod)
+    SuggestedField("Quem pagou", payer, project.payerOptions, changePayer)
+    OutlinedButton(onClick = { person = ""; error = null; adding = true }) { Text("Cadastrar pagador") }
+    if (adding) {
+        AlertDialog(
+            onDismissRequest = { adding = false },
+            title = { Text("Cadastrar pagador") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Field("Nome do pagador", person, { person = it })
+                    error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = person.isNotBlank(), onClick = {
+                    try {
+                        registerPayer(person.trim())
+                        changePayer(person.trim())
+                        adding = false
+                    } catch (_: Exception) {
+                        error = "Não foi possível cadastrar. Confira o nome e tente novamente."
+                    }
+                }) { Text("Cadastrar") }
+            },
+            dismissButton = { TextButton(onClick = { adding = false }) { Text("Cancelar") } },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SuggestedField(label: String, value: String, options: List<String>, change: (String) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = change,
+            label = { Text(label) },
+            modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryEditable).fillMaxWidth(),
+            singleLine = true,
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+        )
+        if (options.isNotEmpty()) {
+            ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                options.forEach { item ->
+                    DropdownMenuItem(text = { Text(item) }, onClick = { change(item); expanded = false })
+                }
+            }
+        }
     }
 }
 
@@ -421,8 +536,9 @@ private fun Field(
 
 @Composable
 private fun Check(label: String, checked: Boolean, change: (Boolean) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Checkbox(checked, change)
+    Row(Modifier.fillMaxWidth().toggleable(value = checked, role = Role.Checkbox, onValueChange = change),
+        verticalAlignment = Alignment.CenterVertically) {
+        Checkbox(checked, onCheckedChange = null)
         Text(label)
     }
 }
