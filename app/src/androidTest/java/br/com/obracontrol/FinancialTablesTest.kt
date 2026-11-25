@@ -3,6 +3,9 @@ package br.com.obracontrol
 import android.graphics.Bitmap
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
+import android.os.Build
+import android.view.WindowInsets
+import android.view.inputmethod.InputMethodManager
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
@@ -129,11 +132,28 @@ class FinancialTablesTest {
     }
 
     private fun saveEditedRecord() {
+        closeKeyboard()
         app.onNodeWithText("Salvar").assertIsDisplayed()
             .performSemanticsAction(SemanticsActions.OnClick) { it() }
     }
 
+    private fun closeKeyboard() {
+        app.activity.runOnUiThread {
+            val view = app.activity.window.decorView
+            app.activity.getSystemService(InputMethodManager::class.java)?.hideSoftInputFromWindow(view.windowToken, 0)
+        }
+        app.waitForIdle()
+        if (Build.VERSION.SDK_INT >= 30) {
+            app.waitUntil(5_000) {
+                val insets = app.activity.window.decorView.rootWindowInsets
+                insets == null || (!insets.isVisible(WindowInsets.Type.ime()) && insets.getInsets(WindowInsets.Type.ime()).bottom == 0)
+            }
+        }
+        app.waitForIdle()
+    }
+
     private fun editCost(id: String, fullscreen: Boolean = false) {
+        closeKeyboard()
         val cell = hasTestTag("table-cost-$id-0")
         val target = if (fullscreen) cell and hasAnyAncestor(hasTestTag("table-fullscreen")) else cell
         app.onNode(target, useUnmergedTree = true).performClick()
