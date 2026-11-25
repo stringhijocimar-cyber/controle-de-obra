@@ -84,6 +84,8 @@ private data class FinancialRow(
     val detail: String = "",
 )
 
+private data class SelectedTableCost(val rowKey: String, val value: String)
+
 private fun Long?.tableMoney(): String = this?.brl()?.replace("R$", "")?.replace("\u00a0", "")?.trim() ?: "A definir"
 
 private fun Purchase.tableInstallments(): String = when (installmentCount) {
@@ -132,7 +134,15 @@ private fun FinancialTable(
     empty: String,
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
+    var selectedCost by remember { mutableStateOf<SelectedTableCost?>(null) }
     val scroll = rememberScrollState()
+    val focus = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    val showCost: (FinancialRow, String) -> Unit = { row, value ->
+        focus.clearFocus()
+        keyboard?.hide()
+        selectedCost = SelectedTableCost(row.key, value)
+    }
     val summary = tableSummary(columns, rows)
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -145,7 +155,7 @@ private fun FinancialTable(
         }
         Box(Modifier.weight(1f)) {
             FinancialGrid(nameColumn, columns, rows, scroll, summary, empty,
-                open = { it.open() }, edit = { it.edit() })
+                open = { it.open() }, showCost = showCost)
         }
         TableLegend()
         Text("Toque no valor para editar · deslize para outras colunas", color = Muted,
@@ -166,11 +176,20 @@ private fun FinancialTable(
                     Box(Modifier.weight(1f)) {
                         FinancialGrid(nameColumn, columns, rows, scroll, summary, empty,
                             open = { row -> expanded = false; row.open() },
-                            edit = { row -> expanded = false; row.edit() })
+                            showCost = showCost)
                     }
                     TableLegend()
                 }
             }
+        }
+    }
+    // Keep the menu outside the lazy rows: scrolling or an IME resize can recycle a cell.
+    selectedCost?.let { selection ->
+        rows.firstOrNull { it.key == selection.rowKey }?.let { row ->
+            AlertDialog(onDismissRequest = { selectedCost = null }, title = { Text("Dados do custo") },
+                text = { Text("${row.name}\nValor selecionado: ${if (selection.value == "A definir") selection.value else "R$ ${selection.value}"}") },
+                confirmButton = { TextButton(onClick = { selectedCost = null; expanded = false; row.edit() }) { Text("Editar dados") } },
+                dismissButton = { TextButton(onClick = { selectedCost = null }) { Text("Cancelar") } })
         }
     }
 }
@@ -247,7 +266,7 @@ private fun FinancialGrid(
     summary: List<TableSummaryMetric>,
     empty: String,
     open: (FinancialRow) -> Unit,
-    edit: (FinancialRow) -> Unit,
+    showCost: (FinancialRow, String) -> Unit,
 ) {
     val fontScale = LocalDensity.current.fontScale
     BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -300,8 +319,7 @@ private fun FinancialGrid(
                                         columns.zip(row.values).forEachIndexed { columnIndex, (column, value) ->
                                             val costIndex = columns.take(columnIndex + 1).count { it.cost } - 1
                                             GridCell(value, column.width, numeric = column.numeric,
-                                                edit = if (column.cost) ({ edit(row) }) else null,
-                                                recordName = row.name,
+                                                edit = if (column.cost) ({ showCost(row, value) }) else null,
                                                 tone = if (column.title in listOf("Pago", "Valor pago", "Pago efetivo")) Green else Navy,
                                                 tag = if (column.cost) "table-cost-${row.key}-$costIndex" else null)
                                         }
@@ -322,17 +340,10 @@ private fun metricsHeight(size: Int) = size * 28 + 20
 @Composable
 private fun GridCell(
     value: String, width: Dp, header: Boolean = false, numeric: Boolean = false, strong: Boolean = false,
-    edit: (() -> Unit)? = null, tag: String? = null, recordName: String = "", tone: Color = Navy, detail: String = "",
+    edit: (() -> Unit)? = null, tag: String? = null, tone: Color = Navy, detail: String = "",
 ) {
-    var options by remember { mutableStateOf(false) }
-    val focus = LocalFocusManager.current
-    val keyboard = LocalSoftwareKeyboardController.current
     val interaction = if (edit == null) Modifier else Modifier
-        .clickable(onClickLabel = "Opções do custo") {
-            focus.clearFocus()
-            keyboard?.hide()
-            options = true
-        }
+        .clickable(onClickLabel = "Opções do custo", onClick = edit)
     Box(Modifier.width(width).fillMaxHeight()
         .then(if (tag == null) Modifier else Modifier.testTag(tag))
         .then(interaction).drawBehind {
@@ -353,12 +364,6 @@ private fun GridCell(
             if (detail.isNotBlank() && !header) Text(detail, color = Muted, fontSize = 10.sp, lineHeight = 13.sp,
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-    }
-    if (options && edit != null) {
-        AlertDialog(onDismissRequest = { options = false }, title = { Text("Dados do custo") },
-            text = { Text("$recordName\nValor selecionado: ${if (value == "A definir") value else "R$ $value"}") },
-            confirmButton = { TextButton(onClick = { options = false; edit() }) { Text("Editar dados") } },
-            dismissButton = { TextButton(onClick = { options = false }) { Text("Cancelar") } })
     }
 }
 
