@@ -137,6 +137,7 @@ class FinancialTablesTest {
         closeKeyboard()
         app.onNodeWithText("Salvar").assertIsDisplayed()
             .performSemanticsAction(SemanticsActions.OnClick) { it() }
+        app.waitForIdle()
     }
 
     private fun closeKeyboard() {
@@ -158,8 +159,11 @@ class FinancialTablesTest {
         closeKeyboard()
         val cell = hasTestTag("table-cost-$id-0")
         val target = if (fullscreen) cell and hasAnyAncestor(hasTestTag("table-fullscreen")) else cell
-        app.onNode(target, useUnmergedTree = true).performScrollTo().assertIsDisplayed().performClick()
         try {
+            app.waitUntil(5_000) {
+                runCatching { app.onNode(target, useUnmergedTree = true).assertExists(); true }.getOrDefault(false)
+            }
+            app.onNode(target, useUnmergedTree = true).performScrollTo().assertIsDisplayed().performClick()
             app.waitUntil(5_000) {
                 runCatching { app.onNodeWithText("Editar dados").assertIsDisplayed(); true }.getOrDefault(false)
             }

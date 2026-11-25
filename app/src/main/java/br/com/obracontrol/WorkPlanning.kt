@@ -140,8 +140,8 @@ internal fun Project.changePlanStage(planId: String, stageId: String, update: (P
 
 internal fun Project.editPlanStage(planId: String, stageId: String, update: (PlanStage) -> PlanStage): Project =
     changePlanStage(planId, stageId) { old ->
-        val next = update(old)
-        next.copy(revision = old.revision + 1, approvals = old.approvals, linkedStageId = old.linkedStageId)
+        val next = update(old).copy(revision = old.revision, approvals = old.approvals, linkedStageId = old.linkedStageId)
+        if (next == old) old else next.copy(revision = Math.addExact(old.revision, 1))
     }.also(Project::validate)
 
 internal fun Project.approvePlanStage(planId: String, stageId: String, approver: String, date: LocalDate, notes: String): Project =

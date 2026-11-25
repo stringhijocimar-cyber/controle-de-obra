@@ -52,6 +52,7 @@ class WorkPlanningTest {
         val first = approved()
         val plan = first.workPlans.single()
         val stage = plan.stages.single()
+        assertEquals(first, first.editPlanStage(plan.id, stage.id) { it.copy() })
         assertEquals(20_500L, stage.latestApproval!!.total)
         assertTrue(stage.approved)
         val revised = first.editPlanStage(plan.id, stage.id) { old -> old.copy(services = old.services.map { service ->

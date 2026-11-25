@@ -100,7 +100,7 @@ internal object WorkPlanCodec {
         Estimativas devem ter estimated=true e explicar a base. Não aprovar etapas nem criar pagamentos.
         Responda SOMENTE com um objeto JSON válido no formato abaixo. Valores monetários em CENTAVOS inteiros, quantidades em string decimal com ponto, datas dd/MM/aaaa ou null. Sem IDs.
         {
-          "format":"obracontrol-planning-v1", "title":"${plan.title.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", " ")}",
+          "format":"obracontrol-planning-v1", "title":${JSONObject.quote(plan.title)},
           "scope":"descrever", "location":"cidade/UF", "area":null, "lossPercent":"${plan.lossPercent.toPlainString()}",
           "assumptions":["hipóteses"], "questions":["dados faltantes"],
           "stages":[{"name":"Nome da etapa", "notes":"escopo e condições",
