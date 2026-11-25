@@ -9,6 +9,9 @@ internal fun Project.registerPayer(name: String): Project {
 
 internal fun Project.recordPurchase(purchase: Purchase, payment: Payment? = null): Project {
     var result = copy(purchases = purchases.upsert(purchase, Purchase::id))
+    if (workPlans.any { plan -> plan.stages.any { stage -> stage.linkedStageId != purchase.stageId && stage.items.any { it.purchaseId == purchase.id } } }) {
+        result = result.unlinkPlanningPurchase(purchase.id)
+    }
     if (purchase.payer.isNotBlank()) result = result.registerPayer(purchase.payer)
     if (payment != null) {
         require(payment.kind == CostKind.MATERIAL && payment.targetId == purchase.id) {

@@ -208,6 +208,7 @@ internal fun Dashboard(
     restore: () -> Unit,
     openAgenda: () -> Unit,
     openDiary: () -> Unit,
+    openPlanning: () -> Unit,
 ) {
     val isEmpty = project.stages.isEmpty() && project.purchases.isEmpty() && project.payments.isEmpty()
     val paymentBreakdown = remember(project) { project.paymentBreakdown() }
@@ -261,6 +262,7 @@ internal fun Dashboard(
                 Detail("As parcelas futuras continuam no saldo até registrar o pagamento.")
             }
         }
+        item { PlanningDashboardCard(project, openPlanning) }
         item { ManagementOverview(agenda, openAgenda, openDiary) }
         item {
             SheetCard {

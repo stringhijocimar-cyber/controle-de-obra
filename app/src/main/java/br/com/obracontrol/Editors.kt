@@ -30,6 +30,7 @@ internal fun EditorScreen(
     val id = parts.getOrNull(1)
     key(route) {
         when (parts.first()) {
+            "planejamento" -> PlanningRouter(route, project, save, navigate, back)
             "obra" -> ProjectEditor(project) { save(it); back() }
             "etapa" -> {
                 val existing = project.stages.firstOrNull { it.id == id }
@@ -41,7 +42,7 @@ internal fun EditorScreen(
                     save(project.copy(stages = project.stages.filterNot { it.id == stage.id },
                         purchases = project.purchases.map { if (it.stageId == stage.id) it.copy(stageId = null) else it },
                         diaryEntries = project.diaryEntries.map { if (it.stageId == stage.id) it.copy(stageId = null) else it },
-                        scheduledPayments = project.scheduledPayments.filterNot { it.kind == CostKind.LABOR && it.targetId == stage.id }))
+                        scheduledPayments = project.scheduledPayments.filterNot { it.kind == CostKind.LABOR && it.targetId == stage.id }).unlinkPlanningStage(stage.id))
                     back()
                 }) else null
                 StageEditor(stage, onDelete) { next ->
@@ -58,7 +59,7 @@ internal fun EditorScreen(
                         "Exclua ou transfira os pagamentos vinculados antes de remover esta compra."
                     }
                     save(project.copy(purchases = project.purchases.filterNot { it.id == order.id },
-                        scheduledPayments = project.scheduledPayments.filterNot { it.kind == CostKind.MATERIAL && it.targetId == order.id }))
+                        scheduledPayments = project.scheduledPayments.filterNot { it.kind == CostKind.MATERIAL && it.targetId == order.id }).unlinkPlanningPurchase(order.id))
                     back()
                 }) else null
                 PurchaseEditor(order, project, total, existing != null, onDelete,

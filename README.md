@@ -1,6 +1,24 @@
 # ObraControl
 
-Aplicativo Android para cadastrar etapas, acompanhar a execução da obra, controlar compras e pagamentos e emitir o relatório executivo em PDF. O cadastro fica no aparelho. O aplicativo funciona sem internet.
+Aplicativo Android para planejar etapas e custos, acompanhar a execução da obra, controlar compras e pagamentos e emitir o relatório executivo em PDF. O cadastro e os modelos funcionam sem internet. O fluxo opcional com ChatGPT requer acesso ao serviço.
+
+## Versão 2.0.0 — planejamento e orçamento
+
+- No **Painel → Abrir planejamento**, crie um modelo de **Reforma**, **Revestimento**, **Casa nova** ou **Personalizado / IA**. Informe escopo, cidade/UF e área de referência. Os modelos criam uma estrutura editável de **planejamento → etapas → serviços → insumos**; cada insumo é material, mão de obra ou serviço contratado / frete / equipamento.
+- Os modelos não inventam preços. No revestimento, a quantidade de revestimento usa a área e a perda informada, com a fórmula explícita. Argamassa, rejunte, bases e estrutura dependem de medição ou especificação e permanecem a definir. Ajuste ou exclua serviços e etapas opcionais antes da aprovação.
+- Abra um serviço para editar seus insumos: quantidade, unidade, preço unitário, fonte / fornecedor, data da referência e indicação de estimativa. O subtotal é calculado por quantidade × preço unitário, com arredondamento em centavos. Preço ausente permanece a cotar, sem virar zero.
+- **Revisar e aprovar orçamento** exige insumos completos e registra responsável, data, revisão e uma cópia dos insumos e preços aprovados. Alterar o rascunho abre uma nova revisão e preserva o histórico de aprovações. A estimativa atual e o último orçamento aprovado aparecem separadamente.
+- **Ativar no controle da obra** permite criar uma etapa e seus custos previstos ou vincular uma etapa existente. A criação lança mão de obra somente no orçamento da etapa e materiais / serviços somente em Compras, sem dupla contagem. A vinculação não recria nem altera compras, pagamentos ou o contrato geral. Quando há contrato global de mão de obra, o usuário escolhe se o novo escopo deve ser somado a ele.
+- O controle compara **último orçamento aprovado, previsão atual, pago efetivo, desvio da previsão e avanço físico**. A previsão atual considera a mão de obra e todas as compras / serviços da etapa vinculada; valores não definidos são identificados como parciais. As datas, vencimentos, parcelas, comprovantes e o calendário semanal continuam nos cadastros de execução existentes. Revisar o planejamento não reescreve custos ou pagamentos já cadastrados.
+- O PDF integral acrescenta resumo do planejamento, composição dos serviços e histórico de aprovações. Backup no formato **9**, com leitura dos formatos **1 a 8**, mantém planejamentos, fontes, aprovações e vínculos. A mesclagem preserva edições locais e remapeia os vínculos quando etapas / compras correspondentes têm IDs diferentes.
+
+### Planejar com ChatGPT
+
+Abra um planejamento e toque em **Planejar com ChatGPT**. Copie o roteiro, abra o ChatGPT e envie-o. O roteiro inclui escopo, local, área e formato de resposta. Depois cole a resposta ou carregue o arquivo em **Importar resposta da IA → Conferir proposta → Salvar**. O app mostra a prévia das etapas antes de importar.
+
+A IA é executada no ChatGPT, fora do aplicativo; não há chamada automática a um modelo nem chave de API embutida. A resposta entra como novo rascunho sem aprovação, vínculo de execução ou pagamento. A mesma proposta importada novamente preserva o rascunho local sem duplicação. Nenhum cadastro existente é substituído por essa importação.
+
+Para precificar, use cotações locais ou uma referência verificável com data e local. A [consulta oficial do SINAPI](https://www.caixa.gov.br/poder-publico/modernizacao-gestao/sinapi/Paginas/default.aspx) distingue referências com e sem preço; o app não presume que uma referência sem preço tenha custo zero e não consulta automaticamente o SINAPI. Dimensionamento estrutural e quantitativos dependentes de projeto não são gerados por regra de área.
 
 ## Versão 1.9.0
 
@@ -65,7 +83,7 @@ Em **Pagamentos**, abra um lançamento e adicione os comprovantes com a câmera 
 
 ## Instalação e primeiro uso
 
-A versão 1.8.4 requer Android 8.0 ou mais recente e atualiza diretamente o **ObraControl 1.7.0 / 1.8.0 / 1.8.1 / 1.8.2 / 1.8.3**, usando a mesma assinatura permanente e o cadastro salvo no aparelho. Abra o instalador e escolha **Atualizar**.
+A versão 2.0.0 requer Android 8.0 ou mais recente e atualiza diretamente o **ObraControl 1.7.0 a 1.9.0**, usando a mesma assinatura permanente e o cadastro salvo no aparelho. Abra o instalador e escolha **Atualizar**, mantendo o aplicativo instalado.
 
 Para transferir dados das edições **ObraControl Financeiro** ou **ObraControl Gestão**, abra **Relatório → Exportar backup com anexos** no app anterior. No **ObraControl**, abra **Relatório → Importar dados da obra**, selecione o ZIP e confirme. Confira o cadastro importado antes de desinstalar a edição anterior. Os backups JSON e ZIP das versões anteriores do formato continuam aceitos.
 

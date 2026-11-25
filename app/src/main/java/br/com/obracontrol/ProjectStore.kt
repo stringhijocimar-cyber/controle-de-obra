@@ -11,7 +11,7 @@ import java.io.InputStream
 import java.math.BigDecimal
 import java.math.RoundingMode
 
-private const val FORMAT_VERSION = 8
+private const val FORMAT_VERSION = 9
 internal const val MAX_BACKUP_BYTES = 5 * 1024 * 1024
 
 internal class ProjectStore(context: Context) {
@@ -63,6 +63,7 @@ internal object ProjectCodec {
         "laborBudgetCents" to project.laborBudget,
         "notes" to project.notes,
         "payerNames" to JSONArray(project.payerNames),
+        "workPlans" to WorkPlanCodec.encode(project.workPlans),
         "scheduledPayments" to array(project.scheduledPayments.map { plan -> obj(
             "id" to plan.id, "kind" to plan.kind.name, "targetId" to plan.targetId,
             "amountCents" to plan.amount, "date" to plan.date.dateText(), "label" to plan.label,
@@ -139,7 +140,7 @@ internal object ProjectCodec {
         val version = if (root.has("version")) root.getInt("version") else 1
         val project = when (version) {
             1 -> migrateLegacy(root)
-            2, 3, 4, 5, 6, 7, FORMAT_VERSION -> decodeCurrent(root)
+            2, 3, 4, 5, 6, 7, 8, FORMAT_VERSION -> decodeCurrent(root)
             else -> throw IllegalArgumentException("Versão de backup incompatível.")
         }
         project.validate()
@@ -152,6 +153,7 @@ internal object ProjectCodec {
         referenceDate = root.date("referenceDate"),
         laborBudget = root.cents("laborBudgetCents"),
         notes = root.string("notes"),
+        workPlans = WorkPlanCodec.decode(root.optJSONArray("workPlans")),
         payerNames = root.optJSONArray("payerNames")?.let { names ->
             (0 until names.length()).map { names.getString(it) }
         }.orEmpty(),
@@ -321,6 +323,21 @@ internal fun Project.validate() {
     requireDistinctIds(scheduledPayments.map { it.id })
     requireDistinctIds(issues.map { it.id })
     requireDistinctIds(diaryEntries.map { it.id })
+    requireDistinctIds(workPlans.map { it.id })
+    require(workPlans.size <= 50) { "O cadastro comporta até 50 planejamentos." }
+    workPlans.forEach { plan ->
+        plan.validate()
+        plan.stages.forEach { stage ->
+            require(stage.linkedStageId == null || stages.any { it.id == stage.linkedStageId }) { "A etapa vinculada ao planejamento não existe." }
+            stage.items.forEach { item ->
+                require(item.purchaseId == null || purchases.any { it.id == item.purchaseId && it.stageId == stage.linkedStageId }) {
+                    "O insumo planejado está vinculado a uma compra de outra etapa."
+                }
+            }
+        }
+    }
+    val linked = workPlans.flatMap { it.stages }.mapNotNull { it.linkedStageId }
+    require(linked.distinct().size == linked.size) { "Uma etapa de execução só pode estar vinculada a uma etapa de planejamento." }
     stages.forEach(Stage::validate)
     purchases.forEach { order ->
         require(order.name.isNotBlank()) { "Informe o nome da compra." }
@@ -358,7 +375,7 @@ internal fun Project.validate() {
     require(issues.all { it.title.isNotBlank() }) { "Informe um título para a pendência." }
 }
 
-private fun requireDistinctIds(ids: List<String>) {
+internal fun requireDistinctIds(ids: List<String>) {
     require(ids.all { it.matches(Regex("[A-Za-z0-9_-]+")) && it != "nova" && it != "novo" } && ids.distinct().size == ids.size) {
         "O projeto contém registros repetidos ou inválidos."
     }

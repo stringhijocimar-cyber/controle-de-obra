@@ -164,7 +164,7 @@ class MainActivity : ComponentActivity() {
         pendingRestore?.let { backup ->
             val existing = !loadFailed && project.hasWork()
             val same = existing && project.isSameWork(backup)
-            val details = "${backup.stages.size} etapas, ${backup.purchases.size} compras, ${backup.payments.size} pagamentos, ${backup.scheduledPayments.size} vencimentos programados, ${backup.diaryEntries.size} registros no diário e ${backup.documentAttachments().size} anexos."
+            val details = "${backup.stages.size} etapas, ${backup.purchases.size} compras, ${backup.payments.size} pagamentos, ${backup.scheduledPayments.size} vencimentos programados, ${backup.workPlans.size} planejamentos, ${backup.diaryEntries.size} registros no diário e ${backup.documentAttachments().size} anexos."
             fun finishImport(merge: Boolean) {
                 runFileOperation {
                     val result = if (merge) project.mergeFrom(backup) else ProjectImport(backup, 0)
@@ -244,7 +244,7 @@ class MainActivity : ComponentActivity() {
                     EditorScreen(route, project, balance, ::save, ::navigate, ::goBack, ::openLine)
                 } else when (section) {
                     Section.DASHBOARD -> Dashboard(project, balance, agenda, { navigate("obra") }, { navigate("pendencias") }, openRestore,
-                        { navigate("agenda") }, { navigate("diario") })
+                        { navigate("agenda") }, { navigate("diario") }, { navigate("planejamento") })
                     Section.STAGES -> listState.SaveableStateProvider("etapas") {
                         StageList(project, balance, today, { navigate("etapa/nova") }, { navigate("etapa/$it") },
                             { kind, target -> navigate("pagamento/novo/${kind.name}/$target/saldo") })
@@ -286,6 +286,7 @@ class MainActivity : ComponentActivity() {
 }
 
 private fun editorTitle(route: String): String = when (route.substringBefore('/')) {
+    "planejamento" -> "Planejamento e orçamento"
     "obra" -> "Dados da obra"
     "agenda" -> "Agenda"
     "diario" -> "Diário"

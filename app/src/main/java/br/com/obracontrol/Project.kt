@@ -87,6 +87,7 @@ internal data class Project(
     val diaryEntries: List<DiaryEntry> = emptyList(),
     val payerNames: List<String> = emptyList(),
     val scheduledPayments: List<ScheduledPayment> = emptyList(),
+    val workPlans: List<WorkPlan> = emptyList(),
 ) {
     val payerOptions: List<String> get() = (payerNames + purchases.map { it.payer } + payments.map { it.payer })
         .map(String::trim).filter(String::isNotBlank).distinctBy { it.lowercase(brazil) }

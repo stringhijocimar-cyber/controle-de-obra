@@ -113,11 +113,28 @@ internal fun Project.mergeFrom(incoming: Project): ProjectImport {
     }
     val names = (payerNames + incoming.payerNames).distinctBy { it.trim().lowercase(brazil) }
     added += names.size - payerNames.size
+    val planning = workPlans.toMutableList()
+    for (source in incoming.workPlans) {
+        if (planning.any { it.id == source.id || source.originKey.isNotBlank() && it.originKey == source.originKey }) continue
+        val remapped = source.copy(stages = source.stages.map { stage -> stage.copy(
+            linkedStageId = stage.linkedStageId?.let(stageIds::getValue),
+            services = stage.services.map { service -> service.copy(items = service.items.map { item ->
+                item.copy(purchaseId = item.purchaseId?.let(purchaseIds::getValue))
+            }) },
+        ) })
+        // Existing local planning owns its execution links; retain imported drafts without duplicating that ownership.
+        val owned = planning.flatMap { it.stages }.mapNotNull { it.linkedStageId }.toSet()
+        planning += remapped.copy(stages = remapped.stages.map { stage ->
+            if (stage.linkedStageId !in owned) stage else stage.copy(linkedStageId = null,
+                services = stage.services.map { it.copy(items = it.items.map { input -> input.copy(purchaseId = null) }) })
+        })
+        added++
+    }
     val merged = copy(start = start ?: incoming.start, referenceDate = referenceDate ?: incoming.referenceDate,
         laborBudget = laborBudget ?: incoming.laborBudget, notes = notes.ifBlank { incoming.notes },
         stages = importedStages, purchases = importedPurchases, payments = importedPayments, issues = importedIssues,
         diaryEntries = diary.values.toList(),
-        payerNames = names, scheduledPayments = importedPlans)
+        payerNames = names, scheduledPayments = importedPlans, workPlans = planning)
     return ProjectImport(merged, added)
 }
 

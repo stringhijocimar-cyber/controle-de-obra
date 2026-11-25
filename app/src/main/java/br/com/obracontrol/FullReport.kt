@@ -46,6 +46,7 @@ internal object FullReport {
                 report.purchases()
                 report.projections()
                 report.costPaymentCalendar()
+                report.planning()
                 report.materials()
                 report.payments()
                 report.issues()
@@ -608,6 +609,52 @@ internal object FullReport {
                 if (order.notes.isNotBlank()) paragraph(order.notes)
                 if (order.documents.isNotEmpty()) paragraph("Documentos anexados: ${order.documents.joinToString { it.name }}")
                 y += 7f
+            }
+        }
+
+        fun planning() {
+            if (project.workPlans.isEmpty()) return
+            project.workPlans.forEach { plan ->
+                section("PLANEJAMENTO E ORÇAMENTO POR ETAPA", "${plan.title} · ${plan.type.label} · ${plan.location.textOr()}")
+                if (plan.scope.isNotBlank()) paragraph(plan.scope)
+                tiles(
+                    Tile("ESTIMATIVA CONHECIDA", plan.knownTotal.brl(), "${plan.missing} pendências de orçamento"),
+                    Tile("ÚLTIMO ORÇAMENTO APROVADO", plan.approvedTotal.brl(), "Última aprovação de cada etapa", green),
+                    Tile("ETAPAS APROVADAS", "${plan.stages.count { it.approved }} / ${plan.stages.size}", "A revisão do rascunho exige nova aprovação"),
+                )
+                table(listOf("ETAPA / SITUAÇÃO", "ESTIMATIVA", "APROVADO", "PREVISÃO ATUAL", "PAGO EFETIVO", "DESVIO / AVANÇO"),
+                    listOf(235f, 105f, 110f, 110f, 110f, 104f), plan.stages.map { stage ->
+                        val control = project.planControl(stage)
+                        listOf("${stage.name}\n${stage.status}", stage.knownTotal.brl(), stage.latestApproval?.total.costText(),
+                            control?.let { it.forecast.brl() + if (it.undefined > 0) " (parcial)" else "" } ?: "Sem vínculo",
+                            control?.paid.costText(), control?.let { value ->
+                                (stage.latestApproval?.let { (value.forecast - it.total).brl() } ?: UNDEFINED) + "\n${value.progress}% físico"
+                            } ?: "Sem vínculo")
+                    }, "Sem etapas.")
+                paragraph("A previsão atual usa a mão de obra da etapa vinculada e todas as compras / serviços vinculados a ela. O pago usa apenas os pagamentos registrados. O rascunho e a aprovação não criam pagamentos.")
+                (plan.assumptions + plan.questions).forEach { paragraph("• $it") }
+                plan.stages.forEach { stage ->
+                    heading(stage.name.uppercase(brazil))
+                    if (stage.notes.isNotBlank()) paragraph(stage.notes)
+                    stage.services.forEach { service ->
+                        heading(service.name)
+                        table(listOf("INSUMO / TIPO", "QUANTIDADE", "UNIDADE", "PREÇO UNIT.", "SUBTOTAL", "FONTE / DATA / CONDIÇÕES"),
+                            listOf(230f, 78f, 85f, 96f, 100f, 185f), service.items.map { item ->
+                                listOf("${item.name}\n${item.category.label}" + if (item.estimated && item.subtotal != null) " · Estimado" else "",
+                                    item.quantity.quantityInput().ifBlank { UNDEFINED }, item.unit.textOr(UNDEFINED),
+                                    item.unitPrice.costText(), item.subtotal.costText(),
+                                    "${item.priceSource.textOr(UNDEFINED)}\n${item.priceDate.dateOr()}\n${item.notes}".trim())
+                            }, "Serviço sem insumos: detalhar antes de aprovar.")
+                    }
+                    if (stage.approvals.isNotEmpty()) {
+                        heading("HISTÓRICO DE APROVAÇÃO")
+                        table(listOf("REVISÃO", "DATA", "RESPONSÁVEL", "APROVADO", "CONDIÇÕES"),
+                            listOf(75f, 95f, 170f, 110f, 324f), stage.approvals.map { approval ->
+                                listOf(approval.revision.toString(), approval.date.dateText(), approval.approver,
+                                    approval.total.brl(), approval.notes.textOr())
+                            }, "")
+                    }
+                }
             }
         }
 
