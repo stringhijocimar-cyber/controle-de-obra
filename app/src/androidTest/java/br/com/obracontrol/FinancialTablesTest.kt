@@ -51,7 +51,7 @@ class FinancialTablesTest {
             editCost(purchase.id, fullscreen = true)
             app.onNodeWithTag("table-fullscreen").assertDoesNotExist()
             app.onNodeWithText("Total do documento ou da cotação (R$)").performScrollTo().performTextReplacement("150,00")
-            app.onNodeWithText("Salvar").performClick()
+            saveEditedRecord()
             val savedPurchase = store.load().purchases.single { it.id == purchase.id }
             assertEquals(15_000L, savedPurchase.total)
             assertEquals(3, savedPurchase.installmentCount)
@@ -62,14 +62,14 @@ class FinancialTablesTest {
             app.onNodeWithText("Etapas").performClick()
             editCost(stage.id)
             app.onNodeWithText("Valor da etapa (R$)").performScrollTo().performTextReplacement("300,00")
-            app.onNodeWithText("Salvar").performClick()
+            saveEditedRecord()
             assertEquals(30_000L, store.load().stages.single().budget)
             assertEquals(project.payments, store.load().payments)
 
             app.onNode(hasText("Pagamentos") and hasClickAction()).performClick()
             editCost(payment.id)
             app.onNodeWithText("Valor pago (R$)").performScrollTo().performTextReplacement("50,00")
-            app.onNodeWithText("Salvar").performClick()
+            saveEditedRecord()
             val savedPayment = store.load().payments.single { it.id == payment.id }
             assertEquals(payment.copy(amount = 5_000), savedPayment)
             assertEquals(10_000L, Balance(store.load()).materialOutstanding(savedPurchase))
@@ -77,11 +77,11 @@ class FinancialTablesTest {
             app.onNodeWithText("A pagar").performClick()
             editCost("${CostKind.MATERIAL}/${purchase.id}")
             app.onNodeWithText("Nome da compra ou material").performTextReplacement("Compra revisada")
-            app.onNodeWithText("Salvar").performClick()
+            saveEditedRecord()
             assertEquals("Compra revisada", store.load().purchases.single { it.id == purchase.id }.name)
             editCost("${CostKind.LABOR}/${stage.id}")
             app.onNodeWithText("Nome da etapa").performTextReplacement("Etapa revisada")
-            app.onNodeWithText("Salvar").performClick()
+            saveEditedRecord()
             assertEquals("Etapa revisada", store.load().stages.single().name)
             assertEquals(listOf(savedPayment, labor), store.load().payments)
         } finally {
@@ -89,11 +89,17 @@ class FinancialTablesTest {
         }
     }
 
+    private fun saveEditedRecord() {
+        app.onNodeWithText("Salvar").assertIsDisplayed()
+            .performSemanticsAction(SemanticsActions.OnClick) { it() }
+    }
+
     private fun editCost(id: String, fullscreen: Boolean = false) {
         val cell = hasTestTag("table-cost-$id-0")
         val target = if (fullscreen) cell and hasAnyAncestor(hasTestTag("table-fullscreen")) else cell
         app.onNode(target, useUnmergedTree = true).performClick()
-        app.onNodeWithText("Editar dados").assertIsDisplayed().performClick()
+        app.onNodeWithText("Editar dados").assertIsDisplayed()
+            .performSemanticsAction(SemanticsActions.OnClick) { it() }
     }
 
     @Test
