@@ -24,8 +24,10 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.printToString
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -157,6 +159,20 @@ class FinancialTablesTest {
         val cell = hasTestTag("table-cost-$id-0")
         val target = if (fullscreen) cell and hasAnyAncestor(hasTestTag("table-fullscreen")) else cell
         app.onNode(target, useUnmergedTree = true).performClick()
+        try {
+            app.waitUntil(5_000) {
+                runCatching { app.onNodeWithText("Editar dados").assertIsDisplayed(); true }.getOrDefault(false)
+            }
+        } catch (failure: Throwable) {
+            val folder = File(app.activity.filesDir, "screenshots").apply { mkdirs() }
+            InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()?.let { bitmap ->
+                File(folder, "custo-erro.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            }
+            File(folder, "custo-erro.txt").writeText(
+                "Registro: $id\n" + app.onNode(target, useUnmergedTree = true).printToString() +
+                    "\nOpção:\n" + app.onNodeWithText("Editar dados").printToString())
+            throw failure
+        }
         app.onNodeWithText("Editar dados").assertIsDisplayed()
             .performSemanticsAction(SemanticsActions.OnClick) { it() }
     }
