@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
@@ -43,10 +44,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -55,7 +54,11 @@ import androidx.compose.ui.window.DialogProperties
 import java.time.LocalDate
 
 private val UnpaidRed = Color(0xFFB3261E)
-private val GridLine = Color(0xFFBCCBD8)
+private val GridLine = Color(0xFFE7EDF2)
+private val TableHeader = Color(0xFFF3F6F8)
+private val AlternateRow = Color(0xFFFAFCFD)
+private val SummaryBackground = Color(0xFFF0F7F4)
+private val TableShape = RoundedCornerShape(10.dp)
 
 private data class TableColumn(
     val title: String, val width: Dp, val numeric: Boolean = false, val cost: Boolean = false,
@@ -71,9 +74,10 @@ private data class FinancialRow(
     val action: String,
     val open: () -> Unit,
     val edit: () -> Unit = open,
+    val costs: List<Long?>,
 )
 
-private fun Long?.tableMoney(): String = this?.brl()?.removePrefix("R$")?.trim() ?: "A definir"
+private fun Long?.tableMoney(): String = this?.brl()?.replace("R$", "")?.replace("\u00a0", "")?.trim() ?: "A definir"
 
 private fun Purchase.tableInstallments(): String = when (installmentCount) {
     null -> "—"
@@ -101,6 +105,15 @@ private fun StatusIcon(status: FinancialStatus) {
     }
 }
 
+private data class TableSummaryMetric(val label: String, val total: TableAmountTotal)
+
+private fun tableSummary(columns: List<TableColumn>, rows: List<FinancialRow>): List<TableSummaryMetric> =
+    columns.filter { it.cost }.mapIndexed { index, column ->
+        TableSummaryMetric(column.title, tableAmountTotal(rows.map { it.costs[index] }))
+    }
+
+private fun recordCount(size: Int) = "$size ${if (size == 1) "registro" else "registros"}"
+
 @Composable
 private fun FinancialTable(
     nameColumn: String,
@@ -108,22 +121,19 @@ private fun FinancialTable(
     rows: List<FinancialRow>,
     empty: String,
 ) {
-    if (rows.isEmpty()) {
-        ObraList { item { SheetCard { Detail(empty) } } }
-        return
-    }
     var expanded by rememberSaveable { mutableStateOf(false) }
     val scroll = rememberScrollState()
-    Column(Modifier.fillMaxSize().padding(horizontal = 8.dp)) {
+    val summary = tableSummary(columns, rows)
+    Column(Modifier.fillMaxSize().padding(horizontal = 10.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("${rows.size} registro(s) · valores em R$", Modifier.weight(1f),
-                color = Muted, fontSize = 11.sp)
+            Text("${recordCount(rows.size)} · valores em R$", Modifier.weight(1f), color = Muted, fontSize = 11.sp)
             TextButton(onClick = { expanded = true }, contentPadding = PaddingValues(horizontal = 8.dp)) {
                 Text("Tela cheia", fontSize = 12.sp)
             }
         }
         Box(Modifier.weight(1f)) {
-            FinancialGrid(nameColumn, columns, rows, scroll, open = { it.open() }, edit = { it.edit() })
+            FinancialGrid(nameColumn, columns, rows, scroll, summary, empty,
+                open = { it.open() }, edit = { it.edit() })
         }
         TableLegend()
         Text("Toque no custo para editar · deslize para ver as colunas", color = Muted,
@@ -132,17 +142,17 @@ private fun FinancialTable(
     if (expanded) {
         Dialog(onDismissRequest = { expanded = false },
             properties = DialogProperties(usePlatformDefaultWidth = false)) {
-            Surface(Modifier.fillMaxSize().testTag("table-fullscreen"), color = Color.White) {
-                Column(Modifier.fillMaxSize().padding(8.dp)) {
+            Surface(Modifier.fillMaxSize().testTag("table-fullscreen"), color = Mist) {
+                Column(Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 4.dp)) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text("$nameColumn · ${rows.size} registro(s)", Modifier.weight(1f),
-                            fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Column(Modifier.weight(1f)) {
+                            Text(nameColumn, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                            Text("${recordCount(rows.size)} · valores em R$", color = Muted, fontSize = 10.sp)
+                        }
                         TextButton(onClick = { expanded = false }) { Text("Fechar tabela") }
                     }
-                    Text("Valores em R$ · gire o celular para ver mais colunas", color = Muted,
-                        fontSize = 11.sp, modifier = Modifier.padding(bottom = 8.dp))
                     Box(Modifier.weight(1f)) {
-                        FinancialGrid(nameColumn, columns, rows, scroll,
+                        FinancialGrid(nameColumn, columns, rows, scroll, summary, empty,
                             open = { row -> expanded = false; row.open() },
                             edit = { row -> expanded = false; row.edit() })
                     }
@@ -155,10 +165,44 @@ private fun FinancialTable(
 
 @Composable
 private fun TableLegend() {
-    Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("✓ Pago", color = Green, fontSize = 11.sp)
-        Text("◐ Parcial", color = Amber, fontSize = 11.sp)
-        Text("○ Aberto / ! Atrasado", color = UnpaidRed, fontSize = 11.sp)
+    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("✓ Pago", color = Green, fontSize = 10.sp)
+        Text("◐ Parcial", color = Amber, fontSize = 10.sp)
+        Text("○ Aberto / ! Atrasado", color = UnpaidRed, fontSize = 10.sp)
+    }
+}
+
+@Composable
+private fun TableSummary(metrics: List<TableSummaryMetric>, height: Dp) {
+    val undefined = metrics.maxOfOrNull { it.total.undefinedCount } ?: 0
+    Column(Modifier.fillMaxWidth().height(height).background(SummaryBackground).padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.Center) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            metrics.forEachIndexed { index, metric ->
+                val baseLabel = if (metrics.size == 1) "Total pago" else when (metric.label) {
+                    "Total" -> "Total previsto"
+                    "Previsto" -> "Total previsto"
+                    "Saldo" -> if (index == 0) "Total a pagar" else "Saldo"
+                    else -> "Total pago"
+                }
+                val label = if (metric.total.partial && !metric.total.entirelyUndefined) {
+                    if (metric.label == "Saldo") "Saldo conhecido" else "Previsto conhecido"
+                } else baseLabel
+                val color = if (metric.label in listOf("Pago", "Valor pago")) Green else Navy
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text(label, color = Muted, fontSize = 10.sp, lineHeight = 12.sp,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(if (metric.total.entirelyUndefined) "A definir" else metric.total.known.brl(),
+                        Modifier.testTag("table-total-$index"), color = color,
+                        fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Bold,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
+        if (undefined > 0) {
+            Text("Total parcial · $undefined ${if (undefined == 1) "valor a definir" else "valores a definir"}",
+                Modifier.testTag("table-partial-total").padding(top = 4.dp), color = Amber, fontSize = 10.sp, lineHeight = 12.sp)
+        }
     }
 }
 
@@ -168,49 +212,60 @@ private fun FinancialGrid(
     columns: List<TableColumn>,
     rows: List<FinancialRow>,
     scroll: androidx.compose.foundation.ScrollState,
+    summary: List<TableSummaryMetric>,
+    empty: String,
     open: (FinancialRow) -> Unit,
     edit: (FinancialRow) -> Unit,
 ) {
     val fontScale = LocalDensity.current.fontScale
-    BoxWithConstraints(Modifier.fillMaxSize().border(1.dp, GridLine)) {
+    BoxWithConstraints(Modifier.fillMaxSize()) {
         val fixedWidth = if (maxWidth >= 600.dp) 170.dp else 108.dp
         val statusWidth = 36.dp
         val contentWidth = columns.fold(0.dp) { width, column -> width + column.width }
         val rowHeight = maxOf(48.dp, (40 * fontScale).dp)
         val headerHeight = maxOf(38.dp, (34 * fontScale).dp)
-        Surface(Modifier.fillMaxSize(), color = Color.White) {
-                Column(Modifier.fillMaxSize()) {
-                    Row(Modifier.fillMaxWidth().height(headerHeight).background(Navy),
-                        verticalAlignment = Alignment.CenterVertically) {
-                        GridCell(nameColumn, fixedWidth, header = true)
-                        Box(Modifier.weight(1f).horizontalScroll(scroll)) {
-                            Row(Modifier.width(statusWidth + contentWidth), verticalAlignment = Alignment.CenterVertically) {
-                                GridCell("Sit.", statusWidth, header = true)
-                                columns.forEach { column ->
-                                    GridCell(column.title, column.width, header = true, numeric = column.numeric)
-                                }
+        val summaryHeight = maxOf(60.dp, (56 * fontScale).dp) +
+            if (summary.any { it.total.partial }) (18 * fontScale).dp else 0.dp
+        val bodyHeight = minOf(if (rows.isEmpty()) 72.dp else rowHeight * rows.size,
+            (maxHeight - headerHeight - summaryHeight).coerceAtLeast(0.dp))
+        Surface(Modifier.fillMaxWidth().height(headerHeight + bodyHeight + summaryHeight)
+            .border(1.dp, GridLine, TableShape), shape = TableShape, color = Color.White) {
+            Column(Modifier.fillMaxSize()) {
+                Row(Modifier.fillMaxWidth().height(headerHeight).background(TableHeader),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    GridCell(nameColumn, fixedWidth, header = true)
+                    Box(Modifier.weight(1f).horizontalScroll(scroll)) {
+                        Row(Modifier.width(statusWidth + contentWidth), verticalAlignment = Alignment.CenterVertically) {
+                            GridCell("Sit.", statusWidth, header = true)
+                            columns.forEach { column ->
+                                GridCell(column.title, column.width, header = true, numeric = column.numeric)
                             }
                         }
                     }
-                    LazyColumn(Modifier.fillMaxSize()) {
+                }
+                if (rows.isEmpty()) {
+                    Box(Modifier.fillMaxWidth().height(bodyHeight).padding(14.dp), contentAlignment = Alignment.CenterStart) {
+                        Text(empty, color = Muted, fontSize = 12.sp)
+                    }
+                } else {
+                    LazyColumn(Modifier.fillMaxWidth().height(bodyHeight)) {
                         itemsIndexed(rows, key = { _, row -> row.key }) { index, row ->
-                            Row(
-                                Modifier.fillMaxWidth().height(rowHeight)
-                                    .background(if (index % 2 == 0) Color.White else Mist)
-                                    .testTag("table-row-${row.key}")
-                                    .clickable(onClickLabel = row.action, onClick = { open(row) }),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
+                            Row(Modifier.fillMaxWidth().height(rowHeight)
+                                .background(if (index % 2 == 0) Color.White else AlternateRow)
+                                .testTag("table-row-${row.key}")
+                                .clickable(onClickLabel = row.action, onClick = { open(row) }),
+                                verticalAlignment = Alignment.CenterVertically) {
                                 GridCell(row.name, fixedWidth, strong = true, tag = "table-name-${row.key}")
                                 Box(Modifier.weight(1f).horizontalScroll(scroll).testTag("table-values-${row.key}")) {
                                     Row(Modifier.width(statusWidth + contentWidth), verticalAlignment = Alignment.CenterVertically) {
                                         Box(Modifier.width(statusWidth).fillMaxHeight().border(0.5.dp, GridLine),
                                             contentAlignment = Alignment.Center) { StatusIcon(row.status) }
-                                        columns.zip(row.values).forEachIndexed { index, (column, value) ->
+                                        columns.zip(row.values).forEachIndexed { columnIndex, (column, value) ->
                                             GridCell(value, column.width, numeric = column.numeric,
                                                 edit = if (column.cost) ({ edit(row) }) else null,
                                                 recordName = row.name,
-                                                tag = if (column.cost) "table-cost-${row.key}-$index" else null)
+                                                tone = if (column.title in listOf("Pago", "Valor pago")) Green else Navy,
+                                                tag = if (column.cost) "table-cost-${row.key}-$columnIndex" else null)
                                         }
                                     }
                                 }
@@ -218,6 +273,8 @@ private fun FinancialGrid(
                         }
                     }
                 }
+                TableSummary(summary, summaryHeight)
+            }
         }
     }
 }
@@ -225,7 +282,7 @@ private fun FinancialGrid(
 @Composable
 private fun GridCell(
     value: String, width: Dp, header: Boolean = false, numeric: Boolean = false, strong: Boolean = false,
-    edit: (() -> Unit)? = null, tag: String? = null, recordName: String = "",
+    edit: (() -> Unit)? = null, tag: String? = null, recordName: String = "", tone: Color = Navy,
 ) {
     var options by remember { mutableStateOf(false) }
     val focus = LocalFocusManager.current
@@ -238,14 +295,12 @@ private fun GridCell(
         }
     Box(Modifier.width(width).fillMaxHeight()
         .then(if (tag == null) Modifier else Modifier.testTag(tag))
-        .then(interaction).border(0.5.dp, if (header) Color(0xFF536678) else GridLine)
+        .then(interaction).border(0.5.dp, GridLine)
         .padding(horizontal = 6.dp), contentAlignment = if (numeric) Alignment.CenterEnd else Alignment.CenterStart) {
-        Text(value.replace('\n', ' '), color = if (header) Color.White else if (edit != null) Blue else Navy,
-            fontSize = if (header) 11.sp else 12.sp,
+        Text(value.replace('\n', ' '), color = if (header) Muted else tone,
+            fontSize = if (header) 11.sp else 12.sp, lineHeight = 16.sp,
             fontWeight = if (header || strong) FontWeight.SemiBold else FontWeight.Normal,
-            fontFamily = if (numeric && !header) FontFamily.Monospace else FontFamily.Default,
-            textAlign = if (numeric) TextAlign.End else TextAlign.Start,
-            textDecoration = if (edit != null) TextDecoration.Underline else TextDecoration.None,
+                        textAlign = if (numeric) TextAlign.End else TextAlign.Start,
             maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
     }
     if (options && edit != null) {
@@ -268,7 +323,7 @@ internal fun StageTable(project: Project, balance: Balance, today: LocalDate, ed
             listOf(stage.budget.tableMoney(), paid.tableMoney(), stage.budget?.minus(paid).tableMoney(),
                 "${stage.progress}%", stage.status, stage.plannedStart.dateOr(), stage.plannedEnd.dateOr(),
                 stage.actualStart.dateOr(), stage.actualEnd.dateOr(), stage.dueDate.dateOr()),
-            "Editar etapa", { edit(stage.id) })
+            "Editar etapa", { edit(stage.id) }, costs = listOf(stage.budget, paid, stage.budget?.minus(paid)))
     }
     FinancialTable("Etapa", columns, rows, "Cadastre a primeira etapa para montar o cronograma.")
 }
@@ -291,7 +346,7 @@ internal fun PurchaseTableScreen(
                 order.dueDate.dateOr(), order.supplier.textOr(),
                 order.receivedDate?.let { "✓ ${it.dateText()}" } ?: order.deliveryExpected.dateOr(),
                 order.documents.size.toString(), order.document.textOr()),
-            "Abrir compra", { open(order.id) })
+            "Abrir compra", { open(order.id) }, costs = listOf(order.forecast, paid, order.forecast?.minus(paid)))
     }
     Column(Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
@@ -337,7 +392,7 @@ internal fun PaymentTableScreen(
                     if (entry.forecastDate == null) "Sem data" else if (entry.dateEstimated) "Estimativa" else "Informada",
                     purchase?.installmentText() ?: "—", entry.kind.label),
                 "Registrar pagamento", { payTarget(entry.kind, entry.targetId) },
-                edit = { editCost(entry.kind, entry.targetId) })
+                edit = { editCost(entry.kind, entry.targetId) }, costs = listOf(entry.amount, paid))
         }
     } else {
         project.payments.sortedWith(compareBy(nullsLast(reverseOrder())) { it.date }).map { payment ->
@@ -346,15 +401,13 @@ internal fun PaymentTableScreen(
                 listOf(payment.amount.tableMoney(), payment.date.dateOr(UNREPORTED), payment.payer.textOr(), payment.method.textOr(),
                     if (payment.kind == CostKind.MATERIAL) purchases[payment.targetId]?.tableInstallments() ?: "—" else "—",
                     terms, payment.kind.label, payment.proofs.size.toString(), payment.receipt.textOr()),
-                "Editar pagamento", { edit(payment.id) })
+                "Editar pagamento", { edit(payment.id) }, costs = listOf(payment.amount))
         }
     }
     Column(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)) {
             ListHeading("Pagamentos", "+ Novo", add)
-            Text("Total pago ${balance.paid.brl()}  ·  Saldo conhecido ${balance.remaining.brl()}",
-                style = MaterialTheme.typography.bodySmall, color = Muted)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(selected = !outstanding, onClick = { outstanding = false }, label = { Text("Registrados") })
                 FilterChip(selected = outstanding, onClick = { outstanding = true }, label = { Text("A pagar") })

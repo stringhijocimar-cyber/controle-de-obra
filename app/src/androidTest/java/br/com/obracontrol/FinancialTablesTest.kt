@@ -5,6 +5,7 @@ import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
@@ -31,6 +32,44 @@ import java.time.LocalDate
 
 class FinancialTablesTest {
     @get:Rule val app = createAndroidComposeRule<MainActivity>()
+
+    @Test
+    fun footerTotalsFollowTheirTableAndUnknownCostsStayPartial() {
+        val store = ProjectStore(app.activity)
+        val previous = store.load()
+        val known = Purchase(name = "Compra com valor", total = 10_000)
+        val unknown = Purchase(name = "Compra a cotar")
+        val stage = Stage(name = "Etapa prevista", budget = 20_000)
+        val project = Project(laborBudget = 500_000, stages = listOf(stage), purchases = listOf(known, unknown),
+            payments = listOf(Payment(kind = CostKind.MATERIAL, targetId = known.id, amount = 4_000),
+                Payment(kind = CostKind.MATERIAL, targetId = unknown.id, amount = 2_000)))
+        try {
+            store.save(project)
+            app.activityRule.scenario.recreate()
+            app.onNode(hasText("Compras") and hasClickAction()).performClick()
+            app.onNodeWithTag("table-total-0").assertIsDisplayed().assertTextEquals(10_000L.brl())
+            app.onNodeWithTag("table-total-1").assertTextEquals(6_000L.brl())
+            app.onNodeWithTag("table-total-2").assertTextEquals(6_000L.brl())
+            app.onNodeWithTag("table-partial-total").assertIsDisplayed()
+            app.onNodeWithTag("table-values-${known.id}", useUnmergedTree = true).performTouchInput { swipeLeft() }
+            app.onNodeWithTag("table-total-0").assertIsDisplayed().assertTextEquals(10_000L.brl())
+
+            app.onNodeWithText("Etapas").performClick()
+            app.onNodeWithTag("table-total-0").assertTextEquals(20_000L.brl())
+            app.onNodeWithTag("table-total-2").assertTextEquals(20_000L.brl())
+            app.onNodeWithTag("table-partial-total").assertDoesNotExist()
+            app.onNode(hasText("Pagamentos") and hasClickAction()).performClick()
+            app.onNodeWithTag("table-total-0").assertTextEquals(6_000L.brl())
+            app.onNodeWithTag("table-total-1").assertDoesNotExist()
+
+            store.save(Project())
+            app.activityRule.scenario.recreate()
+            app.onNode(hasText("Pagamentos") and hasClickAction()).performClick()
+            app.onNodeWithTag("table-total-0").assertIsDisplayed().assertTextEquals(0L.brl())
+        } finally {
+            store.save(previous)
+        }
+    }
 
     @Test
     fun costMenusEditTheirSourceAndRecalculateWithoutDuplicatingPayments() {
@@ -135,6 +174,9 @@ class FinancialTablesTest {
             val rowHeight = app.onNodeWithTag("table-row-${partial.id}").fetchSemanticsNode().boundsInRoot.height /
                 app.activity.resources.displayMetrics.density
             assertTrue("A tabela deve usar linhas compactas", rowHeight <= 56f)
+            app.onNodeWithTag("table-total-0").assertTextEquals(95_800L.brl())
+            app.onNodeWithTag("table-total-1").assertTextEquals(14_000L.brl())
+            app.onNodeWithTag("table-total-2").assertTextEquals(81_800L.brl())
             screenshot("compras.png")
             wideScreenshot("compras-planilha.png")
             app.onNodeWithTag("table-values-${partial.id}", useUnmergedTree = true).performTouchInput { swipeLeft() }
@@ -143,13 +185,18 @@ class FinancialTablesTest {
 
             app.onNodeWithText("Etapas").performClick()
             app.onNodeWithText("50%").assertExists()
+            app.onNodeWithTag("table-total-0").assertTextEquals(160_000L.brl())
+            app.onNodeWithTag("table-total-1").assertTextEquals(10_000L.brl())
+            app.onNodeWithTag("table-total-2").assertTextEquals(150_000L.brl())
             screenshot("etapas.png")
             wideScreenshot("etapas-planilha.png")
 
             app.onNode(hasText("Pagamentos") and hasClickAction()).performClick()
+            app.onNodeWithTag("table-total-0").assertTextEquals(24_000L.brl())
             screenshot("pagamentos.png")
             wideScreenshot("pagamentos-planilha.png")
             app.onNodeWithText("A pagar").performClick()
+            app.onNodeWithTag("table-total-0").assertTextEquals(231_800L.brl())
             app.onNodeWithText("Perfis metálicos").assertIsDisplayed()
             screenshot("pagamentos-em-aberto.png")
             wideScreenshot("pagamentos-em-aberto-planilha.png")
