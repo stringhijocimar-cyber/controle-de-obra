@@ -82,6 +82,7 @@ private data class FinancialRow(
     val edit: () -> Unit = open,
     val costs: List<Long?>,
     val detail: String = "",
+    val settle: (() -> Unit)? = null,
 )
 
 private data class SelectedTableCost(val rowKey: String, val value: String)
@@ -158,7 +159,7 @@ private fun FinancialTable(
                 open = { it.open() }, showCost = showCost)
         }
         TableLegend()
-        Text("Toque no valor para editar · deslize para outras colunas", color = Muted,
+        Text("Marque para quitar · toque no valor para editar", color = Muted,
             fontSize = 10.sp, modifier = Modifier.padding(bottom = 10.dp))
     }
     if (expanded) {
@@ -271,7 +272,7 @@ private fun FinancialGrid(
     val fontScale = LocalDensity.current.fontScale
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val fixedWidth = if (maxWidth >= 600.dp) 190.dp else 126.dp
-        val statusWidth = 36.dp
+        val statusWidth = 44.dp
         val contentWidth = columns.fold(0.dp) { width, column -> width + column.width }
         val rowHeight = maxOf(52.dp, (42 * fontScale).dp)
         val headerHeight = maxOf(40.dp, (34 * fontScale).dp)
@@ -290,7 +291,7 @@ private fun FinancialGrid(
                     GridCell(nameColumn, fixedWidth, header = true)
                     Box(Modifier.weight(1f).horizontalScroll(scroll)) {
                         Row(Modifier.width(statusWidth + contentWidth), verticalAlignment = Alignment.CenterVertically) {
-                            GridCell("Sit.", statusWidth, header = true)
+                            GridCell("Pago", statusWidth, header = true)
                             columns.forEach { column ->
                                 GridCell(column.title, column.width, header = true, numeric = column.numeric)
                             }
@@ -314,8 +315,10 @@ private fun FinancialGrid(
                                     Row(Modifier.width(statusWidth + contentWidth), verticalAlignment = Alignment.CenterVertically) {
                                         Box(Modifier.width(statusWidth).fillMaxHeight().drawBehind {
                                             drawLine(GridLine, Offset(0f, size.height), Offset(size.width, size.height), 1.dp.toPx())
-                                        },
-                                            contentAlignment = Alignment.Center) { StatusIcon(row.status) }
+                                            },
+                                            contentAlignment = Alignment.Center) {
+                                            PaymentFlag(row.status, "payment-completed-${row.key}", row.settle ?: row.edit)
+                                        }
                                         columns.zip(row.values).forEachIndexed { columnIndex, (column, value) ->
                                             val costIndex = columns.take(columnIndex + 1).count { it.cost } - 1
                                             GridCell(value, column.width, numeric = column.numeric,
@@ -368,7 +371,8 @@ private fun GridCell(
 }
 
 @Composable
-internal fun StageTable(project: Project, balance: Balance, today: LocalDate, edit: (String) -> Unit) {
+internal fun StageTable(project: Project, balance: Balance, today: LocalDate, edit: (String) -> Unit,
+    complete: (CostKind, String) -> Unit) {
     val columns = listOf(costColumn("Previsto", 94.dp), costColumn("Pago efetivo", 100.dp),
         costColumn("A pagar"), TableColumn("Tipo", 84.dp), TableColumn("Execução", 70.dp, true), TableColumn("Andamento", 130.dp),
         TableColumn("Início previsto", 108.dp), TableColumn("Fim previsto", 108.dp),
@@ -380,7 +384,9 @@ internal fun StageTable(project: Project, balance: Balance, today: LocalDate, ed
                 "${stage.progress}%", stage.status, stage.plannedStart.dateOr(), stage.plannedEnd.dateOr(),
                 stage.actualStart.dateOr(), stage.actualEnd.dateOr(), stage.dueDate.dateOr()),
             "Editar etapa", { edit(stage.id) }, costs = listOf(stage.budget, paid, stage.budget?.minus(paid)),
-            detail = "Serviço · ${stage.progress}%")
+            detail = "Serviço · ${stage.progress}%", settle = {
+                if (stage.budget != null && stage.budget > paid) complete(CostKind.LABOR, stage.id) else edit(stage.id)
+            })
     }
     FinancialTable("Etapa", columns, rows, "Cadastre a primeira etapa para montar o cronograma.")
 }
@@ -388,6 +394,7 @@ internal fun StageTable(project: Project, balance: Balance, today: LocalDate, ed
 @Composable
 internal fun PurchaseTableScreen(
     project: Project, balance: Balance, today: LocalDate, add: () -> Unit, open: (String) -> Unit,
+    complete: (CostKind, String) -> Unit,
 ) {
     val columns = listOf(costColumn("Total"), costColumn("Pago efetivo", 100.dp),
         costColumn("A pagar"), TableColumn("Tipo", 84.dp), TableColumn("Parcelas", 64.dp), TableColumn("Condição / valores", 230.dp),
@@ -404,7 +411,8 @@ internal fun PurchaseTableScreen(
                 order.receivedDate?.let { "✓ ${it.dateText()}" } ?: order.deliveryExpected.dateOr(),
                 order.documents.size.toString(), order.document.textOr()),
             "Abrir compra", { open(order.id) }, costs = listOf(order.forecast, paid, order.forecast?.minus(paid)),
-            detail = listOfNotNull(order.nature.label, order.tableInstallments().takeUnless { it == "—" }).joinToString(" · "))
+            detail = listOfNotNull(order.nature.label, order.tableInstallments().takeUnless { it == "—" }).joinToString(" · "),
+            settle = { if (order.forecast != null && order.forecast!! > paid) complete(CostKind.MATERIAL, order.id) else open(order.id) })
     }
     Column(Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp)) {
@@ -417,7 +425,7 @@ internal fun PurchaseTableScreen(
 }
 
 private enum class PaymentView(val label: String) {
-    REGISTERED("Registrados"), OUTSTANDING("A pagar"), INSTALLMENTS("Parcelados")
+    REGISTERED("Registrados"), OUTSTANDING("A pagar"), INSTALLMENTS("Parcelados"), WEEKS("Semanas")
 }
 
 @Composable
@@ -429,6 +437,8 @@ internal fun PaymentTableScreen(
     edit: (String) -> Unit,
     payTarget: (CostKind, String) -> Unit,
     editCost: (CostKind, String) -> Unit,
+    complete: (CostKind, String) -> Unit,
+    openCost: (CostKind, String) -> Unit,
 ) {
     var selectedView by rememberSaveable { mutableStateOf(PaymentView.REGISTERED.name) }
     val view = PaymentView.valueOf(selectedView)
@@ -458,7 +468,8 @@ internal fun PaymentTableScreen(
                 if (position.remaining == 0L) "Editar compra" else "Registrar pagamento",
                 { if (position.remaining == 0L) editCost(CostKind.MATERIAL, order.id) else payTarget(CostKind.MATERIAL, order.id) },
                 edit = { editCost(CostKind.MATERIAL, order.id) }, costs = listOf(position.total, position.paid, position.remaining),
-                detail = "${order.nature.label} · ${order.tableInstallments()}")
+                detail = "${order.nature.label} · ${order.tableInstallments()}",
+                settle = { if (position.remaining != null && position.remaining!! > 0) complete(CostKind.MATERIAL, order.id) else editCost(CostKind.MATERIAL, order.id) })
         }
     } else if (outstanding) {
         balance.disbursements.map { entry ->
@@ -475,7 +486,8 @@ internal fun PaymentTableScreen(
                 "Registrar pagamento", { payTarget(entry.kind, entry.targetId) },
                 edit = { editCost(entry.kind, entry.targetId) }, costs = listOf(entry.amount, paid),
                 detail = listOfNotNull(project.costNature(entry.kind, entry.targetId).label,
-                    purchase?.tableInstallments()?.takeUnless { it == "—" }).joinToString(" · "))
+                    purchase?.tableInstallments()?.takeUnless { it == "—" }).joinToString(" · "),
+                settle = { if (value != null && entry.amount != null && entry.amount > 0) complete(entry.kind, entry.targetId) else editCost(entry.kind, entry.targetId) })
         }
     } else {
         project.payments.sortedWith(compareBy(nullsLast(reverseOrder())) { it.date }).map { payment ->
@@ -497,7 +509,8 @@ internal fun PaymentTableScreen(
                 color = Muted, style = MaterialTheme.typography.bodySmall)
         }
         Box(Modifier.weight(1f)) {
-            FinancialTable(if (installments) "Compra" else "Referência", columns, rows,
+            if (view == PaymentView.WEEKS) CostPaymentCalendarScreen(project, today, openCost)
+            else FinancialTable(if (installments) "Compra" else "Referência", columns, rows,
                 if (installments) "Nenhuma compra cadastrada como parcelada."
                 else if (outstanding) "Nenhum valor em aberto." else "Nenhum pagamento registrado.")
         }

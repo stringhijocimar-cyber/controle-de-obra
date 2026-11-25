@@ -24,8 +24,9 @@ internal data class AgendaEntry(
     val date: LocalDate?,
     val amount: Long? = null,
     val detail: String = "",
+    val scheduleId: String? = null,
 ) {
-    val key get() = "${kind.name}:$targetId"
+    val key get() = "${kind.name}:$targetId:${scheduleId.orEmpty()}"
     val isPayment get() = kind.costKind != null
 }
 
@@ -39,9 +40,14 @@ internal class WorkAgenda(project: Project, balance: Balance, val today: LocalDa
         project.purchases.filter { it.deliveryExpected != null && it.receivedDate == null }.forEach { order ->
             add(AgendaEntry(order.id, AgendaKind.DELIVERY, order.name, order.deliveryExpected, detail = order.supplier))
         }
-        balance.disbursements.forEach { payment ->
-            val kind = if (payment.kind == CostKind.LABOR) AgendaKind.LABOR_PAYMENT else AgendaKind.PURCHASE_PAYMENT
-            add(AgendaEntry(payment.targetId, kind, payment.name, payment.date, payment.amount))
+        CostPaymentCalendar(project).pending.forEach { payment ->
+            val kind = if (payment.target.kind == CostKind.LABOR) AgendaKind.LABOR_PAYMENT else AgendaKind.PURCHASE_PAYMENT
+            // Preserve the distinction between an informed due date and an estimate from the stage.
+            add(AgendaEntry(payment.target.id, kind, payment.target.name,
+                payment.date.takeUnless { payment.estimatedDate }, payment.amount,
+                detail = listOf(payment.target.category.label, payment.label,
+                    if (payment.estimatedDate) "Estimativa pelo fim previsto: ${payment.date.dateText()}" else "").filter(String::isNotBlank).joinToString(" · "),
+                scheduleId = payment.scheduleId))
         }
     }.sortedWith(compareBy(nullsLast()) { it.date })
 

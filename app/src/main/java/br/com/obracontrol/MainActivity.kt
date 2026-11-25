@@ -164,7 +164,7 @@ class MainActivity : ComponentActivity() {
         pendingRestore?.let { backup ->
             val existing = !loadFailed && project.hasWork()
             val same = existing && project.isSameWork(backup)
-            val details = "${backup.stages.size} etapas, ${backup.purchases.size} compras, ${backup.payments.size} pagamentos, ${backup.diaryEntries.size} registros no diário e ${backup.documentAttachments().size} anexos."
+            val details = "${backup.stages.size} etapas, ${backup.purchases.size} compras, ${backup.payments.size} pagamentos, ${backup.scheduledPayments.size} vencimentos programados, ${backup.diaryEntries.size} registros no diário e ${backup.documentAttachments().size} anexos."
             fun finishImport(merge: Boolean) {
                 runFileOperation {
                     val result = if (merge) project.mergeFrom(backup) else ProjectImport(backup, 0)
@@ -246,15 +246,19 @@ class MainActivity : ComponentActivity() {
                     Section.DASHBOARD -> Dashboard(project, balance, agenda, { navigate("obra") }, { navigate("pendencias") }, openRestore,
                         { navigate("agenda") }, { navigate("diario") })
                     Section.STAGES -> listState.SaveableStateProvider("etapas") {
-                        StageList(project, balance, today, { navigate("etapa/nova") }, { navigate("etapa/$it") })
+                        StageList(project, balance, today, { navigate("etapa/nova") }, { navigate("etapa/$it") },
+                            { kind, target -> navigate("pagamento/novo/${kind.name}/$target/saldo") })
                     }
                     Section.PURCHASES -> listState.SaveableStateProvider("compras") {
-                        PurchaseTableScreen(project, balance, today, { navigate("compra/nova") }, { navigate("compra/$it") })
+                        PurchaseTableScreen(project, balance, today, { navigate("compra/nova") }, { navigate("compra/$it") },
+                            { kind, target -> navigate("pagamento/novo/${kind.name}/$target/saldo") })
                     }
                     Section.PAYMENTS -> listState.SaveableStateProvider("pagamentos") {
                         PaymentTableScreen(project, balance, today, { navigate("pagamento/novo") }, { navigate("pagamento/$it") },
                             { kind, target -> navigate("pagamento/novo/${kind.name}/$target") },
-                            { kind, target -> navigate(if (kind == CostKind.LABOR) "etapa/$target" else "compra/$target") })
+                            { kind, target -> navigate(if (kind == CostKind.LABOR) "etapa/$target" else "compra/$target") },
+                            { kind, target -> navigate("pagamento/novo/${kind.name}/$target/saldo") },
+                            { kind, target -> navigate("custo/${kind.name}/$target") })
                     }
                     Section.REPORT -> ExportScreen(
                         activeFileOperation,
@@ -290,6 +294,8 @@ private fun editorTitle(route: String): String = when (route.substringBefore('/'
     "compra" -> "Ficha da compra"
     "linha" -> "Item da compra"
     "pagamento" -> "Pagamento"
+    "custo" -> "Detalhes do custo"
+    "programacao" -> "Programação de pagamentos"
     "pendencia" -> "Editar pendência"
     "pendencias" -> "Pendências"
     else -> "ObraControl"

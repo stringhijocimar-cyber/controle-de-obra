@@ -332,7 +332,8 @@ private enum class StageView(val label: String) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun StageList(project: Project, total: Balance, today: LocalDate, add: () -> Unit, edit: (String) -> Unit) {
+internal fun StageList(project: Project, total: Balance, today: LocalDate, add: () -> Unit, edit: (String) -> Unit,
+    complete: (CostKind, String) -> Unit) {
     var view by rememberSaveable { mutableStateOf(StageView.LIST) }
     val chartScroll = rememberScrollState()
     val spend = remember(project, total) { LaborSpendCalendar(project, total) }
@@ -344,7 +345,7 @@ internal fun StageList(project: Project, total: Balance, today: LocalDate, add: 
         }
         Box(Modifier.weight(1f)) {
             when (view) {
-                StageView.LIST -> StageTable(project, total, today, edit)
+                StageView.LIST -> StageTable(project, total, today, edit, complete)
                 StageView.GANTT -> StageGantt(project.stages, spend, today, chartScroll, edit)
                 StageView.SPEND -> LaborSpendScreen(spend, edit)
             }

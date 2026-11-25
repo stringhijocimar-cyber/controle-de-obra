@@ -40,7 +40,8 @@ internal fun EditorScreen(
                     }
                     save(project.copy(stages = project.stages.filterNot { it.id == stage.id },
                         purchases = project.purchases.map { if (it.stageId == stage.id) it.copy(stageId = null) else it },
-                        diaryEntries = project.diaryEntries.map { if (it.stageId == stage.id) it.copy(stageId = null) else it }))
+                        diaryEntries = project.diaryEntries.map { if (it.stageId == stage.id) it.copy(stageId = null) else it },
+                        scheduledPayments = project.scheduledPayments.filterNot { it.kind == CostKind.LABOR && it.targetId == stage.id }))
                     back()
                 }) else null
                 StageEditor(stage, onDelete) { next ->
@@ -56,7 +57,8 @@ internal fun EditorScreen(
                     require(project.payments.none { it.kind == CostKind.MATERIAL && it.targetId == order.id }) {
                         "Exclua ou transfira os pagamentos vinculados antes de remover esta compra."
                     }
-                    save(project.copy(purchases = project.purchases.filterNot { it.id == order.id }))
+                    save(project.copy(purchases = project.purchases.filterNot { it.id == order.id },
+                        scheduledPayments = project.scheduledPayments.filterNot { it.kind == CostKind.MATERIAL && it.targetId == order.id }))
                     back()
                 }) else null
                 PurchaseEditor(order, project, total, existing != null, onDelete,
@@ -90,8 +92,14 @@ internal fun EditorScreen(
                 val payment = existing ?: remember {
                     val targetId = parts.getOrNull(3).orEmpty()
                     val purchase = project.purchases.firstOrNull { it.id == targetId && defaultKind == CostKind.MATERIAL }
+                    val requested = parts.getOrNull(4)
+                    val schedule = project.scheduledPayments.firstOrNull { it.id == requested && it.kind == defaultKind && it.targetId == targetId }
+                    val remaining = if (requested == "saldo") project.costTarget(defaultKind, targetId)?.total?.let {
+                        (it - total.paid(defaultKind, targetId)).coerceAtLeast(0)
+                    } else schedule?.let { plan -> project.costPaymentPositions(defaultKind, targetId).firstOrNull { it.schedule?.id == plan.id }?.remaining }
                     Payment(kind = defaultKind, targetId = targetId, date = LocalDate.now(),
-                        payer = purchase?.payer.orEmpty(), method = purchase?.method.orEmpty())
+                        payer = purchase?.payer.orEmpty(), method = purchase?.method.orEmpty(), amount = remaining ?: 0,
+                        scheduleId = schedule?.id)
                 }
                 PaymentEditor(project, payment, if (existing != null) ({
                     save(project.copy(payments = project.payments.filterNot { it.id == payment.id }))
@@ -102,6 +110,8 @@ internal fun EditorScreen(
                     back()
                 }
             }
+            "custo" -> CostPaymentDetailScreen(project, CostKind.valueOf(requireNotNull(id)), parts[2], navigate)
+            "programacao" -> PaymentScheduleEditor(project, CostKind.valueOf(requireNotNull(id)), parts[2]) { save(it); back() }
             "diario" -> DiaryScreen(project, { navigate("registro/novo") }) { navigate("registro/$it") }
             "registro" -> {
                 val existing = project.diaryEntries.firstOrNull { it.id == id }
@@ -355,18 +365,25 @@ private fun PaymentEditor(
     var receipt by rememberSaveable { mutableStateOf(payment.receipt) }
     var notes by rememberSaveable { mutableStateOf(payment.notes) }
     var proofs by rememberAttachments(payment.proofs)
+    var scheduleId by rememberSaveable { mutableStateOf(payment.scheduleId) }
     var processing by remember { mutableStateOf(false) }
     val targets = project.targets(CostKind.valueOf(kind))
     Form(remove = remove, deletePrompt = "Excluir este pagamento? Os totais do painel serão recalculados.", available = !processing, save = {
         save(payment.copy(kind = CostKind.valueOf(kind), targetId = target, amount = parseMoney(amount) ?: 0,
-            date = parseDate(date), payer = payer.trim(), method = method.trim(), receipt = receipt.trim(), notes = notes.trim(), proofs = proofs))
+            date = parseDate(date), payer = payer.trim(), method = method.trim(), receipt = receipt.trim(), notes = notes.trim(), proofs = proofs,
+            scheduleId = scheduleId))
     }) {
         Detail("Registre aqui somente valores já pagos. As parcelas futuras permanecem em A pagar.")
         Select("Vincular a", kind, CostKind.entries.map { it.name to it.label }) {
-            if (kind != it) { kind = it; target = "" }
+            if (kind != it) { kind = it; target = ""; scheduleId = null }
         }
         if (targets.isEmpty()) Detail("Cadastre uma etapa ou compra desse tipo antes de lançar um pagamento.")
-        else Select(if (kind == CostKind.LABOR.name) "Etapa" else "Compra", target, targets) { target = it }
+        else Select(if (kind == CostKind.LABOR.name) "Etapa" else "Compra", target, targets) {
+            if (target != it) { target = it; scheduleId = null }
+        }
+        val plans = project.scheduledPayments.filter { it.kind.name == kind && it.targetId == target }
+        if (plans.isNotEmpty()) Select("Parcela vinculada", scheduleId.orEmpty(), listOf("" to "Sem parcela específica") +
+            plans.map { it.id to "${it.label} · ${it.date.dateOr("Sem data")}" }) { scheduleId = it.takeIf(String::isNotBlank) }
         if (target.isNotBlank()) Detail("Tipo de custo: ${project.costNature(CostKind.valueOf(kind), target).label}")
         Field("Valor pago (R$)", amount, { amount = it }, KeyboardType.Decimal)
         CalendarField("Data do pagamento", date, { date = it })
@@ -506,10 +523,10 @@ private fun IssueEditor(issue: Issue, remove: (() -> Unit)?, save: (Issue) -> Un
     }
 }
 
-private class FormActions(val submit: (() -> Unit) -> Unit)
+internal class FormActions(val submit: (() -> Unit) -> Unit)
 
 @Composable
-private fun Form(
+internal fun Form(
     remove: (() -> Unit)? = null,
     deletePrompt: String = "",
     available: Boolean = true,
@@ -559,7 +576,7 @@ private fun Form(
 }
 
 @Composable
-private fun Field(
+internal fun Field(
     label: String,
     value: String,
     change: (String) -> Unit,
@@ -585,7 +602,7 @@ private fun Check(label: String, checked: Boolean, change: (Boolean) -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun Select(label: String, selected: String, options: List<Pair<String, String>>, change: (String) -> Unit) {
+internal fun Select(label: String, selected: String, options: List<Pair<String, String>>, change: (String) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
         OutlinedTextField(value = options.firstOrNull { it.first == selected }?.second.orEmpty(), onValueChange = {},

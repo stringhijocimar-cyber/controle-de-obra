@@ -104,7 +104,9 @@ internal fun AgendaScreen(agenda: WorkAgenda, navigate: (String) -> Unit) {
                                 })
                             }
                             entry.kind.costKind?.let { kind ->
-                                TextButton(onClick = { navigate("pagamento/novo/${kind.name}/${entry.targetId}") }) { Text("Registrar pagamento") }
+                                TextButton(onClick = { navigate("pagamento/novo/${kind.name}/${entry.targetId}" +
+                                    (entry.scheduleId?.let { "/$it" } ?: "")) }) { Text("Registrar pagamento") }
+                                TextButton(onClick = { navigate("custo/${kind.name}/${entry.targetId}") }) { Text("Ver custo e parcelas") }
                             }
                         }
                     }

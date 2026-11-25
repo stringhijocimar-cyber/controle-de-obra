@@ -86,6 +86,7 @@ internal data class Project(
     val notes: String = "",
     val diaryEntries: List<DiaryEntry> = emptyList(),
     val payerNames: List<String> = emptyList(),
+    val scheduledPayments: List<ScheduledPayment> = emptyList(),
 ) {
     val payerOptions: List<String> get() = (payerNames + purchases.map { it.payer } + payments.map { it.payer })
         .map(String::trim).filter(String::isNotBlank).distinctBy { it.lowercase(brazil) }
@@ -200,6 +201,7 @@ internal data class Payment(
     val receipt: String = "",
     val notes: String = "",
     val proofs: List<DocumentAttachment> = emptyList(),
+    val scheduleId: String? = null,
 ) {
     fun validate(project: Project) {
         require(project.targets(kind).any { it.first == targetId }) { "Selecione a etapa ou a compra do pagamento." }

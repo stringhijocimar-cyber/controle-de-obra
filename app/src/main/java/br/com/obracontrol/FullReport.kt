@@ -45,6 +45,7 @@ internal object FullReport {
                 report.labor()
                 report.purchases()
                 report.projections()
+                report.costPaymentCalendar()
                 report.materials()
                 report.payments()
                 report.issues()
@@ -529,9 +530,10 @@ internal object FullReport {
             }, "Nenhuma compra com saldo conhecido.")
             heading("CALENDÁRIO DE DESEMBOLSOS")
             table(listOf("REFERÊNCIA", "TIPO", "DATA PREVISTA", "VALOR A PAGAR"),
-                listOf(355f, 137f, 136f, 146f), total.disbursements.sortedWith(compareBy(nullsLast()) { it.forecastDate }).map {
-                    val date = it.forecastDate.dateOr("Sem data")
-                    listOf(it.name, it.kind.label, if (it.dateEstimated) "$date\nEstimativa pelo fim previsto" else date, it.amount.costText())
+                listOf(355f, 137f, 136f, 146f), CostPaymentCalendar(project).pending.sortedWith(compareBy(nullsLast()) { it.date }).map {
+                    val date = it.date.dateOr("Sem data")
+                    listOf("${it.target.name}\n${it.label}", it.target.category.label,
+                        if (it.estimatedDate) "$date\nEstimativa pelo fim previsto" else date, it.amount.costText())
                 }, "Nenhum desembolso previsto foi cadastrado.")
             heading("DESEMBOLSOS DE MÃO DE OBRA POR SEMANA")
             table(listOf("SEMANA", "TOTAL PAGO", "SALDO CONHECIDO A PAGAR", "VALORES A DEFINIR"),
@@ -539,6 +541,35 @@ internal object FullReport {
                     listOf(it.label, it.paid.brl(), it.balance.brl(), it.undefined.toString())
                 }, "Nenhum desembolso de mão de obra registrado ou previsto.")
             callout("CRITÉRIO DE CONTROLE", "Compras previstas permanecem no escopo da obra. Acréscimos são sinalizados apenas nas compras marcadas como acréscimo. Datas e valores em aberto aguardam confirmação.")
+        }
+
+        fun costPaymentCalendar() {
+            val calendar = CostPaymentCalendar(project)
+            section("CALENDÁRIO DE PAGAMENTOS | POR SEMANA", "Materiais, serviços e mão de obra com detalhamento de cada custo")
+            paragraph("Pago efetivo segue a data do pagamento. A pagar segue o vencimento do saldo. Parcelas quitadas antecipadamente não são cobradas novamente na semana prevista. Sem data e valores a definir permanecem identificados.")
+            table(listOf("SEMANA", "PAGO EFETIVO", "A PAGAR CONHECIDO", "TOTAL CONHECIDO", "A DEFINIR"),
+                listOf(250f, 125f, 160f, 155f, 84f), calendar.weeks.map { week ->
+                    listOf(week.label, week.paid.brl(), if (week.pending.entirelyUndefined) UNDEFINED else week.pending.known.brl(),
+                        week.knownTotal.brl(), week.pending.undefinedCount.toString())
+                }, "Nenhum custo ou pagamento cadastrado.")
+            calendar.weeks.forEach { week ->
+                heading(week.label)
+                table(listOf("CUSTO / PARCELA", "TIPO", "DATA", "SITUAÇÃO", "VALOR"),
+                    listOf(335f, 112f, 105f, 100f, 122f), week.entries.map { entry ->
+                        listOf("${entry.target.name}\n${entry.label}", entry.target.category.label,
+                            entry.date.dateOr("Sem data") + if (entry.estimatedDate) "\nEstimativa pelo fim previsto" else "",
+                            if (entry.paid) "Pago" else "A pagar", entry.amount.costText())
+                    }, "")
+            }
+            if (project.scheduledPayments.isNotEmpty()) {
+                heading("PROGRAMAÇÃO E QUITAÇÃO POR PARCELA")
+                paragraph("Abatido considera pagamentos vinculados à parcela e pagamentos anteriores distribuídos por ordem de vencimento. O histórico e os comprovantes continuam na prestação de contas.")
+                table(listOf("CUSTO / PARCELA", "VENCIMENTO", "PROGRAMADO", "ABATIDO", "A PAGAR", "CONCLUÍDO"),
+                    listOf(294f, 100f, 100f, 100f, 100f, 80f), calendar.positions.filter { it.schedule != null }.map { position ->
+                        listOf("${position.target.name}\n${position.label}", position.date.dateOr("Sem data"), position.gross.costText(),
+                            position.applied.brl(), position.remaining.costText(), if (position.completed) "Sim" else "Não")
+                    }, "")
+            }
         }
 
         fun materials() {

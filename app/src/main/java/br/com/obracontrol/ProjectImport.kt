@@ -58,11 +58,25 @@ internal fun Project.mergeFrom(incoming: Project): ProjectImport {
             purchaseIds[order.id] = current.id
         }
     }
+    val planIds = mutableMapOf<String, String>()
+    val importedPlans = scheduledPayments.toMutableList()
+    val matchedPlans = incoming.scheduledPayments.map { it.id }.intersect(scheduledPayments.map { it.id }.toSet()).toMutableSet()
+    for (source in incoming.scheduledPayments) {
+        val targets = if (source.kind == CostKind.LABOR) stageIds else purchaseIds
+        val plan = source.copy(targetId = targets.getValue(source.targetId))
+        val match = importedPlans.firstOrNull { it.id == source.id }
+            ?: if (source.targetId != plan.targetId) scheduledPayments.firstOrNull {
+                it.id !in matchedPlans && it.kind == plan.kind && it.targetId == plan.targetId &&
+                    it.date == plan.date && it.amount == plan.amount && importKey(it.label) == importKey(plan.label)
+            } else null
+        if (match == null) { importedPlans += plan; added++ } else matchedPlans += match.id
+        planIds[source.id] = match?.id ?: plan.id
+    }
     val importedPayments = payments.toMutableList()
     val matchedPayments = incoming.payments.map { it.id }.intersect(payments.map { it.id }.toSet()).toMutableSet()
     for (source in incoming.payments) {
         val ids = if (source.kind == CostKind.MATERIAL) purchaseIds else stageIds
-        val payment = source.copy(targetId = ids.getValue(source.targetId))
+        val payment = source.copy(targetId = ids.getValue(source.targetId), scheduleId = source.scheduleId?.let(planIds::getValue))
         val index = payments.indexOfFirst { it.id == payment.id }.takeIf { it >= 0 }
             ?: if (payment.targetId != source.targetId) {
                 payments.indexOfFirst { it.id !in matchedPayments && it.samePayment(payment) }
@@ -103,7 +117,7 @@ internal fun Project.mergeFrom(incoming: Project): ProjectImport {
         laborBudget = laborBudget ?: incoming.laborBudget, notes = notes.ifBlank { incoming.notes },
         stages = importedStages, purchases = importedPurchases, payments = importedPayments, issues = importedIssues,
         diaryEntries = diary.values.toList(),
-        payerNames = names)
+        payerNames = names, scheduledPayments = importedPlans)
     return ProjectImport(merged, added)
 }
 

@@ -34,9 +34,9 @@ internal class LaborSpendCalendar(project: Project, balance: Balance) {
                     payment.date, payment.amount, LaborSpendStatus.PAID))
             }
         }
-        for (forecast in balance.laborDisbursements) {
-            val status = if (forecast.dateEstimated) LaborSpendStatus.ESTIMATED else LaborSpendStatus.DUE
-            add(LaborSpendEntry(forecast.targetId, forecast.name, forecast.forecastDate, forecast.amount, status))
+        for (forecast in CostPaymentCalendar(project).pending.filter { it.target.kind == CostKind.LABOR }) {
+            val status = if (forecast.estimatedDate) LaborSpendStatus.ESTIMATED else LaborSpendStatus.DUE
+            add(LaborSpendEntry(forecast.target.id, forecast.target.name, forecast.date, forecast.amount, status))
         }
     }.sortedWith(compareBy(nullsLast()) { it.date })
 

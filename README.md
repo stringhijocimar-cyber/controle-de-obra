@@ -2,6 +2,15 @@
 
 Aplicativo Android para cadastrar etapas, acompanhar a execução da obra, controlar compras e pagamentos e emitir o relatório executivo em PDF. O cadastro fica no aparelho. O aplicativo funciona sem internet.
 
+## Versão 1.9.0
+
+- A coluna **Pago** nas tabelas é uma caixa de quitação. Ao marcar um custo em aberto, confira valor, data, pagador, método e comprovante antes de salvar o pagamento. Materiais, serviços de compras e mão de obra das etapas usam o mesmo controle. O saldo e os gráficos só mudam com um pagamento registrado.
+- **Pagamentos → Semanas** mostra o calendário completo: total pago, saldo a pagar e saídas conhecidas por semana. Abra **semana → tipo de custo → custo** para ver parcelas, datas e comprovantes. Pagamentos sem data e valores desconhecidos permanecem sinalizados.
+- Na ficha do custo, **Programar pagamentos** gera vencimentos semanais ou mensais, com ajuste individual de datas e valores. A programação distribui o valor total do custo; pagamentos já registrados sem vínculo com parcela são abatidos por ordem de vencimento. Pagamentos vinculados a uma parcela quitam primeiro essa parcela.
+- Uma parcela paga antecipadamente aparece como saída na data real do pagamento, sem repetir a cobrança na semana prevista. Reprogramar preserva pagamentos, datas, pagadores e anexos; vínculos de parcelas removidas voltam ao abatimento geral do custo.
+- O PDF completo inclui o calendário semanal e o detalhamento da quitação. Dados no formato 8, com leitura das versões 1 a 7 e importação de programações sem duplicar registros identificados.
+- A assinatura e o pacote Android permanecem os mesmos. Atualize sem desinstalar.
+
 ## Versão 1.8.6
 
 - O Painel mostra dois gráficos de pizza: **Quem pagou** e **Como foi pago**, com legendas, valores e percentuais. Cada gráfico soma somente pagamentos registrados, incluindo adiantamentos e parcelas já pagas. Parcelas futuras e pagadores previstos nas compras ficam fora desses totais.

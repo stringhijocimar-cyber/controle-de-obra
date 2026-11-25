@@ -11,7 +11,7 @@ import java.io.InputStream
 import java.math.BigDecimal
 import java.math.RoundingMode
 
-private const val FORMAT_VERSION = 7
+private const val FORMAT_VERSION = 8
 internal const val MAX_BACKUP_BYTES = 5 * 1024 * 1024
 
 internal class ProjectStore(context: Context) {
@@ -63,6 +63,10 @@ internal object ProjectCodec {
         "laborBudgetCents" to project.laborBudget,
         "notes" to project.notes,
         "payerNames" to JSONArray(project.payerNames),
+        "scheduledPayments" to array(project.scheduledPayments.map { plan -> obj(
+            "id" to plan.id, "kind" to plan.kind.name, "targetId" to plan.targetId,
+            "amountCents" to plan.amount, "date" to plan.date.dateText(), "label" to plan.label,
+        ) }),
         "stages" to array(project.stages.map { stage -> obj(
             "id" to stage.id,
             "name" to stage.name,
@@ -114,6 +118,7 @@ internal object ProjectCodec {
             "receipt" to payment.receipt,
             "notes" to payment.notes,
             "proofs" to encodeAttachments(payment.proofs),
+            "scheduleId" to payment.scheduleId,
         ) }),
         "diaryEntries" to array(project.diaryEntries.map { entry -> obj(
             "id" to entry.id,
@@ -134,7 +139,7 @@ internal object ProjectCodec {
         val version = if (root.has("version")) root.getInt("version") else 1
         val project = when (version) {
             1 -> migrateLegacy(root)
-            2, 3, 4, 5, 6, FORMAT_VERSION -> decodeCurrent(root)
+            2, 3, 4, 5, 6, 7, FORMAT_VERSION -> decodeCurrent(root)
             else -> throw IllegalArgumentException("Versão de backup incompatível.")
         }
         project.validate()
@@ -150,6 +155,11 @@ internal object ProjectCodec {
         payerNames = root.optJSONArray("payerNames")?.let { names ->
             (0 until names.length()).map { names.getString(it) }
         }.orEmpty(),
+        scheduledPayments = root.optionalObjects("scheduledPayments").map { plan -> ScheduledPayment(
+            id = plan.getString("id"), kind = CostKind.valueOf(plan.getString("kind")),
+            targetId = plan.getString("targetId"), amount = plan.cents("amountCents") ?: 0,
+            date = plan.date("date"), label = plan.string("label"),
+        ) },
         stages = root.objects("stages").map { stage -> Stage(
             id = stage.getString("id"),
             name = stage.string("name"),
@@ -203,6 +213,7 @@ internal object ProjectCodec {
             receipt = payment.string("receipt"),
             notes = payment.string("notes"),
             proofs = payment.attachments("proofs"),
+            scheduleId = payment.string("scheduleId").takeIf(String::isNotBlank),
         ) },
         diaryEntries = root.optionalObjects("diaryEntries").map { entry -> DiaryEntry(
             id = entry.getString("id"),
@@ -307,6 +318,7 @@ internal fun Project.validate() {
     requireDistinctIds(stages.map { it.id })
     requireDistinctIds(purchases.map { it.id })
     requireDistinctIds(payments.map { it.id })
+    requireDistinctIds(scheduledPayments.map { it.id })
     requireDistinctIds(issues.map { it.id })
     requireDistinctIds(diaryEntries.map { it.id })
     stages.forEach(Stage::validate)
@@ -320,8 +332,21 @@ internal fun Project.validate() {
     }
     payments.forEach {
         it.validate(this)
+        require(it.scheduleId == null || scheduledPayments.any { plan ->
+            plan.id == it.scheduleId && plan.kind == it.kind && plan.targetId == it.targetId
+        }) { "A parcela vinculada ao pagamento não pertence a este custo." }
         requireDistinctIds(it.proofs.map { proof -> proof.id })
         require(it.proofs.none { proof -> proof.type == DocumentType.XML }) { "Comprovantes precisam ser imagens ou PDFs." }
+    }
+    scheduledPayments.forEach { plan ->
+        require(costTarget(plan.kind, plan.targetId) != null) { "O custo da programação não existe." }
+        require(plan.label.isNotBlank() && plan.amount > 0) { "Informe a descrição e um valor positivo para cada parcela." }
+        checkedMoney(plan.amount)
+    }
+    scheduledPayments.groupBy { it.kind to it.targetId }.forEach { (target, rows) ->
+        val value = costTarget(target.first, target.second)?.total
+        require(value != null) { "Defina o valor do custo antes de programar parcelas." }
+        require(rows.sumOf { it.amount } <= value) { "A programação supera o valor deste custo. Ajuste as parcelas ou o valor do cadastro." }
     }
     diaryEntries.forEach { entry ->
         require(entry.title.isNotBlank()) { "Informe um título para o registro do diário." }
