@@ -22,8 +22,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -38,6 +37,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -208,6 +209,7 @@ private fun FinancialGrid(
                                         columns.zip(row.values).forEachIndexed { index, (column, value) ->
                                             GridCell(value, column.width, numeric = column.numeric,
                                                 edit = if (column.cost) ({ edit(row) }) else null,
+                                                recordName = row.name,
                                                 tag = if (column.cost) "table-cost-${row.key}-$index" else null)
                                         }
                                     }
@@ -223,11 +225,17 @@ private fun FinancialGrid(
 @Composable
 private fun GridCell(
     value: String, width: Dp, header: Boolean = false, numeric: Boolean = false, strong: Boolean = false,
-    edit: (() -> Unit)? = null, tag: String? = null,
+    edit: (() -> Unit)? = null, tag: String? = null, recordName: String = "",
 ) {
     var options by remember { mutableStateOf(false) }
+    val focus = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
     val interaction = if (edit == null) Modifier else Modifier
-        .clickable(onClickLabel = "Opções do custo") { options = true }
+        .clickable(onClickLabel = "Opções do custo") {
+            focus.clearFocus()
+            keyboard?.hide()
+            options = true
+        }
     Box(Modifier.width(width).fillMaxHeight()
         .then(if (tag == null) Modifier else Modifier.testTag(tag))
         .then(interaction).border(0.5.dp, if (header) Color(0xFF536678) else GridLine)
@@ -239,11 +247,12 @@ private fun GridCell(
             textAlign = if (numeric) TextAlign.End else TextAlign.Start,
             textDecoration = if (edit != null) TextDecoration.Underline else TextDecoration.None,
             maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
-        if (edit != null) {
-            DropdownMenu(expanded = options, onDismissRequest = { options = false }) {
-                DropdownMenuItem(text = { Text("Editar dados") }, onClick = { options = false; edit() })
-            }
-        }
+    }
+    if (options && edit != null) {
+        AlertDialog(onDismissRequest = { options = false }, title = { Text("Dados do custo") },
+            text = { Text("$recordName\nValor selecionado: ${if (value == "A definir") value else "R$ $value"}") },
+            confirmButton = { TextButton(onClick = { options = false; edit() }) { Text("Editar dados") } },
+            dismissButton = { TextButton(onClick = { options = false }) { Text("Cancelar") } })
     }
 }
 
