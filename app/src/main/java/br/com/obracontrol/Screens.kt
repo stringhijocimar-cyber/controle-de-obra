@@ -210,6 +210,7 @@ internal fun Dashboard(
     openDiary: () -> Unit,
 ) {
     val isEmpty = project.stages.isEmpty() && project.purchases.isEmpty() && project.payments.isEmpty()
+    val paymentBreakdown = remember(project) { project.paymentBreakdown() }
     ObraList {
         item {
             Card(shape = Panel) {
@@ -281,17 +282,8 @@ internal fun Dashboard(
                 Detail("Valores a pagar conhecidos: ${total.materialToPay.brl()} em compras e ${total.laborToPay.brl()} em mão de obra.")
             }
         }
-        if (total.payers.isNotEmpty()) {
-            item {
-                SheetCard {
-                    Heading("Quem pagou")
-                    total.payers.forEach { entry ->
-                        LedgerLine("${entry.payer} · ${entry.kind.label}", entry.amount.brl())
-                        Detail(entry.method)
-                    }
-                }
-            }
-        }
+        item(key = "payment-chart-payer") { PaymentPieCard("Quem pagou", paymentBreakdown.byPayer, "payer") }
+        item(key = "payment-chart-method") { PaymentPieCard("Como foi pago", paymentBreakdown.byMethod, "method") }
         item {
             SheetCard {
                 Heading("Pendências")

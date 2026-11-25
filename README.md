@@ -2,6 +2,13 @@
 
 Aplicativo Android para cadastrar etapas, acompanhar a execução da obra, controlar compras e pagamentos e emitir o relatório executivo em PDF. O cadastro fica no aparelho. O aplicativo funciona sem internet.
 
+## Versão 1.8.6
+
+- O Painel mostra dois gráficos de pizza: **Quem pagou** e **Como foi pago**, com legendas, valores e percentuais. Cada gráfico soma somente pagamentos registrados, incluindo adiantamentos e parcelas já pagas. Parcelas futuras e pagadores previstos nas compras ficam fora desses totais.
+- Variações de maiúsculas e espaços no nome do pagador e nomes equivalentes de métodos são agrupados na apresentação, mantendo os lançamentos originais. **Cartão** permanece separado de **Cartão de crédito** quando o tipo não foi informado.
+- Registros sem pagador ou método aparecem como **Não informado**. O PDF completo inclui os dois gráficos e preserva suas demais seções e tabelas.
+- Mantém dados, backups e assinatura da versão anterior. Instale como atualização.
+
 ## Versão 1.8.5
 
 - Layout com cabeçalho compacto, ícones consistentes, formulários organizados por assunto, abas e tabelas com divisórias leves. Nomes ficam fixos e os totais permanecem abaixo de cada tabela.

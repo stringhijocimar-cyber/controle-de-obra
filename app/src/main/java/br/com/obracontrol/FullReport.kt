@@ -4,12 +4,16 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.DashPathEffect
 import android.graphics.Paint
+import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
 import java.io.OutputStream
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlin.math.ceil
+import kotlin.math.cos
+import kotlin.math.sin
+import androidx.compose.ui.graphics.toArgb
 
 internal object FullReport {
     private const val WIDTH = 842
@@ -36,6 +40,7 @@ internal object FullReport {
             val report = Report(document, project, today)
             try {
                 report.dashboard()
+                report.paymentCharts()
                 report.schedule()
                 report.labor()
                 report.purchases()
@@ -292,6 +297,83 @@ internal object FullReport {
             val marker = latest?.let { " Última etapa concluída: ${it.name}, em ${it.actualEnd.dateOr()}." }.orEmpty()
             callout("MARCO DA OBRA", "Início: ${project.start.dateOr()} • ${total.completed} de ${project.stages.size} etapas concluídas • Avanço físico médio de ${percent(total.physicalProgress / 100)}.$marker")
             paragraph("O avanço físico é a média simples dos percentuais das etapas. Os valores a cotar aparecem como pendências.")
+        }
+
+        fun paymentCharts() {
+            val breakdown = project.paymentBreakdown()
+            section("COMO A OBRA FOI PAGA", "Gráficos de participação por pagador e por forma de pagamento")
+            paragraph("Somente pagamentos registrados. Compras previstas e parcelas futuras permanecem no saldo a pagar.")
+            paymentPie("QUEM PAGOU", breakdown.byPayer)
+            paymentPie("COMO FOI PAGO", breakdown.byMethod)
+        }
+
+        private fun paymentPie(label: String, shares: List<PaymentShare>) {
+            ensure(213f)
+            heading(label)
+            val amount = shares.sumOf { it.amount }
+            text(LEFT, y + 11f, "Total pago: ${amount.brl()}", 10.5f, green, true)
+            y += 22f
+            val chartTop = y
+            val chartPage = number
+            val radius = 76f
+            val centerX = LEFT + radius
+            val centerY = y + radius
+            val bounds = RectF(LEFT, y, LEFT + 152f, y + 152f)
+            if (amount == 0L) {
+                paint.color = track
+                canvas.drawCircle(centerX, centerY, radius, paint)
+            } else {
+                var angle = -90f
+                shares.forEachIndexed { index, entry ->
+                    val ratio = entry.amount.toDouble() / amount
+                    val sweep = if (index == shares.lastIndex) 270f - angle else (ratio * 360).toFloat()
+                    paint.color = paymentChartColor(index).toArgb()
+                    paint.style = Paint.Style.FILL
+                    canvas.drawArc(bounds, angle, sweep, true, paint)
+                    if (ratio >= 0.12) {
+                        val radians = Math.toRadians((angle + sweep / 2).toDouble())
+                        val value = percent(ratio)
+                        paint.typeface = bold
+                        paint.textSize = 10f
+                        val labelRadius = if (shares.size == 1) 0f else radius * 0.60f
+                        text(centerX + cos(radians).toFloat() * labelRadius - paint.measureText(value) / 2,
+                            centerY + sin(radians).toFloat() * labelRadius + 3f, value, 10f, Color.WHITE, true)
+                    }
+                    angle += sweep
+                }
+                if (shares.size > 1) {
+                    var angle = -90.0
+                    shares.forEach { entry ->
+                        val radians = Math.toRadians(angle)
+                        line(centerX, centerY, centerX + cos(radians).toFloat() * radius,
+                            centerY + sin(radians).toFloat() * radius, Color.WHITE)
+                        angle += entry.amount.toDouble() / amount * 360
+                    }
+                }
+            }
+            val legendX = LEFT + 190f
+            var legendY = y + 5f
+            if (shares.isEmpty()) text(legendX, legendY + 14f, "Nenhum pagamento registrado.", 10f, muted)
+            shares.forEachIndexed { index, entry ->
+                val lines = wrap(entry.label, CONTENT - 190f - 237f, 10f)
+                lines.forEachIndexed { lineIndex, value ->
+                    if (legendY + 19f > BOTTOM) {
+                        startPage(continuation = true)
+                        heading("$label | LEGENDA")
+                        legendY = y
+                    }
+                    if (lineIndex == 0) {
+                        paint.color = paymentChartColor(index).toArgb()
+                        canvas.drawCircle(legendX + 4f, legendY + 9f, 4f, paint)
+                        text(RIGHT - 205f, legendY + 13f, entry.amount.brl(), 10f, ink, true, 130f, end = true)
+                        text(RIGHT - 65f, legendY + 13f, percent(entry.amount.toDouble() / amount), 10f, muted, width = 65f, end = true)
+                    }
+                    text(legendX + 17f, legendY + 13f, value, 10f, ink)
+                    legendY += 13f
+                }
+                legendY += 16f
+            }
+            y = if (number == chartPage) maxOf(chartTop + 152f, legendY) + 16f else legendY + 16f
         }
 
         fun schedule() {
