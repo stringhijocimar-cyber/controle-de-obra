@@ -335,7 +335,7 @@ private enum class StageView(val label: String) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun StageList(project: Project, total: Balance, today: LocalDate, add: () -> Unit, edit: (String) -> Unit,
-    complete: (CostKind, String) -> Unit) {
+    complete: (CostKind, String) -> Unit, changeScale: (GanttScale) -> Unit) {
     var view by rememberSaveable { mutableStateOf(StageView.LIST) }
     val chartScroll = rememberScrollState()
     val spend = remember(project, total) { LaborSpendCalendar(project, total) }
@@ -348,7 +348,7 @@ internal fun StageList(project: Project, total: Balance, today: LocalDate, add: 
         Box(Modifier.weight(1f)) {
             when (view) {
                 StageView.LIST -> StageTable(project, total, today, edit, complete)
-                StageView.GANTT -> StageGantt(project.stages, spend, today, chartScroll, edit)
+                StageView.GANTT -> StageGantt(project.stages, spend, today, chartScroll, edit, project.ganttScale, changeScale)
                 StageView.SPEND -> LaborSpendScreen(spend, edit)
             }
         }
@@ -356,12 +356,16 @@ internal fun StageList(project: Project, total: Balance, today: LocalDate, add: 
 }
 
 @Composable
-internal fun ExportScreen(busy: Boolean, pdf: () -> Unit, openPdf: (() -> Unit)?, backup: () -> Unit, restore: () -> Unit) {
+internal fun ExportScreen(busy: Boolean, pdf: () -> Unit, openPdf: (() -> Unit)?, backup: () -> Unit, restore: () -> Unit,
+    scale: GanttScale, changeScale: (GanttScale) -> Unit) {
     ObraList {
         item {
             SheetCard {
                 IconBadge(AppSymbol.REPORT)
-                Heading("Relatório executivo em PDF", "Painel, gráficos, Gantt, cronograma físico-financeiro, balanço, projeções, compras detalhadas, pagamentos, pendências, agenda e diário.")
+                Heading("Relatório gerencial completo", "Resumo executivo, custos por tipo, próximos vencimentos, cartão e parcelas, gráficos, Gantt, cronograma físico-financeiro, projeções, composição dos custos, aprovações, compras, pagamentos, pendências, agenda e diário.")
+                Detail("Escala do cronograma no relatório")
+                ViewTabs(GanttScale.entries.map { it.label }, scale.ordinal) { changeScale(GanttScale.entries[it]) }
+                Detail("Cabeçalho por ano e mês, com semanas ISO e dias conforme a escala. Em períodos extensos, o PDF espaça os rótulos para manter a leitura.")
                 Button(enabled = !busy, onClick = pdf, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
                     AppIcon(AppSymbol.DOWNLOAD, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Gerar PDF completo")
                 }

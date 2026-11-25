@@ -247,18 +247,18 @@ class MainActivity : ComponentActivity() {
                         { navigate("agenda") }, { navigate("diario") }, { navigate("planejamento") })
                     Section.STAGES -> listState.SaveableStateProvider("etapas") {
                         StageList(project, balance, today, { navigate("etapa/nova") }, { navigate("etapa/$it") },
-                            { kind, target -> navigate("pagamento/novo/${kind.name}/$target/saldo") })
+                            { kind, target -> navigate("pagamento/novo/${kind.name}/$target/saldo") }, { save(project.copy(ganttScale = it)) })
                     }
                     Section.PURCHASES -> listState.SaveableStateProvider("compras") {
                         PurchaseTableScreen(project, balance, today, { navigate("compra/nova") }, { navigate("compra/$it") },
-                            { kind, target -> navigate("pagamento/novo/${kind.name}/$target/saldo") })
+                            { kind, target -> navigate("pagamento/novo/${kind.name}/$target/saldo") }, { navigate("condicao/$it") })
                     }
                     Section.PAYMENTS -> listState.SaveableStateProvider("pagamentos") {
                         PaymentTableScreen(project, balance, today, { navigate("pagamento/novo") }, { navigate("pagamento/$it") },
                             { kind, target -> navigate("pagamento/novo/${kind.name}/$target") },
                             { kind, target -> navigate(if (kind == CostKind.LABOR) "etapa/$target" else "compra/$target") },
                             { kind, target -> navigate("pagamento/novo/${kind.name}/$target/saldo") },
-                            { kind, target -> navigate("custo/${kind.name}/$target") })
+                            { kind, target -> navigate("custo/${kind.name}/$target") }, { navigate("condicao/$it") })
                     }
                     Section.REPORT -> ExportScreen(
                         activeFileOperation,
@@ -278,6 +278,7 @@ class MainActivity : ComponentActivity() {
                         },
                         { makeBackup.launch("ObraControl_Backup.zip") },
                         openRestore,
+                        project.ganttScale, { save(project.copy(ganttScale = it)) },
                     )
                 }
             }
@@ -297,6 +298,7 @@ private fun editorTitle(route: String): String = when (route.substringBefore('/'
     "pagamento" -> "Pagamento"
     "custo" -> "Detalhes do custo"
     "programacao" -> "Programação de pagamentos"
+    "condicao" -> "Cartão e parcelamento"
     "pendencia" -> "Editar pendência"
     "pendencias" -> "Pendências"
     else -> "ObraControl"

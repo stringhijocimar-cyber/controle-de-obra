@@ -40,6 +40,7 @@ internal object FullReport {
             val report = Report(document, project, today)
             try {
                 report.dashboard()
+                report.management()
                 report.paymentCharts()
                 report.schedule()
                 report.labor()
@@ -378,23 +379,76 @@ internal object FullReport {
             y = if (number == chartPage) maxOf(chartTop + 152f, legendY) + 16f else legendY + 16f
         }
 
+        fun management() {
+            val summary = ManagementReportSummary(project, today)
+            section("RESUMO GERENCIAL  |  CUSTOS E DECISÕES", "Posição financeira e vencimentos calculados em ${today.dateText()} · Registros completos nas seções seguintes")
+            tiles(
+                Tile("CUSTO PREVISTO CONHECIDO", summary.forecast.brl(), "${summary.undefined} custo(s) com valor final a definir"),
+                Tile("PAGO EFETIVO", summary.paid.brl(), "Somente pagamentos registrados", green),
+                Tile("SALDO LÍQUIDO CONHECIDO", (summary.forecast - summary.paid).brl(), "Previsão menos pagamentos", blue),
+            )
+            table(listOf("TIPO DE CUSTO", "PREVISÃO CONHECIDA", "PAGO EFETIVO", "SALDO LÍQUIDO", "VALORES A DEFINIR"),
+                listOf(186f, 161f, 146f, 146f, 135f), summary.groups.map {
+                    listOf(it.category.label, it.forecast.brl(), it.paid.brl(), it.balance.brl(), it.undefined.toString())
+                }, "")
+            heading("PROGRAMAÇÃO FINANCEIRA")
+            table(listOf("PERÍODO", "SALDO A PAGAR CONHECIDO", "VENCIMENTOS COM VALOR A DEFINIR"), listOf(282f, 230f, 262f),
+                DueHorizon.entries.map { horizon ->
+                    val amount = summary.pending(horizon)
+                    listOf(horizon.label, if (amount.entirelyUndefined) UNDEFINED else amount.known.brl(), amount.undefinedCount.toString())
+                }, "")
+            paragraph("O saldo líquido pode incluir pagamentos a maior. A programação considera o saldo pendente de cada custo, com os pagamentos já abatidos. A mão de obra da programação segue as etapas; divergências com o contrato geral aparecem em Pendências.")
+            heading("CARTÃO E PARCELAMENTOS")
+            table(listOf("COMPRA / SERVIÇO", "MÉTODO / CONDIÇÃO", "TOTAL", "PAGO EFETIVO", "A PAGAR"),
+                listOf(219f, 225f, 110f, 110f, 110f), summary.cardPurchases.map { order ->
+                    val paid = total.paid(CostKind.MATERIAL, order.id)
+                    listOf(order.name, "${project.purchaseMethods(order)}\n${order.installmentText()}", order.forecast.costText(),
+                        paid.brl(), InstallmentBalance(order, paid).remaining.costText())
+                }, "Nenhuma compra identificada como cartão ou parcelada.")
+            paragraph("A condição do cartão descreve a divisão comercial do total. As parcelas futuras só reduzem o saldo quando o pagamento é registrado. Os vencimentos detalhados estão no calendário de pagamentos.")
+            heading("PRÓXIMAS DECISÕES")
+            table(listOf("ASSUNTO", "AÇÃO"), listOf(230f, 544f), summary.decisions.take(8).map { listOf(it.first, it.second) },
+                "Nenhuma decisão em aberto identificada no cadastro.")
+            if (summary.decisions.size > 8) paragraph("${summary.decisions.size - 8} outras decisões estão detalhadas nas seções Pendências e Agenda.")
+        }
+
+        private fun ganttHeader(timeline: GanttTimeline, left: Float, right: Float, top: Float, rowHeight: Float) {
+            val width = right - left
+            repeat(timeline.rowCount) { row ->
+                val rowTop = top + row * rowHeight
+                box(left, rowTop, width, rowHeight, if (row % 2 == 0) ink else Color.rgb(37, 70, 85), 0f)
+                timeline.bands(row, width * 3f).forEach { band ->
+                    val x = left + width * timeline.axis.boundary(band.start)
+                    val bandWidth = width * timeline.fraction(band)
+                    line(x, rowTop, x, rowTop + rowHeight, muted)
+                    val label = if (row == 2) band.label.replace("Sem. ", "S").replace(" / 20", "/") else band.label
+                    if (bandWidth >= if (row == 0) 22f else if (row == 1) 18f else 13f) {
+                        text(x + 2f, rowTop + 9f, label, 7.2f, Color.WHITE, row == 0, bandWidth - 4f)
+                    }
+                }
+            }
+        }
+
         fun schedule() {
             section("CRONOGRAMA FÍSICO  |  VISÃO GANTT",
                 "Barras azul/verde = previsto/realizado  •  Pontos azul-escuro/âmbar = pago/a pagar  •  Linha tracejada = data-base")
             val asOf = project.referenceDate ?: today
             val rows = project.stages.map { it.ganttRow(asOf, laborSpend.byStage[it.id].orEmpty()) }
             val axis = GanttAxis.from(rows)
+            val timeline = axis?.let { GanttTimeline(it, project.ganttScale) }
+            paragraph("Escala: ${project.ganttScale.label}. Cabeçalho: ano, mês" + if (project.ganttScale == GanttScale.MONTHS) "." else ", semana ISO" + if (project.ganttScale == GanttScale.DAYS) " e dia." else ".")
             if (rows.isEmpty()) paragraph("Nenhuma etapa cadastrada.")
             if (rows.isNotEmpty() && axis == null) paragraph("Informe as datas da execução ou do pagamento para montar o Gantt.")
             if (rows.isNotEmpty()) {
                 val graphLeft = 258f
                 val graphRight = 621f
                 fun x(fraction: Float) = graphLeft + (graphRight - graphLeft) * fraction
-                val rowsPerPage = if (axis == null) 8 else 9
+                val rowsPerPage = if (axis == null || project.ganttScale == GanttScale.DAYS) 8 else 9
                 val bandHeight = 43f
                 rows.chunked(rowsPerPage).forEachIndexed { batch, group ->
                     if (batch > 0) startPage(continuation = true)
-                    val top = y + 36f
+                    val headerHeight = (timeline?.rowCount ?: 1) * 13f
+                    val top = y + headerHeight + 19f
                     val bottom = top + group.size * bandHeight
                     group.forEachIndexed { index, row ->
                         val band = top + index * bandHeight
@@ -421,14 +475,11 @@ internal object FullReport {
                         text(graphRight + 9, band + 26, "Real ${row.actualDates}", 8.2f, if (row.actual == null) muted else green, width = 174f)
                     }
                     if (axis != null) {
-                        val step = ceil(axis.days / 6.0).toLong().coerceAtLeast(1)
-                        val format = if (axis.start.year == axis.end.year) shortDate else shortDateWithYear
-                        (0L until axis.days step step).forEach { offset ->
-                            val date = axis.start.plusDays(offset)
+                        timeline!!.gridDates((graphRight - graphLeft) * 3f).forEach { date ->
                             val tick = x(axis.boundary(date))
-                            line(tick, top - 4, tick, bottom, track)
-                            text(tick, top - 10, date.format(format), 8.3f, muted)
+                            line(tick, top, tick, bottom, track)
                         }
+                        ganttHeader(timeline, graphLeft, graphRight, top - headerHeight, 13f)
                         if (asOf in axis.start..axis.end) {
                             val base = x(axis.dayCenter(asOf))
                             line(base, top - 3, base, bottom, muted, dashed = true)
@@ -443,6 +494,7 @@ internal object FullReport {
             val forecast = project.stages.mapNotNull { it.plannedEnd }.maxOrNull()
             callout("MARCOS E PREVISÕES", "Início da obra: ${project.start.dateOr()}. Última conclusão registrada: ${completed.dateOr()}. Última data prevista informada: ${forecast.dateOr()}.")
             paragraph("O calendário depende da execução, das entregas de materiais e da disponibilidade da equipe. Etapas sem datas continuam abertas no cronograma.")
+            paragraph("Semanas ISO começam na segunda-feira. Na virada do ano, o número da semana pode pertencer ao ano anterior ou seguinte. Em períodos extensos, rótulos intermediários são espaçados; o cronograma integral pode ser ampliado no app.")
         }
 
         fun labor() {
@@ -637,6 +689,7 @@ internal object FullReport {
                     heading(stage.name.uppercase(brazil))
                     if (stage.notes.isNotBlank()) paragraph(stage.notes)
                     stage.services.forEach { service ->
+                        ensure(125f)
                         heading(service.name)
                         table(listOf("INSUMO / TIPO", "QUANTIDADE", "UNIDADE", "PREÇO UNIT.", "SUBTOTAL", "FONTE / DATA / CONDIÇÕES"),
                             listOf(230f, 78f, 85f, 96f, 100f, 185f), service.items.map { item ->

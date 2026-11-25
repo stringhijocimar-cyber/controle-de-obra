@@ -2,6 +2,15 @@
 
 Aplicativo Android para planejar etapas e custos, acompanhar a execução da obra, controlar compras e pagamentos e emitir o relatório executivo em PDF. O cadastro e os modelos funcionam sem internet. O fluxo opcional com ChatGPT requer acesso ao serviço.
 
+## Versão 2.1.0 — cronograma, cartão e relatório gerencial
+
+- Em **Etapas → Gantt**, o seletor **Dias / Semanas / Meses** ajusta a escala temporal. O cabeçalho agrupa **ano → mês → semana ISO → dia**, conforme a escala. Semanas começam na segunda-feira e usam o número e o ano ISO, inclusive na virada do ano. Nomes das etapas ficam fixos durante a rolagem; barras e pontos de pagamento usam as mesmas datas em todas as escalas.
+- A escala escolhida fica salva com a obra e também pode ser escolhida em **Relatório**. O PDF mantém os agrupamentos de calendário; em períodos extensos, espaça rótulos para preservar a leitura. O app permite ampliar a escala e rolar pelo período completo.
+- Nas tabelas **Compras** e **Pagamentos**, toque em **Método**, **Parcelas** ou **Condição / valores** para abrir a edição de cartão e parcelamento da compra vinculada. Edite método, condição, quantidade e total; confira a divisão exata dos centavos, o pago efetivo e o saldo. A quantidade de parcelas é uma condição comercial; os vencimentos continuam em **Programar pagamentos**.
+- Ao editar um pagamento de compra, marque **Editar cartão e parcelamento da compra** para ajustar essas condições junto com o pagamento. Os dois registros são salvos na mesma operação. Outros pagamentos, comprovantes, datas e parcelas programadas são preservados. Alterar o parcelamento não registra pagamentos futuros.
+- O **Relatório gerencial completo** acrescenta uma posição executiva por material, serviço e mão de obra; previsão, pago e saldo; vencidos, próximos 7 dias, do 8º ao 30º dia, posteriores e sem data; cartão e parcelamentos; e próximas decisões. As seções completas anteriores continuam presentes: gráficos por pagador e método, Gantt, balanço, projeções, calendário semanal, planejamento e aprovações, materiais, pagamentos, pendências, agenda e diário.
+- Dados no formato **10**, com leitura dos formatos **1 a 9**. A escala visual não altera custos ou pagamentos e uma obra vazia continua vazia para a importação mesmo após alterar a escala. Mesclar preserva a preferência visual local; substituir restaura a preferência do backup.
+
 ## Versão 2.0.0 — planejamento e orçamento
 
 - No **Painel → Abrir planejamento**, crie um modelo de **Reforma**, **Revestimento**, **Casa nova** ou **Personalizado / IA**. Informe escopo, cidade/UF e área de referência. Os modelos criam uma estrutura editável de **planejamento → etapas → serviços → insumos**; cada insumo é material, mão de obra ou serviço contratado / frete / equipamento.
@@ -83,7 +92,7 @@ Em **Pagamentos**, abra um lançamento e adicione os comprovantes com a câmera 
 
 ## Instalação e primeiro uso
 
-A versão 2.0.0 requer Android 8.0 ou mais recente e atualiza diretamente o **ObraControl 1.7.0 a 1.9.0**, usando a mesma assinatura permanente e o cadastro salvo no aparelho. Abra o instalador e escolha **Atualizar**, mantendo o aplicativo instalado.
+A versão 2.1.0 requer Android 8.0 ou mais recente e atualiza diretamente o **ObraControl 1.7.0 a 2.0.0**, usando a mesma assinatura permanente e o cadastro salvo no aparelho. Abra o instalador e escolha **Atualizar**, mantendo o aplicativo instalado.
 
 Para transferir dados das edições **ObraControl Financeiro** ou **ObraControl Gestão**, abra **Relatório → Exportar backup com anexos** no app anterior. No **ObraControl**, abra **Relatório → Importar dados da obra**, selecione o ZIP e confirme. Confira o cadastro importado antes de desinstalar a edição anterior. Os backups JSON e ZIP das versões anteriores do formato continuam aceitos.
 

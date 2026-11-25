@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -58,6 +59,20 @@ private val yearTick = DateTimeFormatter.ofPattern("dd/MM/yy", brazil)
 @Composable
 internal fun StageGantt(
     stages: List<Stage>, spend: LaborSpendCalendar, today: LocalDate, scroll: ScrollState, edit: (String) -> Unit,
+    scale: GanttScale, changeScale: (GanttScale) -> Unit,
+) {
+    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).testTag("gantt-scale-selector")) {
+            ViewTabs(GanttScale.entries.map { it.label }, scale.ordinal) { changeScale(GanttScale.entries[it]) }
+        }
+        Box(Modifier.weight(1f)) { StageGanttChart(stages, spend, today, scroll, edit, scale) }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun StageGanttChart(
+    stages: List<Stage>, spend: LaborSpendCalendar, today: LocalDate, scroll: ScrollState, edit: (String) -> Unit, scale: GanttScale,
 ) {
     val rows = remember(stages, spend, today) { stages.map { it.ganttRow(today, spend.byStage[it.id].orEmpty()) } }
     val axis = remember(rows) { GanttAxis.from(rows) }
@@ -81,12 +96,13 @@ internal fun StageGantt(
     }
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
+    val timeline = remember(axis, scale) { GanttTimeline(axis, scale) }
     val marker = today.takeIf { it in axis.start..axis.end }
     BoxWithConstraints(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, bottom = 12.dp)) {
         val labelWidth = (maxWidth * 0.39f).coerceIn(105.dp, 188.dp)
-        val chartWidth = maxOf(maxWidth - labelWidth, axis.preferredWidth.dp)
+        val chartWidth = maxOf(maxWidth - labelWidth, timeline.preferredWidth.dp)
         val rowHeight = maxOf(85.dp, (94 * density.fontScale).dp)
-        val headerHeight = maxOf(33.dp, (29 * density.fontScale).dp)
+        val headerHeight = maxOf(24.dp, (24 * density.fontScale).dp) * timeline.rowCount
         Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 GanttLegend("Previsto", Blue)
@@ -105,6 +121,9 @@ internal fun StageGantt(
                     }) { Text("Ir para hoje") }
                 }
             }
+            if (scale != GanttScale.MONTHS) Text("Semanas ISO: segunda a domingo; a virada do ano mantém o ano da semana.",
+                color = Muted, style = MaterialTheme.typography.labelSmall)
+            if (timeline.condensed) Detail("Período extenso: algumas datas intermediárias ficam ocultas para manter a leitura.")
             Surface(
                 modifier = Modifier.fillMaxWidth().weight(1f),
                 shape = RoundedCornerShape(14.dp),
@@ -115,7 +134,7 @@ internal fun StageGantt(
                         Text("Etapa / custo", Modifier.width(labelWidth).padding(start = 10.dp), color = Color.White,
                             style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                         Box(Modifier.weight(1f).horizontalScroll(scroll)) {
-                            DateAxis(axis, chartWidth, headerHeight)
+                            DateAxis(timeline, chartWidth, headerHeight, scroll)
                         }
                     }
                     LazyColumn(Modifier.fillMaxSize()) {
@@ -142,7 +161,7 @@ internal fun StageGantt(
                                         fontWeight = FontWeight.Bold)
                                 }
                                 Box(Modifier.weight(1f).horizontalScroll(scroll)) {
-                                    StageBars(axis, marker, row, chartWidth, rowHeight)
+                                    StageBars(timeline, marker, row, chartWidth, rowHeight)
                                 }
                             }
                             HorizontalDivider(color = Line)
@@ -164,26 +183,40 @@ private fun GanttLegend(label: String, color: Color, day: Boolean = false) {
 }
 
 @Composable
-private fun DateAxis(axis: GanttAxis, width: Dp, height: Dp) {
-    val format = if (axis.includeTickYear) yearTick else shortTick
-    Box(Modifier.size(width, height)) {
-        Canvas(Modifier.matchParentSize()) {
-            for (tick in axis.ticks) {
-                val x = size.width * axis.boundary(tick)
-                drawLine(Muted, Offset(x, 0f), Offset(x, size.height), 0.8.dp.toPx())
+private fun DateAxis(timeline: GanttTimeline, width: Dp, height: Dp, scroll: ScrollState) {
+    val visibleStart = with(LocalDensity.current) { scroll.value.toDp() }
+    val rowHeight = height / timeline.rowCount
+    Column(Modifier.size(width, height).testTag("gantt-calendar-header")) {
+        repeat(timeline.rowCount) { index ->
+            val bands = timeline.bands(index, width.value)
+            Box(Modifier.width(width).height(rowHeight).background(if (index % 2 == 0) Navy else Color(0xFF254655))) {
+                Canvas(Modifier.matchParentSize()) {
+                    for (band in bands) {
+                        val x = size.width * timeline.axis.boundary(band.start)
+                        drawLine(Color.White.copy(alpha = 0.3f), Offset(x, 0f), Offset(x, size.height), 0.8.dp.toPx())
+                    }
+                }
+                bands.forEach { band ->
+                    val left = width * timeline.axis.boundary(band.start)
+                    val bandWidth = width * timeline.fraction(band)
+                    if (bandWidth >= 18.dp) {
+                        val labelWidth = minOf(bandWidth - 4.dp, if (index == 0) 95.dp else if (index == 1) 85.dp else 90.dp)
+                        val x = maxOf(left + 2.dp, visibleStart + 2.dp).coerceAtMost(left + bandWidth - labelWidth)
+                        Text(band.label, Modifier.align(Alignment.CenterStart).offset(x = x).width(labelWidth)
+                            .testTag("gantt-${band.key}").semantics { contentDescription = band.description },
+                            maxLines = 1, overflow = TextOverflow.Ellipsis, color = Color.White,
+                            fontWeight = if (index == 0) FontWeight.Bold else FontWeight.Normal,
+                            style = MaterialTheme.typography.labelSmall)
+                    }
+                }
             }
-        }
-        for (tick in axis.ticks) {
-            val labelWidth = if (axis.includeTickYear) 55.dp else 36.dp
-            val x = (width * axis.boundary(tick) + 4.dp).coerceAtMost(width - labelWidth)
-            Text(tick.format(format), Modifier.align(Alignment.CenterStart).offset(x = x),
-                maxLines = 1, color = Color.White, style = MaterialTheme.typography.labelSmall)
         }
     }
 }
 
 @Composable
-private fun StageBars(axis: GanttAxis, marker: LocalDate?, row: GanttRow, width: Dp, height: Dp) {
+private fun StageBars(timeline: GanttTimeline, marker: LocalDate?, row: GanttRow, width: Dp, height: Dp) {
+    val axis = timeline.axis
     val description = buildString {
         append("Previsto ${row.plannedDates} · Realizado ${row.actualDates}")
         row.spend.forEach { item ->
@@ -191,7 +224,7 @@ private fun StageBars(axis: GanttAxis, marker: LocalDate?, row: GanttRow, width:
         }
     }
     Canvas(Modifier.size(width, height).semantics { contentDescription = description }) {
-        for (tick in axis.ticks) {
+        for (tick in timeline.gridDates(width.value)) {
             val x = size.width * axis.boundary(tick)
             drawLine(Line, Offset(x, 0f), Offset(x, size.height), 0.8.dp.toPx())
         }

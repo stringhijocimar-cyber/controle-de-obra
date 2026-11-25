@@ -138,7 +138,7 @@ internal fun Project.mergeFrom(incoming: Project): ProjectImport {
     return ProjectImport(merged, added)
 }
 
-internal fun Project.hasWork() = this != Project()
+internal fun Project.hasWork() = copy(ganttScale = GanttScale.WEEKS) != Project()
 
 internal fun Project.isSameWork(other: Project) = importKey(name) == importKey(other.name)
 

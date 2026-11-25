@@ -11,7 +11,7 @@ import java.io.InputStream
 import java.math.BigDecimal
 import java.math.RoundingMode
 
-private const val FORMAT_VERSION = 9
+private const val FORMAT_VERSION = 10
 internal const val MAX_BACKUP_BYTES = 5 * 1024 * 1024
 
 internal class ProjectStore(context: Context) {
@@ -64,6 +64,7 @@ internal object ProjectCodec {
         "notes" to project.notes,
         "payerNames" to JSONArray(project.payerNames),
         "workPlans" to WorkPlanCodec.encode(project.workPlans),
+        "ganttScale" to project.ganttScale.name,
         "scheduledPayments" to array(project.scheduledPayments.map { plan -> obj(
             "id" to plan.id, "kind" to plan.kind.name, "targetId" to plan.targetId,
             "amountCents" to plan.amount, "date" to plan.date.dateText(), "label" to plan.label,
@@ -140,7 +141,7 @@ internal object ProjectCodec {
         val version = if (root.has("version")) root.getInt("version") else 1
         val project = when (version) {
             1 -> migrateLegacy(root)
-            2, 3, 4, 5, 6, 7, 8, FORMAT_VERSION -> decodeCurrent(root)
+            2, 3, 4, 5, 6, 7, 8, 9, FORMAT_VERSION -> decodeCurrent(root)
             else -> throw IllegalArgumentException("Versão de backup incompatível.")
         }
         project.validate()
@@ -154,6 +155,7 @@ internal object ProjectCodec {
         laborBudget = root.cents("laborBudgetCents"),
         notes = root.string("notes"),
         workPlans = WorkPlanCodec.decode(root.optJSONArray("workPlans")),
+        ganttScale = root.string("ganttScale").takeIf(String::isNotBlank)?.let(GanttScale::valueOf) ?: GanttScale.WEEKS,
         payerNames = root.optJSONArray("payerNames")?.let { names ->
             (0 until names.length()).map { names.getString(it) }
         }.orEmpty(),
