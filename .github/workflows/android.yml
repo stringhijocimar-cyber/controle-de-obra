@@ -65,16 +65,14 @@ jobs:
           script: |
             adb shell wm size 1080x2400
             adb shell wm density 440
-            ./gradlew :app:connectedDebugAndroidTest -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true
-            mkdir -p app/build/ui-screenshots
-            adb exec-out run-as br.com.obracontrol.app tar -C files -cf - screenshots > app/build/ui-screenshots/screenshots.tar
-            tar -tf app/build/ui-screenshots/screenshots.tar
+            bash scripts/capture-android-tables.sh
       - name: Guardar capturas das tabelas de teste
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: Capturas-Android
           path: app/build/ui-screenshots/screenshots.tar
-          if-no-files-found: error
+          if-no-files-found: warn
       - name: Guardar diagnóstico se um teste Android falhar
         if: failure()
         uses: actions/upload-artifact@v4

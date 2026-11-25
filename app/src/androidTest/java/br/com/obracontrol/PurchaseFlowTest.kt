@@ -1,6 +1,8 @@
 package br.com.obracontrol
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithTag
@@ -25,7 +27,7 @@ class PurchaseFlowTest {
         try {
             store.save(Project())
             app.activityRule.scenario.recreate()
-            app.onNodeWithText("Compras").performClick()
+            app.onNode(hasText("Compras") and hasClickAction()).performClick()
             app.onNodeWithText("Nova compra").performClick()
             app.onNodeWithText("Nome da compra ou material").performTextInput("Piso de teste")
             app.onNodeWithText("Total do documento ou da cotação (R$)").performScrollTo().performTextInput("1200,00")
@@ -58,7 +60,7 @@ class PurchaseFlowTest {
             assertEquals(saved.payments, store.load().payments)
 
             app.activityRule.scenario.recreate()
-            app.onNodeWithText("Compras").performClick()
+            app.onNode(hasText("Compras") and hasClickAction()).performClick()
             app.onNodeWithText("Nova compra").performClick()
             app.onNodeWithText("Quem pagou").performScrollTo().performClick()
             app.onNodeWithText("Pagador de teste").performClick()

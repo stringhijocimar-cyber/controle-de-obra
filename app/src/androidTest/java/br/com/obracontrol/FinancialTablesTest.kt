@@ -55,7 +55,7 @@ class FinancialTablesTest {
         try {
             store.save(project)
             app.activityRule.scenario.recreate()
-            app.onNodeWithText("Compras").performClick()
+            app.onNode(hasText("Compras") and hasClickAction()).performClick()
             app.onNodeWithContentDescription("Pago", useUnmergedTree = true).assertIsDisplayed()
             app.onNodeWithContentDescription("Parcial", useUnmergedTree = true).assertIsDisplayed()
             app.onAllNodes(androidx.compose.ui.test.hasContentDescription("Em aberto"), useUnmergedTree = true)[0].assertIsDisplayed()
