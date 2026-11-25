@@ -11,7 +11,7 @@ import java.io.InputStream
 import java.math.BigDecimal
 import java.math.RoundingMode
 
-private const val FORMAT_VERSION = 5
+private const val FORMAT_VERSION = 6
 internal const val MAX_BACKUP_BYTES = 5 * 1024 * 1024
 
 internal class ProjectStore(context: Context) {
@@ -85,6 +85,7 @@ internal object ProjectCodec {
             "receivedDate" to purchase.receivedDate.dateText(),
             "payer" to purchase.payer,
             "method" to purchase.method,
+            "installmentCount" to purchase.installmentCount,
             "dueDate" to purchase.dueDate.dateText(),
             "stageId" to purchase.stageId,
             "totalCents" to purchase.total,
@@ -132,7 +133,7 @@ internal object ProjectCodec {
         val version = if (root.has("version")) root.getInt("version") else 1
         val project = when (version) {
             1 -> migrateLegacy(root)
-            2, 3, 4, FORMAT_VERSION -> decodeCurrent(root)
+            2, 3, 4, 5, FORMAT_VERSION -> decodeCurrent(root)
             else -> throw IllegalArgumentException("Versão de backup incompatível.")
         }
         project.validate()
@@ -170,6 +171,8 @@ internal object ProjectCodec {
             receivedDate = purchase.date("receivedDate"),
             payer = purchase.string("payer"),
             method = purchase.string("method"),
+            installmentCount = if (purchase.isNull("installmentCount")) null
+                else BigDecimal(purchase.get("installmentCount").toString()).intValueExact(),
             dueDate = purchase.date("dueDate"),
             stageId = purchase.string("stageId").takeIf(String::isNotBlank),
             total = purchase.cents("totalCents"),
@@ -306,6 +309,7 @@ internal fun Project.validate() {
     stages.forEach(Stage::validate)
     purchases.forEach { order ->
         require(order.name.isNotBlank()) { "Informe o nome da compra." }
+        require(order.installmentCount == null || order.installmentCount > 0) { "Informe uma quantidade de parcelas maior que zero." }
         require(order.stageId == null || stages.any { it.id == order.stageId }) { "A etapa da compra não existe." }
         requireDistinctIds(order.lines.map { it.id })
         order.lines.forEach(PurchaseLine::validate)

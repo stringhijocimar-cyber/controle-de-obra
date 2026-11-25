@@ -178,6 +178,8 @@ class MainActivity : ComponentActivity() {
                     history = arrayListOf()
                     listState.removeState("agenda")
                     listState.removeState("etapas")
+                    listState.removeState("compras")
+                    listState.removeState("pagamentos")
                     tab = Section.DASHBOARD.name
                     if (!merge) "Obra importada."
                     else if (result.added == 0) "Cadastro conferido. Nenhum lançamento duplicado."
@@ -245,8 +247,13 @@ class MainActivity : ComponentActivity() {
                     Section.STAGES -> listState.SaveableStateProvider("etapas") {
                         StageList(project, balance, today, { navigate("etapa/nova") }, { navigate("etapa/$it") })
                     }
-                    Section.PURCHASES -> PurchaseList(project, balance, { navigate("compra/nova") }, { navigate("compra/$it") })
-                    Section.PAYMENTS -> PaymentsScreen(project, balance, { navigate("pagamento/novo") }, { navigate("pagamento/$it") })
+                    Section.PURCHASES -> listState.SaveableStateProvider("compras") {
+                        PurchaseTableScreen(project, balance, today, { navigate("compra/nova") }, { navigate("compra/$it") })
+                    }
+                    Section.PAYMENTS -> listState.SaveableStateProvider("pagamentos") {
+                        PaymentTableScreen(project, balance, today, { navigate("pagamento/novo") }, { navigate("pagamento/$it") },
+                            { kind, target -> navigate("pagamento/novo/${kind.name}/$target") })
+                    }
                     Section.REPORT -> ExportScreen(
                         activeFileOperation,
                         { makePdf.launch("ObraControl_Relatorio.pdf") },

@@ -51,8 +51,10 @@ internal fun Project.mergeFrom(incoming: Project): ProjectImport {
             added += documents.size - current.documents.size
             if (current.payer.isBlank() && order.payer.isNotBlank()) added++
             if (current.method.isBlank() && order.method.isNotBlank()) added++
+            if (current.installmentCount == null && order.installmentCount != null) added++
             importedPurchases[index] = current.copy(lines = lines, documents = documents,
-                payer = current.payer.ifBlank { order.payer }, method = current.method.ifBlank { order.method })
+                payer = current.payer.ifBlank { order.payer }, method = current.method.ifBlank { order.method },
+                installmentCount = current.installmentCount ?: order.installmentCount)
             purchaseIds[order.id] = current.id
         }
     }

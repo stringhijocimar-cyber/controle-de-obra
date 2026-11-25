@@ -264,7 +264,7 @@ internal fun LedgerLine(label: String, value: String) {
 }
 
 private enum class StageView(val label: String) {
-    LIST("Lista"), GANTT("Gantt"), SPEND("Desembolsos"),
+    LIST("Tabela"), GANTT("Gantt"), SPEND("Desembolsos"),
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -284,76 +284,9 @@ internal fun StageList(project: Project, total: Balance, today: LocalDate, add: 
         }
         Box(Modifier.weight(1f)) {
             when (view) {
-                StageView.LIST -> StageCards(project, total, edit)
+                StageView.LIST -> StageTable(project, total, today, edit)
                 StageView.GANTT -> StageGantt(project.stages, spend, today, chartScroll, edit)
                 StageView.SPEND -> LaborSpendScreen(spend, edit)
-            }
-        }
-    }
-}
-
-@Composable
-private fun StageCards(project: Project, total: Balance, edit: (String) -> Unit) {
-    ObraList {
-        if (project.stages.isEmpty()) item { SheetCard { Detail("Cadastre a primeira etapa para montar o cronograma.") } }
-        items(project.stages, key = { it.id }) { stage ->
-            SheetCard {
-                Heading(stage.name)
-                Tag("${stage.status} · ${stage.progress}%")
-                Detail("Previsto ${stage.plannedStart.dateOr()} a ${stage.plannedEnd.dateOr()}")
-                if (stage.actualStart != null || stage.actualEnd != null) {
-                    Detail("Realizado ${stage.actualStart.dateOr()} a ${stage.actualEnd.dateOr()}")
-                }
-                LedgerLine("Previsto · pago", "${stage.budget.costText()} · ${total.paid(CostKind.LABOR, stage.id).brl()}")
-                TextButton(onClick = { edit(stage.id) }) { Text("Editar etapa") }
-            }
-        }
-    }
-}
-
-@Composable
-internal fun PurchaseList(project: Project, total: Balance, add: () -> Unit, open: (String) -> Unit) {
-    ObraList {
-        item { ListHeading("Compras e materiais", "Nova compra", add) }
-        if (project.purchases.isEmpty()) item { SheetCard { Detail("Cadastre uma compra, cotação ou material a cotar.") } }
-        items(project.purchases, key = { it.id }) { purchase ->
-            SheetCard {
-                Heading(purchase.name, listOf(purchase.supplier, purchase.document).filter(String::isNotBlank).joinToString(" · ").takeIf(String::isNotBlank))
-                Tag(total.purchaseStatus(purchase), purchase.forecast == null)
-                LedgerLine("Previsão · pago", "${purchase.forecast.costText()} · ${total.paid(CostKind.MATERIAL, purchase.id).brl()}")
-                if (purchase.method.isNotBlank()) Detail("Método de pagamento · ${purchase.method}")
-                if (purchase.payer.isNotBlank()) Detail("Quem pagou · ${purchase.payer}")
-                purchase.deliveryExpected?.let { Detail("Entrega prevista em ${it.dateText()}") }
-                purchase.receivedDate?.let { Detail("Recebido em ${it.dateText()}", Green) }
-                if (purchase.extra) Tag("Acréscimo declarado", true)
-                if (purchase.documents.isNotEmpty()) Detail("${purchase.documents.size} documento(s) anexado(s)")
-                TextButton(onClick = { open(purchase.id) }) { Text("Abrir compra") }
-            }
-        }
-    }
-}
-
-@Composable
-internal fun PaymentsScreen(project: Project, total: Balance, add: () -> Unit, edit: (String) -> Unit) {
-    ObraList {
-        item { ListHeading("Pagamentos", "Novo pagamento", add) }
-        item {
-            SheetCard {
-                LedgerLine("Total pago", total.paid.brl())
-                LedgerLine("Compras", total.materialPaid.brl())
-                LedgerLine("Mão de obra", total.laborPaid.brl())
-                if (project.stages.isEmpty() && project.purchases.isEmpty()) Detail("Cadastre uma etapa ou compra para registrar um pagamento.")
-            }
-        }
-        if (project.payments.isEmpty()) item { SheetCard { Detail("Nenhum pagamento registrado.") } }
-        items(project.payments.sortedWith(compareBy(nullsLast(reverseOrder())) { it.date }), key = { it.id }) { payment ->
-            SheetCard {
-                Heading(project.targetName(payment), payment.kind.label)
-                LedgerLine(payment.date.dateOr(UNREPORTED), payment.amount.brl())
-                Detail("${payment.payer.textOr()} · ${payment.method.textOr()}")
-                if (payment.receipt.isNotBlank()) Detail("Comprovante ${payment.receipt}")
-                if (payment.proofs.isNotEmpty()) Detail("${payment.proofs.size} comprovante(s) anexado(s)")
-                TextButton(onClick = { edit(payment.id) }) { Text("Editar pagamento") }
             }
         }
     }

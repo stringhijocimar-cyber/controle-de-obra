@@ -209,6 +209,14 @@ private fun PurchaseEditor(
     var documents by rememberAttachments(order.documents)
     var payer by rememberSaveable { mutableStateOf(order.payer) }
     var method by rememberSaveable { mutableStateOf(order.method) }
+    var paymentTerms by rememberSaveable {
+        mutableStateOf(when (order.installmentCount) {
+            null -> "unknown"
+            1 -> "single"
+            else -> "installments"
+        })
+    }
+    var installmentCount by rememberSaveable { mutableStateOf(order.installmentCount?.toString().orEmpty()) }
     var recordPayment by rememberSaveable { mutableStateOf(false) }
     val paymentId = rememberSaveable { newId() }
     var paidAmount by rememberSaveable { mutableStateOf("") }
@@ -220,7 +228,13 @@ private fun PurchaseEditor(
         deliveryExpected = parseDate(delivery), receivedDate = parseDate(received),
         stageId = stageId.takeIf(String::isNotBlank), total = parseMoney(total),
         discount = parseMoney(discount) ?: 0, extra = extra, notes = notes.trim(), documents = documents,
-        payer = payer.trim(), method = method.trim())
+        payer = payer.trim(), method = method.trim(),
+        installmentCount = when (paymentTerms) {
+            "single" -> 1
+            "installments" -> installmentCount.toIntOrNull()?.takeIf { it >= 2 }
+                ?: throw IllegalArgumentException("Informe pelo menos 2 parcelas.")
+            else -> null
+        })
 
     fun saveFields(line: String?) {
         val payment = if (recordPayment) Payment(id = paymentId, kind = CostKind.MATERIAL, targetId = order.id,
@@ -251,6 +265,14 @@ private fun PurchaseEditor(
         Check("Acréscimo declarado", extra) { extra = it }
         HorizontalDivider()
         Heading("Pagamento da compra")
+        Select("Condição de pagamento", paymentTerms,
+            listOf("unknown" to "Não informado", "single" to "À vista", "installments" to "Parcelado")) {
+            paymentTerms = it
+        }
+        if (paymentTerms == "installments") {
+            Field("Quantidade de parcelas", installmentCount, { installmentCount = it }, KeyboardType.Number)
+            runCatching { readFields() }.getOrNull()?.let { Detail(it.installmentText()) }
+        }
         PaymentDetailsFields(project, payer, { payer = it }, method, { method = it }) { person ->
             registerPayer(person)
         }

@@ -417,6 +417,11 @@ internal object FullReport {
                         total.paid(CostKind.MATERIAL, order.id).brl(), total.purchaseStatus(order),
                         if (order.extra) "Acréscimo declarado" else "Escopo previsto")
                 }, "Nenhuma compra cadastrada.")
+            if (project.purchases.any { it.installmentCount != null }) {
+                heading("CONDIÇÕES DE PAGAMENTO DAS COMPRAS")
+                table(listOf("COMPRA", "MÉTODO", "PARCELAMENTO"), listOf(330f, 180f, 264f),
+                    project.purchases.map { listOf(it.name, project.purchaseMethods(it), it.installmentText()) }, "")
+            }
         }
 
         fun projections() {
@@ -460,6 +465,7 @@ internal object FullReport {
                 if (order.method.isNotBlank() || order.payer.isNotBlank()) {
                     paragraph("Método de pagamento: ${order.method.textOr()}  •  Quem pagou: ${order.payer.textOr()}")
                 }
+                if (order.installmentCount != null) paragraph("Condição de pagamento: ${order.installmentText()}")
                 table(listOf("DESCRIÇÃO", "QUANTIDADE", "UNIDADE", "PREÇO UNITÁRIO", "SUBTOTAL"),
                     listOf(374f, 87f, 78f, 113f, 122f), order.lines.map { item ->
                         listOf(item.name, item.quantity.quantityInput().textOr(UNDEFINED), item.unit.textOr(),

@@ -154,6 +154,7 @@ internal data class Purchase(
     val receivedDate: LocalDate? = null,
     val payer: String = "",
     val method: String = "",
+    val installmentCount: Int? = null,
 ) {
     val lineSum: Long? get() = lines.takeIf { it.isNotEmpty() && it.all { line -> line.subtotal != null } }
         ?.sumOf { it.subtotal!! }
