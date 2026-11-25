@@ -26,7 +26,7 @@ internal fun PaymentFlag(status: FinancialStatus, tag: String, onClick: (() -> U
     val paid = status == FinancialStatus.PAID || status == FinancialStatus.OVERPAID
     val partial = status in listOf(FinancialStatus.PARTIAL, FinancialStatus.PARTIAL_OVERDUE, FinancialStatus.PAID_UNPRICED)
     TriStateCheckbox(state = if (paid) ToggleableState.On else if (partial) ToggleableState.Indeterminate else ToggleableState.Off,
-        onClick = onClick, enabled = onClick != null,
+        onClick = { onClick?.invoke() }, enabled = onClick != null,
         modifier = Modifier.testTag(tag).semantics { contentDescription = status.label },
         colors = CheckboxDefaults.colors(checkedColor = if (status == FinancialStatus.PARTIAL_OVERDUE) Color(0xFFB3261E) else if (partial) Amber else Green,
             uncheckedColor = if (status == FinancialStatus.UNPRICED || status == FinancialStatus.NO_COST) Muted else Color(0xFFB3261E),
@@ -95,7 +95,7 @@ internal fun CostPaymentCalendarScreen(project: Project, today: LocalDate, openC
                     }
                     FlowAmounts(week.paid, week.pending, week.knownTotal, "cashflow-week-${week.key}")
                     val ratio = if (week.knownTotal > 0) week.paid.toFloat() / week.knownTotal else 0f
-                    LinearProgressIndicator(progress = { ratio.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().height(5.dp),
+                    if (!week.pending.partial) LinearProgressIndicator(progress = { ratio.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().height(5.dp),
                         color = Green, trackColor = Line, gapSize = 0.dp, drawStopIndicator = {})
                     if (week.start?.let { today >= it && today <= it.plusDays(6) } == true) Tag("Esta semana")
                     if (week.pending.partial) Detail("Há valores a definir nesta semana.", Amber)
