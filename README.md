@@ -17,7 +17,11 @@ Aplicativo Android para cadastrar etapas, acompanhar a execução da obra, contr
 
 O valor do documento tem prioridade sobre a soma dos itens. A diferença após descontos aparece na conciliação. O contrato global de mão de obra, quando preenchido, é a referência do balanço. Valores ainda a cotar permanecem em aberto. Pagamentos são somados pelos lançamentos, independentemente da etapa estar concluída.
 
-O ícone verde identifica os pagamentos quitados. O amarelo indica pagamento parcial ou conciliação a confirmar. O vermelho sinaliza valores em aberto e vencimentos atrasados. O cinza indica valores a definir ou sem custo. O texto junto ao ícone apresenta a situação. Deslize as colunas para os lados, mantendo o nome da etapa, compra ou pagamento à vista.
+As tabelas usam uma linha compacta por registro, cabeçalho fixo, divisórias entre as células e colunas separadas para cada informação. O nome fica fixo durante a rolagem horizontal. Os valores estão em reais, alinhados à direita, e a quantidade de parcelas tem sua própria coluna. Toque em uma linha para abrir o cadastro completo.
+
+O ícone na coluna **Sit.** fica verde para pagamentos quitados, amarelo para pagamento parcial ou conciliação a confirmar, vermelho para valores em aberto ou atrasados e cinza para valores a definir ou sem custo. Os ícones têm descrições para leitores de tela. A legenda fica abaixo da tabela.
+
+Use **Tela cheia** para ampliar a tabela. Com o celular na horizontal, mais colunas ficam visíveis. **Fechar tabela** volta à aba original; tocar em um registro abre sua compra, etapa ou pagamento.
 
 Compras de versões anteriores aparecem com parcelamento **Não informado** até o preenchimento desse campo. A quantidade de parcelas é uma condição da compra. O valor pago é calculado pelos pagamentos efetivamente registrados.
 
@@ -31,7 +35,7 @@ Em **Pagamentos**, abra um lançamento e adicione os comprovantes com a câmera 
 
 ## Instalação e primeiro uso
 
-A versão 1.8.0 requer Android 8.0 ou mais recente e atualiza diretamente o **ObraControl 1.7.0**, usando sua assinatura permanente e o cadastro salvo no aparelho. Abra o instalador e escolha **Atualizar**.
+A versão 1.8.1 requer Android 8.0 ou mais recente e atualiza diretamente o **ObraControl 1.7.0 / 1.8.0**, usando a mesma assinatura permanente e o cadastro salvo no aparelho. Abra o instalador e escolha **Atualizar**.
 
 Para transferir dados das edições **ObraControl Financeiro** ou **ObraControl Gestão**, abra **Relatório → Exportar backup com anexos** no app anterior. No **ObraControl**, abra **Relatório → Importar dados da obra**, selecione o ZIP e confirme. Confira o cadastro importado antes de desinstalar a edição anterior. Os backups JSON e ZIP das versões anteriores do formato continuam aceitos.
 
