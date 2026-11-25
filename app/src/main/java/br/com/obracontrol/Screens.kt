@@ -209,7 +209,7 @@ internal fun Dashboard(
             SheetCard {
                 Heading("Composição dos custos")
                 val largest = maxOf(total.laborForecast, total.materialForecast, 1)
-                ProgressBar("Materiais e equipamentos", total.materialForecast.brl(), total.materialForecast.toDouble() / largest, Blue)
+                ProgressBar("Compras de materiais e serviços", total.materialForecast.brl(), total.materialForecast.toDouble() / largest, Blue)
                 ProgressBar("Mão de obra", total.laborForecast.brl(), total.laborForecast.toDouble() / largest, Green)
                 Detail("Valores a pagar conhecidos: ${total.materialToPay.brl()} em compras e ${total.laborToPay.brl()} em mão de obra.")
             }

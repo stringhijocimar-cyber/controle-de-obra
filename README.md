@@ -19,6 +19,8 @@ O valor do documento tem prioridade sobre a soma dos itens. A diferença após d
 
 As tabelas usam uma linha compacta por registro, cabeçalho claro e fixo, divisórias suaves e colunas separadas para cada informação. O nome fica fixo durante a rolagem horizontal. Os valores estão em reais, alinhados à direita, e a quantidade de parcelas tem sua própria coluna. Toque em uma linha para abrir o cadastro completo.
 
+A coluna **Tipo** identifica **Material** ou **Serviço**. Em compras, escolha a classificação no campo **Tipo de custo**, que também pode ser alterado ao editar o cadastro. As etapas de mão de obra são serviços; os pagamentos e compromissos herdam o tipo da compra ou etapa vinculada. As compras antigas mantêm a classificação de material, usada nas versões anteriores, até serem editadas. Compras de serviços continuam vinculadas ao seu próprio cadastro de compra e os totais financeiros são preservados. Os backups exportados incluem a classificação; os formatos anteriores continuam aceitos.
+
 Toque no custo e escolha **Editar dados** para abrir o cadastro correspondente. Funciona em Compras, Etapas, Pagamentos e em **Tela cheia**. Em **Pagamentos → A pagar**, essa opção edita a compra ou etapa de origem; tocar no nome continua iniciando um pagamento vinculado. Nos pagamentos registrados, a edição abre o lançamento pago. Ao salvar, os totais e saldos são recalculados.
 
 Os totais ficam logo abaixo das linhas da tabela e permanecem visíveis durante a rolagem. **Compras** e **Etapas** mostram previsto, pago e saldo. **Pagamentos → Registrados** totaliza os pagamentos exibidos; **A pagar** totaliza o saldo e os valores já pagos nos compromissos dessa tabela. A soma considera os registros de cada tabela, incluindo as linhas fora da área visível. Etapas totaliza o orçamento distribuído entre as etapas; o contrato global continua no Painel. Custos não informados aparecem como **A definir**, com indicação de **Total parcial**. Tabelas vazias mostram totais de zero.
@@ -39,7 +41,7 @@ Em **Pagamentos**, abra um lançamento e adicione os comprovantes com a câmera 
 
 ## Instalação e primeiro uso
 
-A versão 1.8.3 requer Android 8.0 ou mais recente e atualiza diretamente o **ObraControl 1.7.0 / 1.8.0 / 1.8.1 / 1.8.2**, usando a mesma assinatura permanente e o cadastro salvo no aparelho. Abra o instalador e escolha **Atualizar**.
+A versão 1.8.4 requer Android 8.0 ou mais recente e atualiza diretamente o **ObraControl 1.7.0 / 1.8.0 / 1.8.1 / 1.8.2 / 1.8.3**, usando a mesma assinatura permanente e o cadastro salvo no aparelho. Abra o instalador e escolha **Atualizar**.
 
 Para transferir dados das edições **ObraControl Financeiro** ou **ObraControl Gestão**, abra **Relatório → Exportar backup com anexos** no app anterior. No **ObraControl**, abra **Relatório → Importar dados da obra**, selecione o ZIP e confirme. Confira o cadastro importado antes de desinstalar a edição anterior. Os backups JSON e ZIP das versões anteriores do formato continuam aceitos.
 

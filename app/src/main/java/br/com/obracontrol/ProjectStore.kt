@@ -11,7 +11,7 @@ import java.io.InputStream
 import java.math.BigDecimal
 import java.math.RoundingMode
 
-private const val FORMAT_VERSION = 6
+private const val FORMAT_VERSION = 7
 internal const val MAX_BACKUP_BYTES = 5 * 1024 * 1024
 
 internal class ProjectStore(context: Context) {
@@ -86,6 +86,7 @@ internal object ProjectCodec {
             "payer" to purchase.payer,
             "method" to purchase.method,
             "installmentCount" to purchase.installmentCount,
+            "nature" to purchase.nature.name,
             "dueDate" to purchase.dueDate.dateText(),
             "stageId" to purchase.stageId,
             "totalCents" to purchase.total,
@@ -133,7 +134,7 @@ internal object ProjectCodec {
         val version = if (root.has("version")) root.getInt("version") else 1
         val project = when (version) {
             1 -> migrateLegacy(root)
-            2, 3, 4, 5, FORMAT_VERSION -> decodeCurrent(root)
+            2, 3, 4, 5, 6, FORMAT_VERSION -> decodeCurrent(root)
             else -> throw IllegalArgumentException("Versão de backup incompatível.")
         }
         project.validate()
@@ -173,6 +174,8 @@ internal object ProjectCodec {
             method = purchase.string("method"),
             installmentCount = if (purchase.isNull("installmentCount")) null
                 else BigDecimal(purchase.get("installmentCount").toString()).intValueExact(),
+            nature = if (purchase.isNull("nature")) CostNature.MATERIAL
+                else CostNature.valueOf(purchase.getString("nature")),
             dueDate = purchase.date("dueDate"),
             stageId = purchase.string("stageId").takeIf(String::isNotBlank),
             total = purchase.cents("totalCents"),

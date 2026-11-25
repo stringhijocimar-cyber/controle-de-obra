@@ -270,13 +270,13 @@ internal object FullReport {
             section("PAINEL DE CONTROLE  |  ${project.name.uppercase(brazil)}",
                 "Prestação de contas e acompanhamento da execução  •  Base: ${project.referenceDate.dateOr(today.dateText())}")
             tiles(
-                Tile("PREVISÃO PARCIAL", total.total.brl(), "Materiais e mão de obra"),
+                Tile("PREVISÃO PARCIAL", total.total.brl(), "Compras e mão de obra"),
                 Tile("TOTAL JÁ PAGO", total.paid.brl(), "${percent(ratio)} da previsão", green),
                 Tile("SALDO CONHECIDO", total.remaining.brl(), "Previsão parcial menos pagamentos", blue),
                 Tile("ACRÉSCIMO DECLARADO", total.extras.brl(), "Compras marcadas como acréscimo", gold),
             )
             text(LEFT, y + 14, "COMPOSIÇÃO DOS CUSTOS", 12f, ink, true)
-            bars(listOf(Bar("Materiais pagos", total.materialPaid, green), Bar("Compras a pagar", total.materialToPay, blue),
+            bars(listOf(Bar("Compras pagas", total.materialPaid, green), Bar("Compras a pagar", total.materialToPay, blue),
                 Bar("Mão de obra prevista", total.laborForecast, gold)), LEFT, y + 27f, 474f)
             box(534f, y, RIGHT - 534f, 148f, light, 6f)
             text(546f, y + 18, "QUEM PAGOU", 11f, ink, true)
@@ -401,19 +401,19 @@ internal object FullReport {
         }
 
         fun purchases() {
-            section("MATERIAIS  |  COMPRAS E VARIAÇÕES", "Fornecedores, compras pagas e acréscimos declarados")
+            section("COMPRAS  |  MATERIAIS E SERVIÇOS", "Fornecedores, compras pagas e acréscimos declarados")
             tiles(
-                Tile("MATERIAIS PAGOS", total.materialPaid.brl(), "Pagamentos realizados", green),
-                Tile("TOTAL CONHECIDO DE MATERIAIS", total.materialForecast.brl(), "Documentos, cotações e estimativas"),
+                Tile("COMPRAS PAGAS", total.materialPaid.brl(), "Pagamentos realizados", green),
+                Tile("TOTAL CONHECIDO DE COMPRAS", total.materialForecast.brl(), "Documentos, cotações e estimativas"),
                 Tile("ACRÉSCIMOS DECLARADOS", total.extras.brl(), "Integram a previsão parcial", gold),
             )
             barSection("COMPRAS PAGAS POR FORNECEDOR", total.spendBySupplier.mapIndexed { index, (supplier, amount) ->
                 Bar(supplier, amount, listOf(green, blue, gold)[index % 3])
             }, "Nenhuma compra paga foi registrada.")
             heading("RESUMO DAS COMPRAS")
-            table(listOf("COMPRA / FORNECEDOR", "DOCUMENTO", "TOTAL PREVISTO", "PAGO", "SITUAÇÃO", "CLASSIFICAÇÃO"),
-                listOf(220f, 100f, 110f, 100f, 123f, 121f), project.purchases.map { order ->
-                    listOf("${order.name}\n${order.supplier.textOr("Fornecedor a definir")}", order.document.textOr(), order.forecast.costText(),
+            table(listOf("COMPRA / FORNECEDOR", "TIPO", "DOCUMENTO", "TOTAL PREVISTO", "PAGO", "SITUAÇÃO", "CLASSIFICAÇÃO"),
+                listOf(200f, 70f, 94f, 100f, 90f, 95f, 125f), project.purchases.map { order ->
+                    listOf("${order.name}\n${order.supplier.textOr("Fornecedor a definir")}", order.nature.label, order.document.textOr(), order.forecast.costText(),
                         total.paid(CostKind.MATERIAL, order.id).brl(), total.purchaseStatus(order),
                         if (order.extra) "Acréscimo declarado" else "Escopo previsto")
                 }, "Nenhuma compra cadastrada.")
@@ -430,9 +430,9 @@ internal object FullReport {
                 Tile("COMPRAS A PAGAR", total.materialToPay.brl(), "Valores conhecidos", blue),
                 Tile("MÃO DE OBRA A PAGAR", total.laborToPay.brl(), "Saldo do contrato conhecido", blue),
                 Tile("SALDO DA PREVISÃO", total.remaining.brl(), "Inclui eventual pagamento a maior"),
-                Tile("MATERIAIS A COTAR", project.purchases.count { it.forecast == null }.toString(), "Sem valor definido", gold),
+                Tile("COMPRAS A COTAR", project.purchases.count { it.forecast == null }.toString(), "Sem valor definido", gold),
             )
-            barSection("MATERIAIS A ADQUIRIR OU PAGAR", total.projectedPurchases.mapNotNull { purchase ->
+            barSection("COMPRAS A ADQUIRIR OU PAGAR", total.projectedPurchases.mapNotNull { purchase ->
                 total.materialOutstanding(purchase)?.takeIf { it > 0 }?.let { Bar(purchase.name, it, blue) }
             }, "Nenhuma compra com saldo conhecido.")
             heading("CALENDÁRIO DE DESEMBOLSOS")
@@ -450,12 +450,13 @@ internal object FullReport {
         }
 
         fun materials() {
-            section("MATERIAIS  |  LISTA DETALHADA", "Descrição, quantidades, valores unitários, descontos e conciliação documental")
+            section("COMPRAS  |  LISTA DETALHADA", "Descrição, quantidades, valores unitários, descontos e conciliação documental")
             if (project.purchases.isEmpty()) paragraph("Nenhuma compra cadastrada.")
             project.purchases.forEach { order ->
                 ensure(100f)
                 val stageName = project.stageName(order.stageId)
                 heading(order.name)
+                paragraph("Tipo: ${order.nature.label}")
                 paragraph(listOf(order.supplier.takeIf(String::isNotBlank), order.document.takeIf(String::isNotBlank),
                     order.documentDate.dateText().takeIf(String::isNotBlank), stageName, total.purchaseStatus(order),
                     if (order.extra) "Acréscimo declarado" else null).filterNotNull().joinToString("  •  "))
@@ -496,7 +497,7 @@ internal object FullReport {
             )
             table(listOf("REFERÊNCIA / TIPO", "VALOR", "DATA", "PAGADOR", "MEIO", "COMPROVANTE / OBSERVAÇÕES"),
                 listOf(194f, 90f, 81f, 109f, 98f, 202f), project.payments.sortedWith(compareBy(nullsLast()) { it.date }).map {
-                    listOf("${project.targetName(it)}\n${it.kind.label}", it.amount.brl(), it.date.dateOr(UNREPORTED),
+                    listOf("${project.targetName(it)}\n${project.costNature(it.kind, it.targetId).label} · ${it.kind.label}", it.amount.brl(), it.date.dateOr(UNREPORTED),
                         it.payer.textOr(), it.method.textOr(), buildList {
                             if (it.receipt.isNotBlank()) add(it.receipt)
                             addAll(it.proofs.map { proof -> proof.name })

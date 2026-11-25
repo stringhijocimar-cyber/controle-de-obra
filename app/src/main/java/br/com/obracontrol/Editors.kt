@@ -209,6 +209,7 @@ private fun PurchaseEditor(
     var documents by rememberAttachments(order.documents)
     var payer by rememberSaveable { mutableStateOf(order.payer) }
     var method by rememberSaveable { mutableStateOf(order.method) }
+    var nature by rememberSaveable { mutableStateOf(order.nature.name) }
     var paymentTerms by rememberSaveable {
         mutableStateOf(when (order.installmentCount) {
             null -> "unknown"
@@ -228,7 +229,7 @@ private fun PurchaseEditor(
         deliveryExpected = parseDate(delivery), receivedDate = parseDate(received),
         stageId = stageId.takeIf(String::isNotBlank), total = parseMoney(total),
         discount = parseMoney(discount) ?: 0, extra = extra, notes = notes.trim(), documents = documents,
-        payer = payer.trim(), method = method.trim(),
+        payer = payer.trim(), method = method.trim(), nature = CostNature.valueOf(nature),
         installmentCount = when (paymentTerms) {
             "single" -> 1
             "installments" -> installmentCount.toIntOrNull()?.takeIf { it >= 2 }
@@ -244,7 +245,8 @@ private fun PurchaseEditor(
     }
 
     Form(remove = remove, deletePrompt = "Excluir esta compra e os seus itens?", available = !processing, save = { saveFields(null) }) {
-        Field("Nome da compra ou material", name, { name = it })
+        Field("Nome da compra ou serviço", name, { name = it })
+        Select("Tipo de custo", nature, CostNature.entries.map { it.name to it.label }) { nature = it }
         DocumentEditor(DocumentUse.PURCHASE, documents, { documents = it }, { processing = it }) { amount, field ->
             if (field == MoneyField.DISCOUNT) discount = amount.cents.moneyInput()
             else total = amount.cents.moneyInput()
@@ -352,11 +354,12 @@ private fun PaymentEditor(
         save(payment.copy(kind = CostKind.valueOf(kind), targetId = target, amount = parseMoney(amount) ?: 0,
             date = parseDate(date), payer = payer.trim(), method = method.trim(), receipt = receipt.trim(), notes = notes.trim(), proofs = proofs))
     }) {
-        Select("Tipo", kind, CostKind.entries.map { it.name to it.label }) {
+        Select("Vincular a", kind, CostKind.entries.map { it.name to it.label }) {
             if (kind != it) { kind = it; target = "" }
         }
         if (targets.isEmpty()) Detail("Cadastre uma etapa ou compra desse tipo antes de lançar um pagamento.")
         else Select(if (kind == CostKind.LABOR.name) "Etapa" else "Compra", target, targets) { target = it }
+        if (target.isNotBlank()) Detail("Tipo de custo: ${project.costNature(CostKind.valueOf(kind), target).label}")
         Field("Valor pago (R$)", amount, { amount = it }, KeyboardType.Decimal)
         CalendarField("Data do pagamento", date, { date = it })
         PaymentDetailsFields(project, payer, { payer = it }, method, { method = it }) { person ->

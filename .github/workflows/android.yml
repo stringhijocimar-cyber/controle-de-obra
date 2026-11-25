@@ -27,11 +27,11 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - run: ./gradlew :app:testDebugUnitTest :app:assembleDebug :app:assembleRelease :app:lintRelease
       - name: Preparar instalador
-        run: cp app/build/outputs/apk/debug/app-debug.apk ObraControl-1.8.3-Testes.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk ObraControl-1.8.4-Testes.apk
       - uses: actions/upload-artifact@v4
         with:
           name: ObraControl-Android
-          path: ObraControl-1.8.3-Testes.apk
+          path: ObraControl-1.8.4-Testes.apk
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:

@@ -115,7 +115,7 @@ class FinancialTablesTest {
 
             app.onNodeWithText("A pagar").performClick()
             editCost("${CostKind.MATERIAL}/${purchase.id}")
-            app.onNodeWithText("Nome da compra ou material").performTextReplacement("Compra revisada")
+            app.onNodeWithText("Nome da compra ou serviço").performTextReplacement("Compra revisada")
             saveEditedRecord()
             assertEquals("Compra revisada", store.load().purchases.single { it.id == purchase.id }.name)
             editCost("${CostKind.LABOR}/${stage.id}")
@@ -157,7 +157,7 @@ class FinancialTablesTest {
             Stage(name = "Cobertura", budget = 80_000, progress = 0, plannedStart = today.plusDays(7), plannedEnd = today.plusDays(15)),
             Stage(name = "Acabamentos", budget = 60_000, progress = 0, plannedStart = today.plusDays(15), plannedEnd = today.plusDays(22))),
             purchases = listOf(paid, partial, unpaid,
-                Purchase(name = "Forro PVC", total = 36_000, installmentCount = 6),
+                Purchase(name = "Instalação do forro", total = 36_000, installmentCount = 6, nature = CostNature.SERVICE),
                 Purchase(name = "Argamassa", total = 4_800, installmentCount = 1),
                 Purchase(name = "Iluminação", total = 18_000, installmentCount = 3)), payments = listOf(
             Payment(kind = CostKind.MATERIAL, targetId = paid.id, amount = 10_000, date = today, payer = "Pessoa A", method = "PIX"),

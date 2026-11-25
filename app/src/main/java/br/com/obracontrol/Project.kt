@@ -155,6 +155,7 @@ internal data class Purchase(
     val payer: String = "",
     val method: String = "",
     val installmentCount: Int? = null,
+    val nature: CostNature = CostNature.MATERIAL,
 ) {
     val lineSum: Long? get() = lines.takeIf { it.isNotEmpty() && it.all { line -> line.subtotal != null } }
         ?.sumOf { it.subtotal!! }

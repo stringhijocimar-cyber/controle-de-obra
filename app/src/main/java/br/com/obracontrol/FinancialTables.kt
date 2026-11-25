@@ -261,11 +261,12 @@ private fun FinancialGrid(
                                         Box(Modifier.width(statusWidth).fillMaxHeight().border(0.5.dp, GridLine),
                                             contentAlignment = Alignment.Center) { StatusIcon(row.status) }
                                         columns.zip(row.values).forEachIndexed { columnIndex, (column, value) ->
+                                            val costIndex = columns.take(columnIndex + 1).count { it.cost } - 1
                                             GridCell(value, column.width, numeric = column.numeric,
                                                 edit = if (column.cost) ({ edit(row) }) else null,
                                                 recordName = row.name,
                                                 tone = if (column.title in listOf("Pago", "Valor pago")) Green else Navy,
-                                                tag = if (column.cost) "table-cost-${row.key}-$columnIndex" else null)
+                                                tag = if (column.cost) "table-cost-${row.key}-$costIndex" else null)
                                         }
                                     }
                                 }
@@ -313,14 +314,14 @@ private fun GridCell(
 
 @Composable
 internal fun StageTable(project: Project, balance: Balance, today: LocalDate, edit: (String) -> Unit) {
-    val columns = listOf(costColumn("Previsto", 94.dp), costColumn("Pago"),
+    val columns = listOf(TableColumn("Tipo", 84.dp), costColumn("Previsto", 94.dp), costColumn("Pago"),
         costColumn("Saldo"), TableColumn("Execução", 70.dp, true), TableColumn("Andamento", 130.dp),
         TableColumn("Início previsto", 108.dp), TableColumn("Fim previsto", 108.dp),
         TableColumn("Início real", 108.dp), TableColumn("Fim real", 108.dp), TableColumn("Pagamento", 108.dp))
     val rows = project.stages.map { stage ->
         val paid = balance.paid(CostKind.LABOR, stage.id)
         FinancialRow(stage.id, stage.name, financialStatus(stage.budget, paid, stage.dueDate, today),
-            listOf(stage.budget.tableMoney(), paid.tableMoney(), stage.budget?.minus(paid).tableMoney(),
+            listOf(CostNature.SERVICE.label, stage.budget.tableMoney(), paid.tableMoney(), stage.budget?.minus(paid).tableMoney(),
                 "${stage.progress}%", stage.status, stage.plannedStart.dateOr(), stage.plannedEnd.dateOr(),
                 stage.actualStart.dateOr(), stage.actualEnd.dateOr(), stage.dueDate.dateOr()),
             "Editar etapa", { edit(stage.id) }, costs = listOf(stage.budget, paid, stage.budget?.minus(paid)))
@@ -332,7 +333,7 @@ internal fun StageTable(project: Project, balance: Balance, today: LocalDate, ed
 internal fun PurchaseTableScreen(
     project: Project, balance: Balance, today: LocalDate, add: () -> Unit, open: (String) -> Unit,
 ) {
-    val columns = listOf(costColumn("Total"), costColumn("Pago"),
+    val columns = listOf(TableColumn("Tipo", 84.dp), costColumn("Total"), costColumn("Pago"),
         costColumn("Saldo"), TableColumn("Parcelas", 64.dp), TableColumn("Condição / valores", 230.dp),
         TableColumn("Quem pagou", 120.dp), TableColumn("Método", 110.dp), TableColumn("Vencimento", 108.dp),
         TableColumn("Fornecedor", 150.dp), TableColumn("Entrega", 108.dp),
@@ -341,7 +342,7 @@ internal fun PurchaseTableScreen(
         val paid = balance.paid(CostKind.MATERIAL, order.id)
         FinancialRow(order.id, order.name,
             financialStatus(order.forecast, paid, order.dueDate, today),
-            listOf(order.forecast.tableMoney(), paid.tableMoney(), order.forecast?.minus(paid).tableMoney(),
+            listOf(order.nature.label, order.forecast.tableMoney(), paid.tableMoney(), order.forecast?.minus(paid).tableMoney(),
                 order.tableInstallments(), order.installmentText(), project.purchasePayers(order), project.purchaseMethods(order),
                 order.dueDate.dateOr(), order.supplier.textOr(),
                 order.receivedDate?.let { "✓ ${it.dateText()}" } ?: order.deliveryExpected.dateOr(),
@@ -371,13 +372,13 @@ internal fun PaymentTableScreen(
     var outstanding by rememberSaveable { mutableStateOf(false) }
     val purchases = project.purchases.associateBy { it.id }
     val columns = if (outstanding) {
-        listOf(costColumn("Saldo"), costColumn("Pago"), TableColumn("Parcelas", 64.dp),
+        listOf(TableColumn("Tipo", 84.dp), costColumn("Saldo"), costColumn("Pago"), TableColumn("Parcelas", 64.dp),
             TableColumn("Vencimento", 108.dp), TableColumn("Tipo de data", 100.dp),
-            TableColumn("Condição / valores", 230.dp), TableColumn("Categoria", 105.dp))
+            TableColumn("Condição / valores", 230.dp), TableColumn("Origem", 105.dp))
     } else {
-        listOf(costColumn("Valor pago"), TableColumn("Data", 108.dp), TableColumn("Quem pagou", 120.dp),
+        listOf(TableColumn("Tipo", 84.dp), costColumn("Valor pago"), TableColumn("Data", 108.dp), TableColumn("Quem pagou", 120.dp),
             TableColumn("Método", 110.dp), TableColumn("Parcelas", 64.dp), TableColumn("Condição / valores", 230.dp),
-            TableColumn("Categoria", 105.dp), TableColumn("Anexos", 60.dp, true), TableColumn("Comprovante", 150.dp))
+            TableColumn("Origem", 105.dp), TableColumn("Anexos", 60.dp, true), TableColumn("Comprovante", 150.dp))
     }
     val rows = if (outstanding) {
         balance.disbursements.map { entry ->
@@ -388,7 +389,7 @@ internal fun PaymentTableScreen(
             val due = entry.forecastDate.dateOr("Sem data")
             FinancialRow("${entry.kind}/${entry.targetId}", entry.name,
                 financialStatus(value, paid, entry.date, today),
-                listOf(entry.amount.tableMoney(), paid.tableMoney(), purchase?.tableInstallments() ?: "—", due,
+                listOf(project.costNature(entry.kind, entry.targetId).label, entry.amount.tableMoney(), paid.tableMoney(), purchase?.tableInstallments() ?: "—", due,
                     if (entry.forecastDate == null) "Sem data" else if (entry.dateEstimated) "Estimativa" else "Informada",
                     purchase?.installmentText() ?: "—", entry.kind.label),
                 "Registrar pagamento", { payTarget(entry.kind, entry.targetId) },
@@ -398,7 +399,7 @@ internal fun PaymentTableScreen(
         project.payments.sortedWith(compareBy(nullsLast(reverseOrder())) { it.date }).map { payment ->
             val terms = if (payment.kind == CostKind.MATERIAL) purchases[payment.targetId]?.installmentText().orEmpty() else "—"
             FinancialRow(payment.id, project.targetName(payment), FinancialStatus.PAID,
-                listOf(payment.amount.tableMoney(), payment.date.dateOr(UNREPORTED), payment.payer.textOr(), payment.method.textOr(),
+                listOf(project.costNature(payment.kind, payment.targetId).label, payment.amount.tableMoney(), payment.date.dateOr(UNREPORTED), payment.payer.textOr(), payment.method.textOr(),
                     if (payment.kind == CostKind.MATERIAL) purchases[payment.targetId]?.tableInstallments() ?: "—" else "—",
                     terms, payment.kind.label, payment.proofs.size.toString(), payment.receipt.textOr()),
                 "Editar pagamento", { edit(payment.id) }, costs = listOf(payment.amount))
