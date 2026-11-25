@@ -85,7 +85,7 @@ class CostCalendarFlowTest {
             scrollTo("cashflow-week-${monday}")
             app.onNodeWithTag("cashflow-week-${monday}-0", useUnmergedTree = true).assertTextEquals(30_000L.brl())
             app.onNodeWithTag("cashflow-week-${monday}-1", useUnmergedTree = true).assertTextEquals(130_000L.brl())
-            screenshot("calendario-semanal.png")
+            screenshot("calendario-semanal.png", "cashflow-week-$monday")
             app.onNodeWithTag("cashflow-week-toggle-$monday").performClick()
             scrollTo("cashflow-category-$monday/SERVICE")
             app.onNodeWithTag("cashflow-category-$monday/SERVICE").performClick()
@@ -110,8 +110,10 @@ class CostCalendarFlowTest {
             scrollTo("cashflow-category-$monday/LABOR")
             app.onNodeWithTag("cashflow-category-$monday/LABOR").performClick()
             scrollTo("cashflow-cost-$monday-${stage.id}")
+            screenshot("calendario-camadas.png")
             app.onNodeWithTag("cashflow-cost-$monday-${stage.id}").performClick()
-            app.onNodeWithText("Programar pagamentos").performClick()
+            app.onNode(hasScrollAction()).performScrollToNode(hasText("Programar pagamentos"))
+            app.onNodeWithText("Programar pagamentos").performScrollTo().performClick()
             app.onNodeWithText("Quantidade de vencimentos").performTextReplacement("3")
             app.onNodeWithText("Periodicidade").performScrollTo().performClick()
             app.onNodeWithText("Semanal").performClick()
@@ -163,11 +165,15 @@ class CostCalendarFlowTest {
         app.waitForIdle()
     }
 
-    private fun scrollTo(tag: String) { app.onNode(hasScrollAction()).performScrollToNode(hasTestTag(tag)) }
+    private fun scrollTo(tag: String) {
+        app.onNode(hasScrollAction()).performScrollToNode(hasTestTag(tag))
+        // Expanded weeks can be taller than the viewport; bring the matched child into view too.
+        app.onNodeWithTag(tag).performScrollTo().assertIsDisplayed()
+    }
 
-    private fun screenshot(name: String) {
+    private fun screenshot(name: String, tag: String? = null) {
         val folder = File(app.activity.filesDir, "screenshots").apply { mkdirs() }
-        val bitmap = app.onRoot().captureToImage().asAndroidBitmap()
+        val bitmap = (if (tag == null) app.onRoot() else app.onNodeWithTag(tag)).captureToImage().asAndroidBitmap()
         File(folder, name).outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 
