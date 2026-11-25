@@ -404,7 +404,6 @@ private fun PaymentEditor(
             Detail("${order.method.textOr()} · ${order.installmentText()}")
             Check("Editar cartão e parcelamento da compra", editingTerms) { checked ->
                 editingTerms = checked
-                if (checked && method.isNotBlank()) purchaseMethod = method
             }
             if (editingTerms) PurchaseTermsFields(project, order, purchaseMethod, { purchaseMethod = it },
                 purchaseCondition, { purchaseCondition = it }, purchaseCount, { purchaseCount = it }, purchaseTotal, { purchaseTotal = it })

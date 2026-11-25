@@ -84,6 +84,7 @@ private data class FinancialRow(
     val detail: String = "",
     val settle: (() -> Unit)? = null,
     val editTerms: (() -> Unit)? = null,
+    val editMethod: (() -> Unit)? = null,
 )
 
 private data class SelectedTableCost(val rowKey: String, val value: String)
@@ -322,9 +323,10 @@ private fun FinancialGrid(
                                         }
                                         columns.zip(row.values).forEachIndexed { columnIndex, (column, value) ->
                                             val costIndex = columns.take(columnIndex + 1).count { it.cost } - 1
-                                            val termsCell = column.title in listOf("Método", "Parcelas", "Condição / valores") && row.editTerms != null
+                                            val termsAction = if (column.title == "Método") row.editMethod ?: row.editTerms else row.editTerms
+                                            val termsCell = column.title in listOf("Método", "Parcelas", "Condição / valores") && termsAction != null
                                             GridCell(value, column.width, numeric = column.numeric,
-                                                edit = if (column.cost) ({ showCost(row, value) }) else if (termsCell) row.editTerms else null,
+                                                edit = if (column.cost) ({ showCost(row, value) }) else if (termsCell) termsAction else null,
                                                 tone = if (termsCell) Blue else if (column.title in listOf("Pago", "Valor pago", "Pago efetivo")) Green else Navy,
                                                 tag = if (column.cost) "table-cost-${row.key}-$costIndex" else if (termsCell) "table-terms-${row.key}-${column.title}" else null,
                                                 actionLabel = if (termsCell) "Editar cartão e parcelamento" else "Opções do custo")
@@ -444,7 +446,7 @@ internal fun PaymentTableScreen(
     editCost: (CostKind, String) -> Unit,
     complete: (CostKind, String) -> Unit,
     openCost: (CostKind, String) -> Unit,
-    editTerms: (String) -> Unit,
+    editTerms: (CostKind, String) -> Unit,
 ) {
     var selectedView by rememberSaveable { mutableStateOf(PaymentView.REGISTERED.name) }
     val view = PaymentView.valueOf(selectedView)
@@ -476,7 +478,7 @@ internal fun PaymentTableScreen(
                 edit = { editCost(CostKind.MATERIAL, order.id) }, costs = listOf(position.total, position.paid, position.remaining),
                 detail = "${order.nature.label} · ${order.tableInstallments()}",
                 settle = { if (position.remaining != null && position.remaining!! > 0) complete(CostKind.MATERIAL, order.id) else editCost(CostKind.MATERIAL, order.id) },
-                editTerms = { editTerms(order.id) })
+                editTerms = { editTerms(CostKind.MATERIAL, order.id) })
         }
     } else if (outstanding) {
         balance.disbursements.map { entry ->
@@ -495,18 +497,22 @@ internal fun PaymentTableScreen(
                 detail = listOfNotNull(project.costNature(entry.kind, entry.targetId).label,
                     purchase?.tableInstallments()?.takeUnless { it == "—" }).joinToString(" · "),
                 settle = { if (value != null && entry.amount != null && entry.amount > 0) complete(entry.kind, entry.targetId) else editCost(entry.kind, entry.targetId) },
-                editTerms = if (entry.kind == CostKind.MATERIAL) ({ editTerms(entry.targetId) }) else null)
+                editTerms = { editTerms(entry.kind, entry.targetId) })
         }
     } else {
         project.payments.sortedWith(compareBy(nullsLast(reverseOrder())) { it.date }).map { payment ->
-            val terms = if (payment.kind == CostKind.MATERIAL) purchases[payment.targetId]?.installmentText().orEmpty() else "—"
+            val laborPlans = project.scheduledPayments.filter { it.kind == CostKind.LABOR && it.targetId == payment.targetId }
+            val terms = if (payment.kind == CostKind.MATERIAL) purchases[payment.targetId]?.installmentText().orEmpty()
+                else if (laborPlans.isEmpty()) "—" else "${laborPlans.size} vencimentos programados"
             FinancialRow(payment.id, project.targetName(payment), FinancialStatus.PAID,
                 listOf(payment.amount.tableMoney(), project.costNature(payment.kind, payment.targetId).label, payment.date.dateOr(UNREPORTED), payment.payer.textOr(), payment.method.textOr(),
-                    if (payment.kind == CostKind.MATERIAL) purchases[payment.targetId]?.tableInstallments() ?: "—" else "—",
+                    if (payment.kind == CostKind.MATERIAL) purchases[payment.targetId]?.tableInstallments() ?: "—"
+                        else laborPlans.takeIf { it.isNotEmpty() }?.size?.toString() ?: "—",
                     terms, payment.kind.label, payment.proofs.size.toString(), payment.receipt.textOr()),
                 "Editar pagamento", { edit(payment.id) }, costs = listOf(payment.amount),
                 detail = "Tipo: ${project.costNature(payment.kind, payment.targetId).label}",
-                editTerms = if (payment.kind == CostKind.MATERIAL) ({ editTerms(payment.targetId) }) else ({ edit(payment.id) }))
+                editTerms = { editTerms(payment.kind, payment.targetId) },
+                editMethod = { edit(payment.id) })
         }
     }
     Column(Modifier.fillMaxSize()) {

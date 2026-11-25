@@ -398,6 +398,7 @@ internal object FullReport {
                     listOf(horizon.label, if (amount.entirelyUndefined) UNDEFINED else amount.known.brl(), amount.undefinedCount.toString())
                 }, "")
             paragraph("O saldo líquido pode incluir pagamentos a maior. A programação considera o saldo pendente de cada custo, com os pagamentos já abatidos. A mão de obra da programação segue as etapas; divergências com o contrato geral aparecem em Pendências.")
+            ensure(145f)
             heading("CARTÃO E PARCELAMENTOS")
             table(listOf("COMPRA / SERVIÇO", "MÉTODO / CONDIÇÃO", "TOTAL", "PAGO EFETIVO", "A PAGAR"),
                 listOf(219f, 225f, 110f, 110f, 110f), summary.cardPurchases.map { order ->
@@ -406,6 +407,7 @@ internal object FullReport {
                         paid.brl(), InstallmentBalance(order, paid).remaining.costText())
                 }, "Nenhuma compra identificada como cartão ou parcelada.")
             paragraph("A condição do cartão descreve a divisão comercial do total. As parcelas futuras só reduzem o saldo quando o pagamento é registrado. Os vencimentos detalhados estão no calendário de pagamentos.")
+            ensure(85f)
             heading("PRÓXIMAS DECISÕES")
             table(listOf("ASSUNTO", "AÇÃO"), listOf(230f, 544f), summary.decisions.take(8).map { listOf(it.first, it.second) },
                 "Nenhuma decisão em aberto identificada no cadastro.")
@@ -422,8 +424,10 @@ internal object FullReport {
                     val bandWidth = width * timeline.fraction(band)
                     line(x, rowTop, x, rowTop + rowHeight, muted)
                     val label = if (row == 2) band.label.replace("Sem. ", "S").replace(" / 20", "/") else band.label
-                    if (bandWidth >= if (row == 0) 22f else if (row == 1) 18f else 13f) {
-                        text(x + 2f, rowTop + 9f, label, 7.2f, Color.WHITE, row == 0, bandWidth - 4f)
+                    val padding = if (row == 3) 0.7f else 2f
+                    val minimum = when (row) { 0 -> 22f; 1 -> 18f; 2 -> 18f; else -> 9.9f }
+                    if (bandWidth >= minimum) {
+                        text(x + padding, rowTop + 9f, label, 7.2f, Color.WHITE, row == 0, bandWidth - padding * 2)
                     }
                 }
             }

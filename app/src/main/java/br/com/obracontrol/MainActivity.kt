@@ -258,7 +258,8 @@ class MainActivity : ComponentActivity() {
                             { kind, target -> navigate("pagamento/novo/${kind.name}/$target") },
                             { kind, target -> navigate(if (kind == CostKind.LABOR) "etapa/$target" else "compra/$target") },
                             { kind, target -> navigate("pagamento/novo/${kind.name}/$target/saldo") },
-                            { kind, target -> navigate("custo/${kind.name}/$target") }, { navigate("condicao/$it") })
+                            { kind, target -> navigate("custo/${kind.name}/$target") },
+                            { kind, target -> navigate(if (kind == CostKind.LABOR) "programacao/LABOR/$target" else "condicao/$target") })
                     }
                     Section.REPORT -> ExportScreen(
                         activeFileOperation,
