@@ -11,6 +11,7 @@ import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -27,8 +28,9 @@ internal fun PaymentFlag(status: FinancialStatus, tag: String, onClick: (() -> U
     TriStateCheckbox(state = if (paid) ToggleableState.On else if (partial) ToggleableState.Indeterminate else ToggleableState.Off,
         onClick = onClick, enabled = onClick != null,
         modifier = Modifier.testTag(tag).semantics { contentDescription = status.label },
-        colors = CheckboxDefaults.colors(checkedColor = if (partial) Amber else Green,
-            uncheckedColor = if (status == FinancialStatus.UNPRICED) Muted else Amber, disabledCheckedColor = Green))
+        colors = CheckboxDefaults.colors(checkedColor = if (status == FinancialStatus.PARTIAL_OVERDUE) Color(0xFFB3261E) else if (partial) Amber else Green,
+            uncheckedColor = if (status == FinancialStatus.UNPRICED || status == FinancialStatus.NO_COST) Muted else Color(0xFFB3261E),
+            disabledCheckedColor = Green))
 }
 
 @Composable
@@ -155,7 +157,7 @@ internal fun CostPaymentDetailScreen(project: Project, kind: CostKind, id: Strin
                 LedgerLine("Pago efetivo", paid.brl())
                 LedgerLine("Saldo a pagar", remaining.costText())
                 if (target.total != null && paid > target.total) LedgerLine("Pago a maior", (paid - target.total).brl())
-                Tag(if (target.total != null && remaining == 0L && target.total > 0) "Pagamento concluído" else if (paid > 0) "Pagamento parcial" else "Pagamento em aberto",
+                Tag(if (target.total == 0L && paid == 0L) "Sem custo previsto" else if (target.total != null && remaining == 0L && target.total > 0) "Pagamento concluído" else if (paid > 0) "Pagamento parcial" else "Pagamento em aberto",
                     warning = remaining != 0L)
                 if (remaining != null && remaining > 0) Button(onClick = { navigate("pagamento/novo/${kind.name}/$id/saldo") },
                     modifier = Modifier.fillMaxWidth()) { Text("Marcar como pago") }
@@ -176,7 +178,7 @@ internal fun CostPaymentDetailScreen(project: Project, kind: CostKind, id: Strin
                         Detail(position.date.dateOr("Sem data") + if (position.estimatedDate) " · estimativa" else "")
                     }
                     PaymentFlag(financialStatus(position.gross, position.applied, position.date, LocalDate.now()),
-                        "cost-parcel-paid-${position.key}", if (position.completed) null else ({
+                        "cost-parcel-paid-${position.key}", if (position.completed || position.gross == 0L) null else ({
                             if (position.remaining == null) navigate(editRoute)
                             else navigate("pagamento/novo/${kind.name}/$id/${position.schedule?.id ?: "saldo"}")
                         }))
@@ -213,7 +215,8 @@ internal fun PaymentScheduleEditor(project: Project, kind: CostKind, id: String,
     var count by rememberSaveable { mutableStateOf((existing.size.takeIf { it > 0 }
         ?: project.purchases.firstOrNull { kind == CostKind.MATERIAL && it.id == id }?.installmentCount ?: 1).toString()) }
     var firstDate by rememberSaveable { mutableStateOf((existing.firstOrNull()?.date ?: target.due).dateText()) }
-    var period by rememberSaveable { mutableStateOf("monthly") }
+    var period by rememberSaveable { mutableStateOf(if (existing.size > 1 && existing.first().date != null &&
+        existing.withIndex().all { (index, row) -> row.date == existing.first().date!!.plusWeeks(index.toLong()) }) "weekly" else "monthly") }
     var rows by rememberSaveable(stateSaver = scheduleDraftSaver) {
         mutableStateOf(existing.map { ScheduleDraft(it.id, it.label, it.date.dateText(), it.amount.moneyInput()) })
     }

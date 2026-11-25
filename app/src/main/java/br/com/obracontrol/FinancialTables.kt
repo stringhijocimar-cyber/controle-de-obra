@@ -352,7 +352,7 @@ private fun GridCell(
         .then(interaction).drawBehind {
             drawLine(GridLine, Offset(0f, size.height), Offset(size.width, size.height), 1.dp.toPx())
             if (strong) drawLine(GridLine, Offset(size.width, 0f), Offset(size.width, size.height), 1.dp.toPx())
-        }.padding(horizontal = if (width <= 40.dp) 3.dp else 10.dp),
+        }.padding(horizontal = if (width <= 50.dp) 3.dp else 10.dp),
         contentAlignment = if (numeric) Alignment.CenterEnd else Alignment.CenterStart) {
         val nature = !header && value in CostNature.entries.map { it.label }
         Column(verticalArrangement = Arrangement.spacedBy(2.dp), horizontalAlignment = if (numeric) Alignment.End else Alignment.Start) {

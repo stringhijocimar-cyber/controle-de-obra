@@ -53,6 +53,9 @@ class CostCalendarFlowTest {
             saveForm()
             assertEquals(3, store.load().payments.size)
             screenshot("quitacao-tabela.png")
+        } catch (failure: Throwable) {
+            captureFailure()
+            throw failure
         } finally { store.save(previous) }
     }
 
@@ -80,8 +83,8 @@ class CostCalendarFlowTest {
             app.onNode(hasText("Pagamentos") and hasClickAction()).performClick()
             app.onNodeWithText("Semanas").performClick()
             scrollTo("cashflow-week-${monday}")
-            app.onNodeWithTag("cashflow-week-${monday}-0").assertTextEquals(30_000L.brl())
-            app.onNodeWithTag("cashflow-week-${monday}-1").assertTextEquals(130_000L.brl())
+            app.onNodeWithTag("cashflow-week-${monday}-0", useUnmergedTree = true).assertTextEquals(30_000L.brl())
+            app.onNodeWithTag("cashflow-week-${monday}-1", useUnmergedTree = true).assertTextEquals(130_000L.brl())
             screenshot("calendario-semanal.png")
             app.onNodeWithTag("cashflow-week-toggle-$monday").performClick()
             scrollTo("cashflow-category-$monday/SERVICE")
@@ -142,8 +145,11 @@ class CostCalendarFlowTest {
             app.onNode(hasText("Pagamentos") and hasClickAction()).performClick()
             app.onNodeWithText("Semanas").performClick()
             scrollTo("cashflow-week-$monday")
-            app.onNodeWithTag("cashflow-week-$monday-0").assertTextEquals(90_000L.brl())
-            app.onNodeWithTag("cashflow-week-$monday-1").assertTextEquals(40_000L.brl())
+            app.onNodeWithTag("cashflow-week-$monday-0", useUnmergedTree = true).assertTextEquals(90_000L.brl())
+            app.onNodeWithTag("cashflow-week-$monday-1", useUnmergedTree = true).assertTextEquals(40_000L.brl())
+        } catch (failure: Throwable) {
+            captureFailure()
+            throw failure
         } finally { store.save(previous) }
     }
 
@@ -163,5 +169,15 @@ class CostCalendarFlowTest {
         val folder = File(app.activity.filesDir, "screenshots").apply { mkdirs() }
         val bitmap = app.onRoot().captureToImage().asAndroidBitmap()
         File(folder, name).outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+    }
+
+    private fun captureFailure() {
+        val folder = File(app.activity.filesDir, "screenshots").apply { mkdirs() }
+        runCatching {
+            androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()?.let { bitmap ->
+                File(folder, "calendario-falha.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            }
+        }
+        File(folder, "calendario-falha.txt").writeText(runCatching { app.onRoot(useUnmergedTree = true).printToString() }.getOrDefault("Sem árvore"))
     }
 }
