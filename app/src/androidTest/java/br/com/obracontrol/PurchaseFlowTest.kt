@@ -1,6 +1,7 @@
 package br.com.obracontrol
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -9,9 +10,11 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.printToString
+import androidx.compose.ui.semantics.SemanticsActions
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -40,7 +43,9 @@ class PurchaseFlowTest {
             app.onNodeWithText("Nome do pagador").performTextInput("Pagador de teste")
             app.onNodeWithText("Cadastrar").performClick()
             assertTrue(store.load().payerNames.contains("Pagador de teste"))
-            app.onNodeWithText("Registrar pagamento nesta compra").performScrollTo().performClick()
+            app.onNodeWithText("Registrar pagamento nesta compra").performScrollTo()
+                .performSemanticsAction(SemanticsActions.OnClick) { it() }
+            app.onNodeWithText("Registrar pagamento nesta compra").assertIsOn()
             app.onNodeWithText("Valor pago (R$)").performScrollTo().performTextReplacement("400,00")
             app.onNodeWithText("Salvar").assertExists("Primeiro pagamento\n" + app.onRoot(useUnmergedTree = true).printToString())
                 .performClick()
