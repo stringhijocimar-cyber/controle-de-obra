@@ -59,7 +59,7 @@ class PurchaseFlowTest {
             assertEquals(purchase.id, saved.payments.single().targetId)
             assertEquals(40_000L, saved.payments.single().amount)
             assertEquals(80_000L, Balance(saved).materialOutstanding(purchase))
-            app.onNodeWithTag("table-row-${purchase.id}").performClick()
+            app.onNodeWithTag("table-name-${purchase.id}", useUnmergedTree = true).performClick()
             app.onNodeWithText("Salvar").assertExists("Edição da compra\n" + app.onRoot(useUnmergedTree = true).printToString())
                 .performClick()
             assertEquals(saved.payments, store.load().payments)

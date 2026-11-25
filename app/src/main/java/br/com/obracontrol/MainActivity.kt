@@ -252,7 +252,8 @@ class MainActivity : ComponentActivity() {
                     }
                     Section.PAYMENTS -> listState.SaveableStateProvider("pagamentos") {
                         PaymentTableScreen(project, balance, today, { navigate("pagamento/novo") }, { navigate("pagamento/$it") },
-                            { kind, target -> navigate("pagamento/novo/${kind.name}/$target") })
+                            { kind, target -> navigate("pagamento/novo/${kind.name}/$target") },
+                            { kind, target -> navigate(if (kind == CostKind.LABOR) "etapa/$target" else "compra/$target") })
                     }
                     Section.REPORT -> ExportScreen(
                         activeFileOperation,

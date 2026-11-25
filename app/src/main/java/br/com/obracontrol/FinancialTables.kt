@@ -22,6 +22,8 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -29,6 +31,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -42,6 +45,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -52,7 +56,11 @@ import java.time.LocalDate
 private val UnpaidRed = Color(0xFFB3261E)
 private val GridLine = Color(0xFFBCCBD8)
 
-private data class TableColumn(val title: String, val width: Dp, val numeric: Boolean = false)
+private data class TableColumn(
+    val title: String, val width: Dp, val numeric: Boolean = false, val cost: Boolean = false,
+)
+
+private fun costColumn(title: String, width: Dp = 90.dp) = TableColumn(title, width, numeric = true, cost = true)
 
 private data class FinancialRow(
     val key: String,
@@ -61,6 +69,7 @@ private data class FinancialRow(
     val values: List<String>,
     val action: String,
     val open: () -> Unit,
+    val edit: () -> Unit = open,
 )
 
 private fun Long?.tableMoney(): String = this?.brl()?.removePrefix("R$")?.trim() ?: "A definir"
@@ -113,10 +122,10 @@ private fun FinancialTable(
             }
         }
         Box(Modifier.weight(1f)) {
-            FinancialGrid(nameColumn, columns, rows, scroll) { row -> row.open() }
+            FinancialGrid(nameColumn, columns, rows, scroll, open = { it.open() }, edit = { it.edit() })
         }
         TableLegend()
-        Text("Deslize para ver as colunas · toque na linha para abrir", color = Muted,
+        Text("Toque no custo para editar · deslize para ver as colunas", color = Muted,
             fontSize = 10.sp, modifier = Modifier.padding(bottom = 5.dp))
     }
     if (expanded) {
@@ -132,10 +141,9 @@ private fun FinancialTable(
                     Text("Valores em R$ · gire o celular para ver mais colunas", color = Muted,
                         fontSize = 11.sp, modifier = Modifier.padding(bottom = 8.dp))
                     Box(Modifier.weight(1f)) {
-                        FinancialGrid(nameColumn, columns, rows, scroll) { row ->
-                            expanded = false
-                            row.open()
-                        }
+                        FinancialGrid(nameColumn, columns, rows, scroll,
+                            open = { row -> expanded = false; row.open() },
+                            edit = { row -> expanded = false; row.edit() })
                     }
                     TableLegend()
                 }
@@ -160,6 +168,7 @@ private fun FinancialGrid(
     rows: List<FinancialRow>,
     scroll: androidx.compose.foundation.ScrollState,
     open: (FinancialRow) -> Unit,
+    edit: (FinancialRow) -> Unit,
 ) {
     val fontScale = LocalDensity.current.fontScale
     BoxWithConstraints(Modifier.fillMaxSize().border(1.dp, GridLine)) {
@@ -191,13 +200,15 @@ private fun FinancialGrid(
                                     .clickable(onClickLabel = row.action, onClick = { open(row) }),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                GridCell(row.name, fixedWidth, strong = true)
+                                GridCell(row.name, fixedWidth, strong = true, tag = "table-name-${row.key}")
                                 Box(Modifier.weight(1f).horizontalScroll(scroll).testTag("table-values-${row.key}")) {
                                     Row(Modifier.width(statusWidth + contentWidth), verticalAlignment = Alignment.CenterVertically) {
                                         Box(Modifier.width(statusWidth).fillMaxHeight().border(0.5.dp, GridLine),
                                             contentAlignment = Alignment.Center) { StatusIcon(row.status) }
-                                        columns.zip(row.values).forEach { (column, value) ->
-                                            GridCell(value, column.width, numeric = column.numeric)
+                                        columns.zip(row.values).forEachIndexed { index, (column, value) ->
+                                            GridCell(value, column.width, numeric = column.numeric,
+                                                edit = if (column.cost) ({ edit(row) }) else null,
+                                                tag = if (column.cost) "table-cost-${row.key}-$index" else null)
                                         }
                                     }
                                 }
@@ -212,22 +223,34 @@ private fun FinancialGrid(
 @Composable
 private fun GridCell(
     value: String, width: Dp, header: Boolean = false, numeric: Boolean = false, strong: Boolean = false,
+    edit: (() -> Unit)? = null, tag: String? = null,
 ) {
-    Box(Modifier.width(width).fillMaxHeight().border(0.5.dp, if (header) Color(0xFF536678) else GridLine)
+    var options by remember { mutableStateOf(false) }
+    val interaction = if (edit == null) Modifier else Modifier
+        .clickable(onClickLabel = "Opções do custo") { options = true }
+    Box(Modifier.width(width).fillMaxHeight()
+        .then(if (tag == null) Modifier else Modifier.testTag(tag))
+        .then(interaction).border(0.5.dp, if (header) Color(0xFF536678) else GridLine)
         .padding(horizontal = 6.dp), contentAlignment = if (numeric) Alignment.CenterEnd else Alignment.CenterStart) {
-        Text(value.replace('\n', ' '), color = if (header) Color.White else Navy,
+        Text(value.replace('\n', ' '), color = if (header) Color.White else if (edit != null) Blue else Navy,
             fontSize = if (header) 11.sp else 12.sp,
             fontWeight = if (header || strong) FontWeight.SemiBold else FontWeight.Normal,
             fontFamily = if (numeric && !header) FontFamily.Monospace else FontFamily.Default,
             textAlign = if (numeric) TextAlign.End else TextAlign.Start,
+            textDecoration = if (edit != null) TextDecoration.Underline else TextDecoration.None,
             maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+        if (edit != null) {
+            DropdownMenu(expanded = options, onDismissRequest = { options = false }) {
+                DropdownMenuItem(text = { Text("Editar dados") }, onClick = { options = false; edit() })
+            }
+        }
     }
 }
 
 @Composable
 internal fun StageTable(project: Project, balance: Balance, today: LocalDate, edit: (String) -> Unit) {
-    val columns = listOf(TableColumn("Previsto", 94.dp, true), TableColumn("Pago", 90.dp, true),
-        TableColumn("Saldo", 90.dp, true), TableColumn("Execução", 70.dp, true), TableColumn("Andamento", 130.dp),
+    val columns = listOf(costColumn("Previsto", 94.dp), costColumn("Pago"),
+        costColumn("Saldo"), TableColumn("Execução", 70.dp, true), TableColumn("Andamento", 130.dp),
         TableColumn("Início previsto", 108.dp), TableColumn("Fim previsto", 108.dp),
         TableColumn("Início real", 108.dp), TableColumn("Fim real", 108.dp), TableColumn("Pagamento", 108.dp))
     val rows = project.stages.map { stage ->
@@ -245,8 +268,8 @@ internal fun StageTable(project: Project, balance: Balance, today: LocalDate, ed
 internal fun PurchaseTableScreen(
     project: Project, balance: Balance, today: LocalDate, add: () -> Unit, open: (String) -> Unit,
 ) {
-    val columns = listOf(TableColumn("Total", 90.dp, true), TableColumn("Pago", 90.dp, true),
-        TableColumn("Saldo", 90.dp, true), TableColumn("Parcelas", 64.dp), TableColumn("Condição / valores", 230.dp),
+    val columns = listOf(costColumn("Total"), costColumn("Pago"),
+        costColumn("Saldo"), TableColumn("Parcelas", 64.dp), TableColumn("Condição / valores", 230.dp),
         TableColumn("Quem pagou", 120.dp), TableColumn("Método", 110.dp), TableColumn("Vencimento", 108.dp),
         TableColumn("Fornecedor", 150.dp), TableColumn("Entrega", 108.dp),
         TableColumn("Anexos", 60.dp, true), TableColumn("Documento", 150.dp))
@@ -279,15 +302,16 @@ internal fun PaymentTableScreen(
     add: () -> Unit,
     edit: (String) -> Unit,
     payTarget: (CostKind, String) -> Unit,
+    editCost: (CostKind, String) -> Unit,
 ) {
     var outstanding by rememberSaveable { mutableStateOf(false) }
     val purchases = project.purchases.associateBy { it.id }
     val columns = if (outstanding) {
-        listOf(TableColumn("Saldo", 90.dp, true), TableColumn("Pago", 90.dp, true), TableColumn("Parcelas", 64.dp),
+        listOf(costColumn("Saldo"), costColumn("Pago"), TableColumn("Parcelas", 64.dp),
             TableColumn("Vencimento", 108.dp), TableColumn("Tipo de data", 100.dp),
             TableColumn("Condição / valores", 230.dp), TableColumn("Categoria", 105.dp))
     } else {
-        listOf(TableColumn("Valor pago", 90.dp, true), TableColumn("Data", 108.dp), TableColumn("Quem pagou", 120.dp),
+        listOf(costColumn("Valor pago"), TableColumn("Data", 108.dp), TableColumn("Quem pagou", 120.dp),
             TableColumn("Método", 110.dp), TableColumn("Parcelas", 64.dp), TableColumn("Condição / valores", 230.dp),
             TableColumn("Categoria", 105.dp), TableColumn("Anexos", 60.dp, true), TableColumn("Comprovante", 150.dp))
     }
@@ -303,7 +327,8 @@ internal fun PaymentTableScreen(
                 listOf(entry.amount.tableMoney(), paid.tableMoney(), purchase?.tableInstallments() ?: "—", due,
                     if (entry.forecastDate == null) "Sem data" else if (entry.dateEstimated) "Estimativa" else "Informada",
                     purchase?.installmentText() ?: "—", entry.kind.label),
-                "Registrar pagamento", { payTarget(entry.kind, entry.targetId) })
+                "Registrar pagamento", { payTarget(entry.kind, entry.targetId) },
+                edit = { editCost(entry.kind, entry.targetId) })
         }
     } else {
         project.payments.sortedWith(compareBy(nullsLast(reverseOrder())) { it.date }).map { payment ->
