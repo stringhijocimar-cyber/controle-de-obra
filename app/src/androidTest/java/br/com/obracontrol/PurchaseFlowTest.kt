@@ -3,14 +3,13 @@ package br.com.obracontrol
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
-import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.printToString
-import androidx.compose.ui.semantics.SemanticsActions
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -53,7 +52,7 @@ class PurchaseFlowTest {
             assertEquals(purchase.id, saved.payments.single().targetId)
             assertEquals(40_000L, saved.payments.single().amount)
             assertEquals(80_000L, Balance(saved).materialOutstanding(purchase))
-            app.onNodeWithText("Abrir compra").performSemanticsAction(SemanticsActions.OnClick) { it() }
+            app.onNodeWithTag("table-row-${purchase.id}").performClick()
             app.onNodeWithText("Salvar").assertExists("Edição da compra\n" + app.onRoot(useUnmergedTree = true).printToString())
                 .performClick()
             assertEquals(saved.payments, store.load().payments)
