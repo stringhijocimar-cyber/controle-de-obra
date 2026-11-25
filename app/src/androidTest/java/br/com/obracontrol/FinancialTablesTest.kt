@@ -158,7 +158,7 @@ class FinancialTablesTest {
         closeKeyboard()
         val cell = hasTestTag("table-cost-$id-0")
         val target = if (fullscreen) cell and hasAnyAncestor(hasTestTag("table-fullscreen")) else cell
-        app.onNode(target, useUnmergedTree = true).performClick()
+        app.onNode(target, useUnmergedTree = true).performScrollTo().assertIsDisplayed().performClick()
         try {
             app.waitUntil(5_000) {
                 runCatching { app.onNodeWithText("Editar dados").assertIsDisplayed(); true }.getOrDefault(false)
@@ -169,8 +169,8 @@ class FinancialTablesTest {
                 File(folder, "custo-erro.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
             }
             File(folder, "custo-erro.txt").writeText(
-                "Registro: $id\n" + app.onNode(target, useUnmergedTree = true).printToString() +
-                    "\nOpção:\n" + app.onNodeWithText("Editar dados").printToString())
+                "Registro: $id\n" + runCatching { app.onNode(target, useUnmergedTree = true).printToString() }.getOrDefault("Não localizado") +
+                    "\nOpção:\n" + runCatching { app.onNodeWithText("Editar dados").printToString() }.getOrDefault("Não localizada"))
             throw failure
         }
         app.onNodeWithText("Editar dados").assertIsDisplayed()
