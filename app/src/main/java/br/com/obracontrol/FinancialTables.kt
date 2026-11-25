@@ -81,6 +81,7 @@ private data class FinancialRow(
     val open: () -> Unit,
     val edit: () -> Unit = open,
     val costs: List<Long?>,
+    val detail: String = "",
 )
 
 private fun Long?.tableMoney(): String = this?.brl()?.replace("R$", "")?.replace("\u00a0", "")?.trim() ?: "A definir"
@@ -289,7 +290,7 @@ private fun FinancialGrid(
                                 .testTag("table-row-${row.key}")
                                 .clickable(onClickLabel = row.action, onClick = { open(row) }),
                                 verticalAlignment = Alignment.CenterVertically) {
-                                GridCell(row.name, fixedWidth, strong = true, tag = "table-name-${row.key}")
+                                GridCell(row.name, fixedWidth, strong = true, tag = "table-name-${row.key}", detail = row.detail)
                                 Box(Modifier.weight(1f).horizontalScroll(scroll).testTag("table-values-${row.key}")) {
                                     Row(Modifier.width(statusWidth + contentWidth), verticalAlignment = Alignment.CenterVertically) {
                                         Box(Modifier.width(statusWidth).fillMaxHeight().drawBehind {
@@ -321,7 +322,7 @@ private fun metricsHeight(size: Int) = size * 28 + 20
 @Composable
 private fun GridCell(
     value: String, width: Dp, header: Boolean = false, numeric: Boolean = false, strong: Boolean = false,
-    edit: (() -> Unit)? = null, tag: String? = null, recordName: String = "", tone: Color = Navy,
+    edit: (() -> Unit)? = null, tag: String? = null, recordName: String = "", tone: Color = Navy, detail: String = "",
 ) {
     var options by remember { mutableStateOf(false) }
     val focus = LocalFocusManager.current
@@ -337,16 +338,21 @@ private fun GridCell(
         .then(interaction).drawBehind {
             drawLine(GridLine, Offset(0f, size.height), Offset(size.width, size.height), 1.dp.toPx())
             if (strong) drawLine(GridLine, Offset(size.width, 0f), Offset(size.width, size.height), 1.dp.toPx())
-        }.padding(horizontal = 10.dp), contentAlignment = if (numeric) Alignment.CenterEnd else Alignment.CenterStart) {
+        }.padding(horizontal = if (width <= 40.dp) 3.dp else 10.dp),
+        contentAlignment = if (numeric) Alignment.CenterEnd else Alignment.CenterStart) {
         val nature = !header && value in CostNature.entries.map { it.label }
-        Text(value.replace('\n', ' '), color = if (header) Muted else tone,
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp), horizontalAlignment = if (numeric) Alignment.End else Alignment.Start) {
+            Text(value.replace('\n', ' '), color = if (header) Muted else tone,
             modifier = if (nature) Modifier.background(if (value == CostNature.SERVICE.label) Green.copy(alpha = 0.08f)
                 else Blue.copy(alpha = 0.08f), RoundedCornerShape(6.dp)).padding(horizontal = 5.dp, vertical = 4.dp) else Modifier,
             fontSize = if (nature) 10.sp else if (header) 11.sp else 12.sp, lineHeight = 16.sp,
             fontWeight = if (header || strong) FontWeight.SemiBold else FontWeight.Normal,
             textAlign = if (numeric) TextAlign.End else TextAlign.Start,
             style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = if (numeric) "tnum" else null),
-            maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+                maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+            if (detail.isNotBlank() && !header) Text(detail, color = Muted, fontSize = 10.sp, lineHeight = 13.sp,
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
     }
     if (options && edit != null) {
         AlertDialog(onDismissRequest = { options = false }, title = { Text("Dados do custo") },
@@ -368,7 +374,8 @@ internal fun StageTable(project: Project, balance: Balance, today: LocalDate, ed
             listOf(stage.budget.tableMoney(), paid.tableMoney(), stage.budget?.minus(paid).tableMoney(), CostNature.SERVICE.label,
                 "${stage.progress}%", stage.status, stage.plannedStart.dateOr(), stage.plannedEnd.dateOr(),
                 stage.actualStart.dateOr(), stage.actualEnd.dateOr(), stage.dueDate.dateOr()),
-            "Editar etapa", { edit(stage.id) }, costs = listOf(stage.budget, paid, stage.budget?.minus(paid)))
+            "Editar etapa", { edit(stage.id) }, costs = listOf(stage.budget, paid, stage.budget?.minus(paid)),
+            detail = "Serviço · ${stage.progress}%")
     }
     FinancialTable("Etapa", columns, rows, "Cadastre a primeira etapa para montar o cronograma.")
 }
@@ -391,7 +398,8 @@ internal fun PurchaseTableScreen(
                 order.dueDate.dateOr(), order.supplier.textOr(),
                 order.receivedDate?.let { "✓ ${it.dateText()}" } ?: order.deliveryExpected.dateOr(),
                 order.documents.size.toString(), order.document.textOr()),
-            "Abrir compra", { open(order.id) }, costs = listOf(order.forecast, paid, order.forecast?.minus(paid)))
+            "Abrir compra", { open(order.id) }, costs = listOf(order.forecast, paid, order.forecast?.minus(paid)),
+            detail = listOfNotNull(order.nature.label, order.tableInstallments().takeUnless { it == "—" }).joinToString(" · "))
     }
     Column(Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp)) {
@@ -442,8 +450,10 @@ internal fun PaymentTableScreen(
                 listOf(position.total.tableMoney(), position.paid.tableMoney(), position.remaining.tableMoney(), order.tableInstallments(),
                     order.installmentText(), order.nature.label, project.purchasePayers(order), project.purchaseMethods(order),
                     order.dueDate.dateOr(), position.credit.tableMoney()),
-                "Registrar pagamento", { payTarget(CostKind.MATERIAL, order.id) },
-                edit = { editCost(CostKind.MATERIAL, order.id) }, costs = listOf(position.total, position.paid, position.remaining))
+                if (position.remaining == 0L) "Editar compra" else "Registrar pagamento",
+                { if (position.remaining == 0L) editCost(CostKind.MATERIAL, order.id) else payTarget(CostKind.MATERIAL, order.id) },
+                edit = { editCost(CostKind.MATERIAL, order.id) }, costs = listOf(position.total, position.paid, position.remaining),
+                detail = "${order.nature.label} · ${order.tableInstallments()}")
         }
     } else if (outstanding) {
         balance.disbursements.map { entry ->
@@ -458,7 +468,9 @@ internal fun PaymentTableScreen(
                     if (entry.forecastDate == null) "Sem data" else if (entry.dateEstimated) "Estimativa" else "Informada",
                     purchase?.installmentText() ?: "—", entry.kind.label),
                 "Registrar pagamento", { payTarget(entry.kind, entry.targetId) },
-                edit = { editCost(entry.kind, entry.targetId) }, costs = listOf(entry.amount, paid))
+                edit = { editCost(entry.kind, entry.targetId) }, costs = listOf(entry.amount, paid),
+                detail = listOfNotNull(project.costNature(entry.kind, entry.targetId).label,
+                    purchase?.tableInstallments()?.takeUnless { it == "—" }).joinToString(" · "))
         }
     } else {
         project.payments.sortedWith(compareBy(nullsLast(reverseOrder())) { it.date }).map { payment ->
@@ -467,7 +479,8 @@ internal fun PaymentTableScreen(
                 listOf(payment.amount.tableMoney(), project.costNature(payment.kind, payment.targetId).label, payment.date.dateOr(UNREPORTED), payment.payer.textOr(), payment.method.textOr(),
                     if (payment.kind == CostKind.MATERIAL) purchases[payment.targetId]?.tableInstallments() ?: "—" else "—",
                     terms, payment.kind.label, payment.proofs.size.toString(), payment.receipt.textOr()),
-                "Editar pagamento", { edit(payment.id) }, costs = listOf(payment.amount))
+                "Editar pagamento", { edit(payment.id) }, costs = listOf(payment.amount),
+                detail = "Tipo: ${project.costNature(payment.kind, payment.targetId).label}")
         }
     }
     Column(Modifier.fillMaxSize()) {
@@ -479,7 +492,7 @@ internal fun PaymentTableScreen(
                 color = Muted, style = MaterialTheme.typography.bodySmall)
         }
         Box(Modifier.weight(1f)) {
-            FinancialTable("Referência", columns, rows,
+            FinancialTable(if (installments) "Compra" else "Referência", columns, rows,
                 if (installments) "Nenhuma compra cadastrada como parcelada."
                 else if (outstanding) "Nenhum valor em aberto." else "Nenhum pagamento registrado.")
         }
