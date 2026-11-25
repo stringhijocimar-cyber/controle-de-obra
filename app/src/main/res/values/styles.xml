@@ -1,7 +1,7 @@
 <resources>
     <style name="Theme.ObraControl" parent="android:style/Theme.Material.Light.NoActionBar">
-        <item name="android:windowLightStatusBar">false</item>
-        <item name="android:windowBackground">#14263B</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowBackground">#F5F7FA</item>
         <item name="android:colorAccent">#087B63</item>
     </style>
 </resources>

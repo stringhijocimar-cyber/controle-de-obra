@@ -82,6 +82,7 @@ class ManagementFlowTest {
                     assertTrue(pages.any { it.contains("Estimativa pelo fim previsto") })
                     assertTrue(pages.any { it.contains("Método de pagamento") && it.contains("Pagador de teste") })
                     assertTrue(pages.any { it.contains("CONDIÇÕES DE PAGAMENTO DAS COMPRAS") })
+                    assertTrue(pages.any { it.contains("PARCELADOS | PAGOS E A PAGAR") && it.contains("PAGO EFETIVO") })
                 }
             }
         } finally {

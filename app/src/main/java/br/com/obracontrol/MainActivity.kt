@@ -37,6 +37,7 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -55,7 +56,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge(statusBarStyle = SystemBarStyle.dark(Navy.toArgb()))
+        enableEdgeToEdge(statusBarStyle = SystemBarStyle.light(Color.White.toArgb(), Navy.toArgb()))
         store = ProjectStore(this)
         documents = DocumentFiles(applicationContext)
         backups = PortableBackup(documents)
@@ -220,7 +221,7 @@ class MainActivity : ComponentActivity() {
             containerColor = Mist,
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
             topBar = {
-                Box(Modifier.background(Navy).statusBarsPadding()) {
+                Box(Modifier.background(Color.White).statusBarsPadding()) {
                     ObraHeader(
                         title = if (editor) editorTitle(route) else "ObraControl",
                         subtitle = if (editor) project.name else section.title,

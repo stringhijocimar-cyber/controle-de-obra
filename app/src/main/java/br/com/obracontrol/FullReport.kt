@@ -422,6 +422,16 @@ internal object FullReport {
                 table(listOf("COMPRA", "MÉTODO", "PARCELAMENTO"), listOf(330f, 180f, 264f),
                     project.purchases.map { listOf(it.name, project.purchaseMethods(it), it.installmentText()) }, "")
             }
+            val installments = project.installmentBalances(total)
+            if (installments.isNotEmpty()) {
+                heading("PARCELADOS | PAGOS E A PAGAR")
+                paragraph("O pago efetivo soma apenas os pagamentos registrados. As parcelas futuras permanecem no saldo a pagar; a condição de parcelamento não representa quitação.")
+                table(listOf("COMPRA", "PARCELAS", "TOTAL", "PAGO EFETIVO", "A PAGAR", "CRÉDITO"),
+                    listOf(228f, 58f, 120f, 124f, 124f, 120f), installments.map { position ->
+                        listOf(position.purchase.name, position.purchase.installmentCount.toString(), position.total.costText(),
+                            position.paid.brl(), position.remaining.costText(), position.credit.costText())
+                    }, "")
+            }
         }
 
         fun projections() {

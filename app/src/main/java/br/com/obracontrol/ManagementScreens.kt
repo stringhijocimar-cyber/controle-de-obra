@@ -6,6 +6,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.FilterChip
@@ -34,7 +39,11 @@ private enum class AgendaFilter(val label: String) {
 @Composable
 internal fun ManagementOverview(agenda: WorkAgenda, openAgenda: () -> Unit, openDiary: () -> Unit) {
     SheetCard {
-        Heading("Acompanhar a obra")
+        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            IconBadge(AppSymbol.CALENDAR)
+            Column { Heading("Acompanhar a obra"); Detail("Agenda, prazos e registros de execução") }
+        }
         LedgerLine("Prazos atrasados", agenda.inWindow(AgendaWindow.OVERDUE).size.toString())
         LedgerLine("Compromissos até ${agenda.cutoff.dateText()}", agenda.inWindow(AgendaWindow.NEXT_SEVEN_DAYS).size.toString())
         val overduePayments = agenda.paymentsIn(AgendaWindow.OVERDUE)
@@ -46,9 +55,13 @@ internal fun ManagementOverview(agenda: WorkAgenda, openAgenda: () -> Unit, open
             LedgerLine("Valores a pagar no período", nextPayments.sumOf { it.amount ?: 0 }.brl())
         }
         if (nextPayments.any { it.amount == null }) Detail("Há pagamentos com valor a definir no período.", Amber)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextButton(onClick = openAgenda) { Text("Abrir agenda") }
-            TextButton(onClick = openDiary) { Text("Abrir diário") }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = openAgenda, modifier = Modifier.weight(1f)) {
+                AppIcon(AppSymbol.CALENDAR, Modifier.size(16.dp)); Spacer(Modifier.width(5.dp)); Text("Abrir agenda")
+            }
+            OutlinedButton(onClick = openDiary, modifier = Modifier.weight(1f)) {
+                AppIcon(AppSymbol.DIARY, Modifier.size(16.dp)); Spacer(Modifier.width(5.dp)); Text("Abrir diário")
+            }
         }
     }
 }

@@ -2,6 +2,14 @@
 
 Aplicativo Android para cadastrar etapas, acompanhar a execução da obra, controlar compras e pagamentos e emitir o relatório executivo em PDF. O cadastro fica no aparelho. O aplicativo funciona sem internet.
 
+## Versão 1.8.5
+
+- Layout com cabeçalho compacto, ícones consistentes, formulários organizados por assunto, abas e tabelas com divisórias leves. Nomes ficam fixos e os totais permanecem abaixo de cada tabela.
+- **Pagamentos → Parcelados** separa o total contratado, o **pago efetivo** e o saldo **a pagar** por compra. Apenas pagamentos registrados reduzem o saldo. Pagamentos a maior aparecem na coluna Crédito e não quitam outra compra.
+- No cadastro de uma compra parcelada, o campo de pagamento começa vazio para informar somente o valor realmente pago. A quantidade de parcelas descreve a condição comercial e não cria pagamentos.
+- O painel e o PDF completo também mostram os valores pagos e pendentes das compras parceladas. Valores desconhecidos continuam como **A definir**, com total parcial.
+- Mantém o formato de dados 7 e os backups anteriores, o pacote Android e a assinatura permanente. Instale a atualização mantendo o aplicativo instalado. Os lançamentos anteriores permanecem como foram cadastrados.
+
 ## Controle da obra
 
 - **Painel** reúne previsão parcial, pagamentos, saldo conhecido, acréscimos e avanço físico médio entre as etapas.

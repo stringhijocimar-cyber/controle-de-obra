@@ -252,6 +252,7 @@ private fun PurchaseEditor(
             else total = amount.cents.moneyInput()
         }
         HorizontalDivider()
+        Heading("Documento e entrega")
         Field("Fornecedor", supplier, { supplier = it })
         Field("Número ou referência do documento", document, { document = it })
         CalendarField("Data do documento", documentDate, { documentDate = it })
@@ -261,6 +262,8 @@ private fun PurchaseEditor(
         if (project.stages.isNotEmpty()) {
             Select("Etapa vinculada", stageId, listOf("" to "Sem vínculo") + project.stages.map { it.id to it.name }) { stageId = it }
         }
+        HorizontalDivider()
+        Heading("Valores da compra")
         Field("Total do documento ou da cotação (R$)", total, { total = it }, KeyboardType.Decimal)
         Field("Desconto total (R$)", discount, { discount = it }, KeyboardType.Decimal)
         Detail("O valor do documento tem prioridade. Se ficar em branco, o app calcula o total quando todos os itens tiverem subtotal.")
@@ -279,10 +282,14 @@ private fun PurchaseEditor(
             registerPayer(person)
         }
         val alreadyPaid = balance.paid(CostKind.MATERIAL, order.id)
-        if (alreadyPaid > 0) LedgerLine("Pagamentos já registrados", alreadyPaid.brl())
+        LedgerLine("Pago efetivo", alreadyPaid.brl())
+        runCatching { readFields() }.getOrNull()?.let { draft ->
+            LedgerLine("A pagar", InstallmentBalance(draft, alreadyPaid).remaining.costText())
+        }
+        Detail("Informe apenas o valor realmente pago. Parcelar a compra não registra pagamento.")
         Check("Registrar pagamento nesta compra", recordPayment) { checked ->
             recordPayment = checked
-            if (checked && paidAmount.isBlank()) {
+            if (checked && paidAmount.isBlank() && paymentTerms != "installments") {
                 submit {
                     paidAmount = readFields().forecast?.minus(alreadyPaid)?.takeIf { it > 0 }.moneyInput()
                 }
@@ -354,6 +361,7 @@ private fun PaymentEditor(
         save(payment.copy(kind = CostKind.valueOf(kind), targetId = target, amount = parseMoney(amount) ?: 0,
             date = parseDate(date), payer = payer.trim(), method = method.trim(), receipt = receipt.trim(), notes = notes.trim(), proofs = proofs))
     }) {
+        Detail("Registre aqui somente valores já pagos. As parcelas futuras permanecem em A pagar.")
         Select("Vincular a", kind, CostKind.entries.map { it.name to it.label }) {
             if (kind != it) { kind = it; target = "" }
         }
@@ -527,16 +535,23 @@ private fun Form(
             dismissButton = { TextButton(onClick = { deleting = false }) { Text("Cancelar") } })
     }
     Column(Modifier.fillMaxSize().navigationBarsPadding()) {
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(9.dp)) { actions.body() }
-        Surface(color = MaterialTheme.colorScheme.surface, shadowElevation = 3.dp) {
-            Column(Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 8.dp)) {
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp)) {
+            Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surface,
+                border = androidx.compose.foundation.BorderStroke(1.dp, Line)) {
+                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) { actions.body() }
+            }
+        }
+        Surface(color = MaterialTheme.colorScheme.surface, shadowElevation = 1.dp) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
                     if (remove != null) {
                         OutlinedButton(enabled = available, onClick = { deleting = true }, colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Excluir") }
                     }
-                    Button(enabled = available, onClick = { actions.submit(save) }) { Text("Salvar") }
+                    Button(enabled = available, onClick = { actions.submit(save) }, modifier = Modifier.weight(1f),
+                        shape = MaterialTheme.shapes.medium, contentPadding = PaddingValues(vertical = 13.dp)) {
+                        AppIcon(AppSymbol.CHECK, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Salvar")
+                    }
                 }
             }
         }
