@@ -28,8 +28,9 @@ class PaymentRepairFlowTest {
             app.activityRule.scenario.recreate()
             app.onNode(hasText("Compras") and hasClickAction()).performClick()
             repeat(3) {
-                app.onNodeWithText(order.name).performClick()
-                app.onNodeWithText("Registrar pagamento nesta compra").performScrollTo().performClick()
+                app.onNodeWithTag("table-name-${order.id}", useUnmergedTree = true).performClick()
+                app.onNodeWithText("Registrar pagamento nesta compra").performScrollTo()
+                    .performSemanticsAction(SemanticsActions.OnClick) { it() }
                 app.onNodeWithText("Valor pago (R$)").performScrollTo().performTextReplacement("3300,00")
                 saveForm()
                 assertEquals(listOf(first), store.load().payments)
