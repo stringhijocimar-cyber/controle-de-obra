@@ -5,6 +5,8 @@ import android.graphics.pdf.PdfRenderer
 import android.os.Build
 import android.os.ParcelFileDescriptor
 import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import org.junit.Assert.*
@@ -35,16 +37,16 @@ class FinancialIntegrationFlowTest {
         try {
             store.save(project)
             app.activityRule.scenario.recreate()
-            app.onNode(hasText("Pagamentos") and hasClickAction()).performClick()
+            navigate("Pagamentos")
             app.onNodeWithText("A pagar").performClick()
             app.onNodeWithTag("table-total-0").assertTextEquals(380_000L.brl())
             due("MATERIAL/${material.id}", today.plusMonths(1))
             screenshot("integracao-vencimentos-a-pagar.png")
-            app.onNode(hasText("Compras") and hasClickAction()).performClick()
+            navigate("Compras")
             due(material.id, today.plusMonths(1))
-            app.onNodeWithText("Etapas").performClick()
+            navigate("Etapas")
             due(stage.id, today.plusDays(7))
-            app.onNode(hasText("Pagamentos") and hasClickAction()).performClick()
+            navigate("Pagamentos")
             app.onNodeWithText("Semanas").performClick()
             app.onNodeWithTag("flow-paid-total", useUnmergedTree = true).assertTextEquals(120_000L.brl())
             app.onNodeWithTag("flow-pending-total", useUnmergedTree = true).assertTextEquals(380_000L.brl())
@@ -81,15 +83,15 @@ class FinancialIntegrationFlowTest {
         try {
             store.save(project)
             app.activityRule.scenario.recreate()
-            app.onNode(hasText("Compras") and hasClickAction()).performClick()
+            navigate("Compras")
             app.onNodeWithTag("table-total-0").assertTextEquals(20_000L.brl())
             app.onNodeWithTag("table-total-1").assertTextEquals(15_000L.brl())
             app.onNodeWithTag("table-total-2").assertTextEquals(10_000L.brl())
-            app.onNodeWithText("Etapas").performClick()
+            navigate("Etapas")
             app.onNodeWithTag("table-total-2").assertTextEquals(0L.brl())
             app.onNodeWithTag("table-credit-${stage.id}", useUnmergedTree = true).performScrollTo().assertIsDisplayed()
             app.onNodeWithText("50,00", useUnmergedTree = true).assertExists()
-            app.onNode(hasText("Pagamentos") and hasClickAction()).performClick()
+            navigate("Pagamentos")
             app.onNodeWithText("A pagar").performClick()
             app.onNodeWithTag("table-total-0").assertTextEquals(10_000L.brl())
             app.onNodeWithText(service.name).assertExists()
@@ -101,6 +103,9 @@ class FinancialIntegrationFlowTest {
         finally { store.save(previous) }
     }
 
+    private fun navigate(label: String) {
+        app.onNode(hasText(label) and SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab)).performClick()
+    }
     private fun due(key: String, expected: LocalDate) {
         app.onNodeWithTag("financial-table-body").performScrollToNode(hasTestTag("table-row-$key"))
         app.onNodeWithTag("table-due-$key", useUnmergedTree = true).performScrollTo().assertIsDisplayed()
