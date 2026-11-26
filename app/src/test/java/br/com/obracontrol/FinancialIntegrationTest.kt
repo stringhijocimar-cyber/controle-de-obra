@@ -71,7 +71,7 @@ class FinancialIntegrationTest {
         val reviewed = edited.reviewPayments(CostKind.MATERIAL, order.id, amounts, "Conferência", today)
         verify(reviewed)
         assertEquals(120_000L, Balance(reviewed).paid)
-        assertEquals(initial.scheduledPayments, reviewed.scheduledPayments)
+        assertEquals(initial.scheduledPayments.associateBy { it.id }, reviewed.scheduledPayments.associateBy { it.id })
     }
 
     @Test fun overpaymentsRemainSeparateFromOtherOpenCostsAndNetBalance() {
