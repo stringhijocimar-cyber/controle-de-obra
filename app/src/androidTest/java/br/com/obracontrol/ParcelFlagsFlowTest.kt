@@ -44,8 +44,12 @@ class ParcelFlagsFlowTest {
             app.onNodeWithTag("inline-parcel-flag-${order.id}-1").assertIsOn()
             app.onNodeWithTag("inline-parcel-flag-${order.id}-2").assertIsOff()
             screenshot("parcelas-tabela-aberta.png")
+            app.onNodeWithText("Tela cheia").performClick()
+            app.onNode(hasTestTag("inline-parcel-flag-${order.id}-6") and hasAnyAncestor(hasTestTag("table-fullscreen"))).assertIsOff()
+            screenshot("parcelas-tabela-completa.png", "table-fullscreen")
+            app.onNodeWithText("Fechar tabela").performClick()
             app.onNodeWithTag("inline-parcel-flag-${order.id}-2").performScrollTo().performClick()
-            selectToday("Data do pagamento da parcela")
+            selectToday("Data do pagamento da parcela", scroll = false)
             app.onNodeWithText("Salvar pagamento").performClick()
             val second = store.load()
             assertEquals(2, second.payments.size)
@@ -109,8 +113,10 @@ class ParcelFlagsFlowTest {
         finally { store.save(previous) }
     }
 
-    private fun selectToday(label: String) {
-        app.onNodeWithText(label).performScrollTo().performClick()
+    private fun selectToday(label: String, scroll: Boolean = true) {
+        val field = app.onNodeWithText(label)
+        if (scroll) field.performScrollTo()
+        field.assertIsDisplayed().performClick()
         app.onNodeWithText("Hoje").performClick()
         app.onNodeWithText("Aplicar").performClick()
     }
@@ -121,9 +127,9 @@ class ParcelFlagsFlowTest {
         app.onNodeWithText("Salvar").performSemanticsAction(SemanticsActions.OnClick) { it() }
         app.waitForIdle()
     }
-    private fun screenshot(name: String) {
+    private fun screenshot(name: String, tag: String? = null) {
         val folder = File(app.activity.filesDir, "screenshots").apply { mkdirs() }
-        val bitmap = app.onRoot().captureToImage().asAndroidBitmap()
+        val bitmap = (if (tag == null) app.onRoot() else app.onNodeWithTag(tag)).captureToImage().asAndroidBitmap()
         File(folder, name).outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
     private fun captureFailure() {

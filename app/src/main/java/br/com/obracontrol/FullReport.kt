@@ -385,7 +385,7 @@ internal object FullReport {
             val orders = project.purchases.filter { order -> project.scheduledPayments.any { it.kind == CostKind.MATERIAL && it.targetId == order.id } }
             if (orders.isEmpty()) return
             section("PAGAMENTOS A PRAZO  |  CONTROLE DE PARCELAS", "Parcelas futuras permanecem a pagar; somente pagamentos registrados compõem o pago efetivo")
-            val rows = orders.flatMap { order -> project.costPaymentPositions(CostKind.MATERIAL, order.id).map { position ->
+            val rows = orders.flatMap { order -> project.costPaymentPositions(CostKind.MATERIAL, order.id).filter { it.schedule != null }.map { position ->
                 val actual = project.payments.filter { it.scheduleId == position.schedule?.id && it.targetId == order.id && it.kind == CostKind.MATERIAL }
                 listOf("${order.name}\n${position.label}", position.gross.costText(), position.date.dateOr("Sem data"), position.applied.brl(),
                     position.remaining.costText(), if (actual.isNotEmpty()) actual.map { it.date.dateOr("Sem data") }.distinct().joinToString(" · ")

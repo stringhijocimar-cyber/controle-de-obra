@@ -67,7 +67,7 @@ internal fun FormActions.PurchaseInstallmentFields(project: Project, order: Purc
 
 @Composable
 private fun ParcelHeader() {
-    Row(Modifier.fillMaxWidth().background(Mist).padding(horizontal = 5.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().background(Mist).padding(horizontal = 5.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         ParcelCells("Parcela", "Vencimento", "Valor", header = true)
         Text("Pago", Modifier.width(38.dp), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
     }
@@ -76,7 +76,7 @@ private fun ParcelHeader() {
 @Composable
 private fun RowScope.ParcelCells(number: String, due: String, amount: String, header: Boolean = false) {
     listOf(number to 0.7f, due to 1.2f, amount to 1.2f).forEach { (value, weight) ->
-        Text(value, Modifier.weight(weight).padding(vertical = 8.dp), style = MaterialTheme.typography.labelSmall,
+        Text(value, Modifier.weight(weight).padding(vertical = if (header) 4.dp else 8.dp), style = MaterialTheme.typography.labelSmall,
             fontWeight = if (header) FontWeight.Bold else FontWeight.Medium)
     }
 }
@@ -107,8 +107,8 @@ internal fun PurchaseInstallmentPanel(project: Project, order: Purchase, save: (
     }
     Column(Modifier.fillMaxWidth().background(androidx.compose.ui.graphics.Color(0xFFF7FAF9)).padding(horizontal = 9.dp, vertical = 6.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("Parcelas · ${order.name}", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-            TextButton(onClick = edit) { Text("Editar datas", style = MaterialTheme.typography.labelSmall) }
+            Text("${draft.rows.size} parcelas", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            TextButton(onClick = edit, modifier = Modifier.height(32.dp), contentPadding = PaddingValues(4.dp)) { Text("Editar datas", style = MaterialTheme.typography.labelSmall) }
         }
         if (draft.rows.isEmpty()) TextButton(onClick = edit) { Text("Definir valor e parcelas na compra") }
         else {
