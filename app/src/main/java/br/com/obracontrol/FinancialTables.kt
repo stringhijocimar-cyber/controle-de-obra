@@ -151,6 +151,7 @@ private fun FinancialTable(
         selectedCost = SelectedTableCost(row.key, value, paid)
     }
     val summary = tableSummary(columns, rows)
+    val hasOpenParcels = rows.any { it.key in openRows && it.parcelContent != null }
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text("${recordCount(rows.size)} · valores em R$", Modifier.weight(1f), color = Muted, fontSize = 11.sp)
@@ -164,9 +165,11 @@ private fun FinancialTable(
             FinancialGrid(nameColumn, columns, rows, scroll, summary, empty,
                 open = { it.open() }, showCost = showCost, openRows = openRows.toSet(), toggleRow = toggleRow)
         }
-        TableLegend()
-        Text("Marque para quitar · toque no valor para editar", color = Muted,
-            fontSize = 10.sp, modifier = Modifier.padding(bottom = 10.dp))
+        if (!hasOpenParcels) {
+            TableLegend()
+            Text("Marque para quitar · toque no valor para editar", color = Muted,
+                fontSize = 10.sp, modifier = Modifier.padding(bottom = 10.dp))
+        }
     }
     if (expanded) {
         Dialog(onDismissRequest = { expanded = false },
@@ -545,8 +548,6 @@ internal fun PaymentTableScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)) {
             ListHeading("Pagamentos", "+ Novo", add, "Valores pagos e compromissos em aberto")
             ViewTabs(PaymentView.entries.map { it.label }, view.ordinal) { selectedView = PaymentView.entries[it].name }
-            if (installments) Text("Pago efetivo considera somente os pagamentos registrados. As parcelas futuras ficam em A pagar.",
-                color = Muted, style = MaterialTheme.typography.bodySmall)
         }
         Box(Modifier.weight(1f)) {
             if (view == PaymentView.WEEKS) WeeklyDisbursementScreen(project, today, openCost)
