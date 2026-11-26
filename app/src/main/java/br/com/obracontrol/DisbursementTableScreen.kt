@@ -38,6 +38,7 @@ internal fun WeeklyDisbursementScreen(project: Project, today: LocalDate, openCo
     var open by rememberSaveable { mutableStateOf(ArrayList(table.roots.map { it.key })) }
     var view by rememberSaveable { mutableStateOf(CashView.TOTAL.name) }
     var page by rememberSaveable { mutableStateOf(0) }
+    var info by rememberSaveable { mutableStateOf(false) }
     val density = LocalDensity.current
     val scroll = rememberScrollState(initial = with(density) { (FlowMetaWidth * 4).roundToPx() })
     val scope = rememberCoroutineScope()
@@ -47,13 +48,16 @@ internal fun WeeklyDisbursementScreen(project: Project, today: LocalDate, openCo
     val mode = CashView.valueOf(view)
     val width = FlowMetaWidth * 4 + FlowWeekWidth * columns.size
     fun toggle(key: String) { open = ArrayList(if (key in open) open - key else open + key) }
-    Column(Modifier.fillMaxSize().padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Heading("Calendário de desembolsos", "Abra + para ver tipo → etapa → custo → pagamentos / parcelas")
+    if (info) AlertDialog(onDismissRequest = { info = false }, title = { Text("Como ler os desembolsos") },
+        text = { Text("Abra + para ver tipo, etapa, custo e pagamentos ou parcelas. Total soma o pago na data real e o saldo no vencimento. Mão de obra integra Serviço. Deslize para ver as semanas ou os responsáveis; valores e responsáveis desconhecidos ficam a definir.") },
+        confirmButton = { TextButton(onClick = { info = false }) { Text("Entendi") } })
+    Column(Modifier.fillMaxSize().padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Text("Calendário de desembolsos", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
         ViewTabs(CashView.entries.map { it.label }, mode.ordinal) { view = CashView.entries[it].name }
-        Detail("Total = pago na data real + saldo no vencimento. Mão de obra fica em Serviço.")
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            TextButton(onClick = { scope.launch { scroll.animateScrollTo(0) } }) { Text("Responsáveis e saldos") }
-            TextButton(onClick = { scope.launch { scroll.animateScrollTo(with(density) { (FlowMetaWidth * 4).roundToPx() }.coerceAtMost(scroll.maxValue)) } }) { Text("Ver semanas") }
+            TextButton(onClick = { scope.launch { scroll.animateScrollTo(0) } }, modifier = Modifier.height(32.dp), contentPadding = PaddingValues(3.dp)) { Text("Responsáveis e saldos", style = MaterialTheme.typography.labelSmall) }
+            TextButton(onClick = { scope.launch { scroll.animateScrollTo(with(density) { (FlowMetaWidth * 4).roundToPx() }.coerceAtMost(scroll.maxValue)) } }, modifier = Modifier.height(32.dp), contentPadding = PaddingValues(3.dp)) { Text("Ver semanas", style = MaterialTheme.typography.labelSmall) }
+            TextButton(onClick = { info = true }, modifier = Modifier.height(32.dp), contentPadding = PaddingValues(3.dp)) { Text("Como ler", style = MaterialTheme.typography.labelSmall) }
         }
         if (table.pageCount > 1) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             TextButton(enabled = activePage > 0, onClick = { page = activePage - 1 }) { Text("‹ Anterior") }
@@ -62,7 +66,7 @@ internal fun WeeklyDisbursementScreen(project: Project, today: LocalDate, openCo
         }
         Surface(Modifier.fillMaxWidth().weight(1f).border(1.dp, Line, RoundedCornerShape(12.dp)), shape = RoundedCornerShape(12.dp)) {
             Column {
-                Row(Modifier.fillMaxWidth().height(72.dp).background(Navy)) {
+                Row(Modifier.fillMaxWidth().height(60.dp).background(Navy)) {
                     FlowCell("Etapa / descrição", FlowNameWidth, header = true)
                     Box(Modifier.weight(1f).horizontalScroll(scroll)) {
                         Row(Modifier.width(width)) {
@@ -70,7 +74,7 @@ internal fun WeeklyDisbursementScreen(project: Project, today: LocalDate, openCo
                             Column(Modifier.width(FlowWeekWidth * columns.size)) {
                                 FlowHeaderGroups(columns.map { it?.year?.toString() ?: "—" }, scroll.value)
                                 FlowHeaderGroups(columns.map { it?.format(flowMonth)?.replace(".", "") ?: "—" }, scroll.value)
-                                Row(Modifier.height(32.dp)) {
+                                Row(Modifier.height(28.dp)) {
                                     columns.forEach { date ->
                                         val label = date?.let {
                                             val year = it.get(WeekFields.ISO.weekBasedYear())
@@ -93,15 +97,13 @@ internal fun WeeklyDisbursementScreen(project: Project, today: LocalDate, openCo
                 FlowTableRow(table, table.total, 0, columns, mode, width, scroll, false, {}, openCost, total = true)
             }
         }
-        Text("Semanas de segunda a domingo · deslize para ver as colunas. A definir indica valores ou responsáveis pendentes.",
-            color = Muted, style = MaterialTheme.typography.labelSmall)
     }
 }
 
 @Composable
 private fun FlowHeaderGroups(labels: List<String>, scrollPixels: Int) {
     val offset = with(LocalDensity.current) { scrollPixels.toDp() } - FlowMetaWidth * 4
-    Box(Modifier.width(FlowWeekWidth * labels.size).height(20.dp)) {
+    Box(Modifier.width(FlowWeekWidth * labels.size).height(16.dp)) {
         var first = 0
         while (first < labels.size) {
             val label = labels[first]
@@ -125,7 +127,7 @@ private fun FlowTableRow(table: DisbursementTable, node: FlowNode, depth: Int, c
     openCost: (CostKind, String) -> Unit, total: Boolean = false) {
     val group = node.layer in listOf(FlowLayer.FAMILY, FlowLayer.STAGE)
     val color = if (total) androidx.compose.ui.graphics.Color(0xFFE7F4EF) else if (group) Mist else androidx.compose.ui.graphics.Color.White
-    Row(Modifier.fillMaxWidth().height(if (total) 64.dp else 62.dp).background(color).testTag("flow-row-${node.key}")) {
+    Row(Modifier.fillMaxWidth().height(54.dp).background(color).testTag("flow-row-${node.key}")) {
         Row(Modifier.width(FlowNameWidth).fillMaxHeight().padding(start = (3 + depth * 3).dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             if (node.children.isNotEmpty()) TextButton(onClick = toggle, modifier = Modifier.size(27.dp).testTag("flow-toggle-${node.key}"), contentPadding = PaddingValues(0.dp)) {
                 Text(if (expanded) "−" else "+", style = MaterialTheme.typography.titleLarge)
@@ -161,7 +163,7 @@ private fun FlowCell(value: String, width: Dp, header: Boolean = false, tone: an
     Box(Modifier.width(width).fillMaxHeight().border(0.4.dp, Line.copy(alpha = if (header) 0.2f else 0.65f))
         .padding(horizontal = 5.dp), contentAlignment = Alignment.CenterStart) {
         Text(value, modifier = if (tag != null) Modifier.testTag(tag) else Modifier, color = if (header) androidx.compose.ui.graphics.Color.White else tone,
-            style = if (header) MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, lineHeight = 13.sp) else MaterialTheme.typography.labelSmall,
+            style = if (header) MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, lineHeight = 12.sp) else MaterialTheme.typography.labelSmall.copy(lineHeight = 15.sp),
             fontWeight = if (header) FontWeight.SemiBold else FontWeight.Normal,
             maxLines = if (header) 2 else 3, overflow = TextOverflow.Ellipsis)
     }

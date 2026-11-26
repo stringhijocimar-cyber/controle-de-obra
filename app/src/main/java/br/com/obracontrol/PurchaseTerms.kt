@@ -24,7 +24,7 @@ internal fun Project.recordPayment(payment: Payment, terms: PurchaseTermsChange?
 
 internal fun Project.paymentMethodOptions(): List<String> =
     (listOf("Pix", "Dinheiro", "Cartão de crédito", "Cartão de débito", "Boleto", "Transferência bancária") +
-        purchases.map { it.method } + payments.map { it.method }).map(String::trim).filter(String::isNotBlank)
+        purchases.map { it.method } + payments.map { it.method } + paymentAudit.map { it.payment.method }).map(String::trim).filter(String::isNotBlank)
         .distinctBy { it.lowercase(brazil) }
 
 internal fun isCardMethod(method: String): Boolean = Normalizer.normalize(method.trim().lowercase(brazil), Normalizer.Form.NFD)

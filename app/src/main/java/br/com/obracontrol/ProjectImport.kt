@@ -74,6 +74,7 @@ internal fun Project.mergeFrom(incoming: Project): ProjectImport {
     }
     val importedPayments = payments.toMutableList()
     val reviewedIds = paymentAudit.filter { it.voided && it.restoredAt == null }.map { it.payment.id }.toSet()
+    val reviewedSources = incoming.payments.filter { it.id in reviewedIds }
     val matchedPayments = incoming.payments.map { it.id }.intersect(payments.map { it.id }.toSet()).toMutableSet()
     for (source in incoming.payments) {
         if (source.id in reviewedIds) continue
@@ -115,6 +116,14 @@ internal fun Project.mergeFrom(incoming: Project): ProjectImport {
     }
     val names = (payerNames + incoming.payerNames).distinctBy { it.trim().lowercase(brazil) }
     val history = paymentAudit.toMutableList()
+    reviewedSources.forEach { source ->
+        history.indices.filter { history[it].payment.id == source.id }.forEach { index ->
+            val entry = history[index]
+            val proofs = (entry.payment.proofs + source.proofs).distinctBy { it.id }
+            added += proofs.size - entry.payment.proofs.size
+            history[index] = entry.copy(payment = entry.payment.copy(proofs = proofs))
+        }
+    }
     incoming.paymentAudit.filter { entry -> history.none { it.id == entry.id } }.forEach { entry ->
         val ids = if (entry.payment.kind == CostKind.LABOR) stageIds else purchaseIds
         history += entry.copy(payment = entry.payment.copy(targetId = ids[entry.payment.targetId] ?: entry.payment.targetId,

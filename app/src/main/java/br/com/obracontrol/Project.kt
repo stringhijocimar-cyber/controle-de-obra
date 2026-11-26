@@ -91,7 +91,7 @@ internal data class Project(
     val ganttScale: GanttScale = GanttScale.WEEKS,
     val paymentAudit: List<PaymentAudit> = emptyList(),
 ) {
-    val payerOptions: List<String> get() = (payerNames + purchases.map { it.payer } + payments.map { it.payer })
+    val payerOptions: List<String> get() = (payerNames + purchases.map { it.payer } + payments.map { it.payer } + paymentAudit.map { it.payment.payer })
         .map(String::trim).filter(String::isNotBlank).distinctBy { it.lowercase(brazil) }
         .sortedBy { it.lowercase(brazil) }
 
