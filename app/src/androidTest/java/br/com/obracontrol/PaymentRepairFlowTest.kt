@@ -28,7 +28,8 @@ class PaymentRepairFlowTest {
             app.activityRule.scenario.recreate()
             app.onNode(hasText("Compras") and hasClickAction()).performClick()
             repeat(3) {
-                app.onNodeWithTag("table-name-${order.id}", useUnmergedTree = true).performClick()
+                waitForPurchaseRow(order.id)
+                app.onNodeWithTag("table-row-${order.id}").performSemanticsAction(SemanticsActions.OnClick) { it() }
                 app.onNodeWithText("Registrar pagamento nesta compra").performScrollTo()
                     .performSemanticsAction(SemanticsActions.OnClick) { it() }
                 app.onNodeWithText("Valor pago (R$)").performScrollTo().performTextReplacement("3300,00")
@@ -39,7 +40,9 @@ class PaymentRepairFlowTest {
             val duplicated = store.load().copy(payments = listOf(first, first.copy(id = newId(), date = LocalDate.now()), first.copy(id = newId(), date = LocalDate.now())))
             store.save(duplicated)
             app.activityRule.scenario.recreate()
-            app.onNodeWithTag("table-cost-${order.id}-1", useUnmergedTree = true).performScrollTo().performClick()
+            waitForPurchaseRow(order.id)
+            app.onNodeWithTag("table-cost-${order.id}-1", useUnmergedTree = true).performScrollTo()
+                .performSemanticsAction(SemanticsActions.OnClick) { it() }
             app.onNodeWithText("Editar dados").performClick()
             duplicated.payments.drop(1).forEach { app.onNodeWithTag("review-keep-${it.id}").performScrollTo().performClick() }
             hideKeyboard()
@@ -105,6 +108,9 @@ class PaymentRepairFlowTest {
         finally { store.save(previous) }
     }
 
+    private fun waitForPurchaseRow(id: String) {
+        app.waitUntil(5_000) { app.onAllNodesWithTag("table-row-$id").fetchSemanticsNodes().singleOrNull()?.boundsInRoot?.height?.let { it > 0 } == true }
+    }
     private fun scrollTo(tag: String) {
         app.onNodeWithTag("flow-table-body").performScrollToNode(hasTestTag(tag))
         app.onNodeWithTag(tag).performScrollTo().assertIsDisplayed()
