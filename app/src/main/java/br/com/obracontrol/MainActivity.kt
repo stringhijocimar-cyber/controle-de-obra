@@ -247,11 +247,13 @@ class MainActivity : ComponentActivity() {
                         { navigate("agenda") }, { navigate("diario") }, { navigate("planejamento") })
                     Section.STAGES -> listState.SaveableStateProvider("etapas") {
                         StageList(project, balance, today, { navigate("etapa/nova") }, { navigate("etapa/$it") },
-                            { kind, target -> navigate("pagamento/novo/${kind.name}/$target/saldo") }, { save(project.copy(ganttScale = it)) })
+                            { kind, target -> navigate("pagamento/novo/${kind.name}/$target/saldo") }, { save(project.copy(ganttScale = it)) },
+                            { kind, target -> navigate("custo/${kind.name}/$target") }, { kind, target -> navigate("revisar-pago/${kind.name}/$target") })
                     }
                     Section.PURCHASES -> listState.SaveableStateProvider("compras") {
                         PurchaseTableScreen(project, balance, today, { navigate("compra/nova") }, { navigate("compra/$it") },
-                            { kind, target -> navigate("pagamento/novo/${kind.name}/$target/saldo") }, { navigate("condicao/$it") })
+                            { kind, target -> navigate("pagamento/novo/${kind.name}/$target/saldo") }, { navigate("condicao/$it") },
+                            { kind, target -> navigate("revisar-pago/${kind.name}/$target") })
                     }
                     Section.PAYMENTS -> listState.SaveableStateProvider("pagamentos") {
                         PaymentTableScreen(project, balance, today, { navigate("pagamento/novo") }, { navigate("pagamento/$it") },
@@ -259,7 +261,8 @@ class MainActivity : ComponentActivity() {
                             { kind, target -> navigate(if (kind == CostKind.LABOR) "etapa/$target" else "compra/$target") },
                             { kind, target -> navigate("pagamento/novo/${kind.name}/$target/saldo") },
                             { kind, target -> navigate("custo/${kind.name}/$target") },
-                            { kind, target -> navigate(if (kind == CostKind.LABOR) "programacao/LABOR/$target" else "condicao/$target") })
+                            { kind, target -> navigate(if (kind == CostKind.LABOR) "programacao/LABOR/$target" else "condicao/$target") },
+                            { kind, target -> navigate("revisar-pago/${kind.name}/$target") })
                     }
                     Section.REPORT -> ExportScreen(
                         activeFileOperation,
@@ -300,6 +303,7 @@ private fun editorTitle(route: String): String = when (route.substringBefore('/'
     "custo" -> "Detalhes do custo"
     "programacao" -> "Programação de pagamentos"
     "condicao" -> "Cartão e parcelamento"
+    "revisar-pago" -> "Revisão do pago efetivo"
     "pendencia" -> "Editar pendência"
     "pendencias" -> "Pendências"
     else -> "ObraControl"

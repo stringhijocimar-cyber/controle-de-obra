@@ -73,8 +73,10 @@ internal fun Project.mergeFrom(incoming: Project): ProjectImport {
         planIds[source.id] = match?.id ?: plan.id
     }
     val importedPayments = payments.toMutableList()
+    val reviewedIds = paymentAudit.filter { it.voided && it.restoredAt == null }.map { it.payment.id }.toSet()
     val matchedPayments = incoming.payments.map { it.id }.intersect(payments.map { it.id }.toSet()).toMutableSet()
     for (source in incoming.payments) {
+        if (source.id in reviewedIds) continue
         val ids = if (source.kind == CostKind.MATERIAL) purchaseIds else stageIds
         val payment = source.copy(targetId = ids.getValue(source.targetId), scheduleId = source.scheduleId?.let(planIds::getValue))
         val index = payments.indexOfFirst { it.id == payment.id }.takeIf { it >= 0 }
@@ -112,6 +114,13 @@ internal fun Project.mergeFrom(incoming: Project): ProjectImport {
         }
     }
     val names = (payerNames + incoming.payerNames).distinctBy { it.trim().lowercase(brazil) }
+    val history = paymentAudit.toMutableList()
+    incoming.paymentAudit.filter { entry -> history.none { it.id == entry.id } }.forEach { entry ->
+        val ids = if (entry.payment.kind == CostKind.LABOR) stageIds else purchaseIds
+        history += entry.copy(payment = entry.payment.copy(targetId = ids[entry.payment.targetId] ?: entry.payment.targetId,
+            scheduleId = entry.payment.scheduleId?.let(planIds::get)))
+        added++
+    }
     added += names.size - payerNames.size
     val planning = workPlans.toMutableList()
     for (source in incoming.workPlans) {
@@ -134,7 +143,7 @@ internal fun Project.mergeFrom(incoming: Project): ProjectImport {
         laborBudget = laborBudget ?: incoming.laborBudget, notes = notes.ifBlank { incoming.notes },
         stages = importedStages, purchases = importedPurchases, payments = importedPayments, issues = importedIssues,
         diaryEntries = diary.values.toList(),
-        payerNames = names, scheduledPayments = importedPlans, workPlans = planning)
+        payerNames = names, scheduledPayments = importedPlans, workPlans = planning, paymentAudit = history)
     return ProjectImport(merged, added)
 }
 

@@ -11,7 +11,7 @@ import java.io.InputStream
 import java.math.BigDecimal
 import java.math.RoundingMode
 
-private const val FORMAT_VERSION = 10
+private const val FORMAT_VERSION = 11
 internal const val MAX_BACKUP_BYTES = 5 * 1024 * 1024
 
 internal class ProjectStore(context: Context) {
@@ -65,6 +65,7 @@ internal object ProjectCodec {
         "payerNames" to JSONArray(project.payerNames),
         "workPlans" to WorkPlanCodec.encode(project.workPlans),
         "ganttScale" to project.ganttScale.name,
+        "paymentAudit" to PaymentAuditCodec.encode(project.paymentAudit),
         "scheduledPayments" to array(project.scheduledPayments.map { plan -> obj(
             "id" to plan.id, "kind" to plan.kind.name, "targetId" to plan.targetId,
             "amountCents" to plan.amount, "date" to plan.date.dateText(), "label" to plan.label,
@@ -141,7 +142,7 @@ internal object ProjectCodec {
         val version = if (root.has("version")) root.getInt("version") else 1
         val project = when (version) {
             1 -> migrateLegacy(root)
-            2, 3, 4, 5, 6, 7, 8, 9, FORMAT_VERSION -> decodeCurrent(root)
+            2, 3, 4, 5, 6, 7, 8, 9, 10, FORMAT_VERSION -> decodeCurrent(root)
             else -> throw IllegalArgumentException("Versão de backup incompatível.")
         }
         project.validate()
@@ -156,6 +157,7 @@ internal object ProjectCodec {
         notes = root.string("notes"),
         workPlans = WorkPlanCodec.decode(root.optJSONArray("workPlans")),
         ganttScale = root.string("ganttScale").takeIf(String::isNotBlank)?.let(GanttScale::valueOf) ?: GanttScale.WEEKS,
+        paymentAudit = PaymentAuditCodec.decode(root.optJSONArray("paymentAudit")),
         payerNames = root.optJSONArray("payerNames")?.let { names ->
             (0 until names.length()).map { names.getString(it) }
         }.orEmpty(),
@@ -322,6 +324,14 @@ internal fun Project.validate() {
     requireDistinctIds(stages.map { it.id })
     requireDistinctIds(purchases.map { it.id })
     requireDistinctIds(payments.map { it.id })
+    requireDistinctIds(paymentAudit.map { it.id })
+    paymentAudit.forEach { entry ->
+        require(entry.reason.isNotBlank() && entry.payment.amount > 0) { "Histórico de revisão inválido." }
+        requireDistinctIds(listOf(entry.payment.id))
+        checkedMoney(entry.payment.amount)
+        requireDistinctIds(entry.payment.proofs.map { it.id })
+        require(entry.payment.proofs.none { it.type == DocumentType.XML }) { "Comprovantes precisam ser imagens ou PDFs." }
+    }
     requireDistinctIds(scheduledPayments.map { it.id })
     requireDistinctIds(issues.map { it.id })
     requireDistinctIds(diaryEntries.map { it.id })

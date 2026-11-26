@@ -64,8 +64,9 @@ internal fun EditorScreen(
                 }) else null
                 PurchaseEditor(order, project, total, existing != null, onDelete,
                     registerPayer = { save(project.registerPayer(it)) },
-                    save = { next, payment, line ->
-                        save(project.recordPurchase(next, payment))
+                    reviewPayments = { navigate("revisar-pago/MATERIAL/${order.id}") },
+                    save = { next, payment, line, additional ->
+                        save(project.recordPurchase(next, payment, additional))
                         if (line != null) openLine(next.id, line) else back()
                     },
                 )
@@ -111,6 +112,7 @@ internal fun EditorScreen(
                 }
             }
             "condicao" -> PurchaseTermsEditor(project, requireNotNull(id)) { save(project.applyPurchaseTerms(it)); back() }
+            "revisar-pago" -> PaymentReviewScreen(project, CostKind.valueOf(requireNotNull(id)), parts[2], save, navigate, back)
             "custo" -> CostPaymentDetailScreen(project, CostKind.valueOf(requireNotNull(id)), parts[2], navigate)
             "programacao" -> PaymentScheduleEditor(project, CostKind.valueOf(requireNotNull(id)), parts[2]) { save(it); back() }
             "diario" -> DiaryScreen(project, { navigate("registro/novo") }) { navigate("registro/$it") }
@@ -203,7 +205,8 @@ private fun PurchaseEditor(
     exists: Boolean,
     remove: (() -> Unit)?,
     registerPayer: (String) -> Unit,
-    save: (Purchase, Payment?, String?) -> Unit,
+    save: (Purchase, Payment?, String?, Boolean) -> Unit,
+    reviewPayments: (() -> Unit)? = null,
 ) {
     var name by rememberSaveable { mutableStateOf(order.name) }
     var supplier by rememberSaveable { mutableStateOf(order.supplier) }
@@ -231,10 +234,24 @@ private fun PurchaseEditor(
     var installmentCount by rememberSaveable { mutableStateOf(order.installmentCount?.toString().orEmpty()) }
     var recordPayment by rememberSaveable { mutableStateOf(false) }
     val paymentId = rememberSaveable { newId() }
+    val existingPayments = project.paymentsFor(CostKind.MATERIAL, order.id)
+    var paymentAction by rememberSaveable { mutableStateOf(if (existingPayments.isEmpty()) "new" else "edit") }
+    var selectedPaymentId by rememberSaveable { mutableStateOf(existingPayments.singleOrNull()?.id.orEmpty()) }
+    var paymentPayer by rememberSaveable { mutableStateOf("") }
+    var paymentMethod by rememberSaveable { mutableStateOf("") }
     var paidAmount by rememberSaveable { mutableStateOf("") }
     var paidDate by rememberSaveable { mutableStateOf(LocalDate.now().dateText()) }
     var proofs by rememberAttachments(emptyList())
     var processing by remember { mutableStateOf(false) }
+    fun loadPayment(id: String?) {
+        val prior = existingPayments.firstOrNull { it.id == id }
+        selectedPaymentId = prior?.id.orEmpty()
+        paidAmount = prior?.amount.moneyInput()
+        paidDate = (prior?.date ?: if (prior == null) LocalDate.now() else null).dateText()
+        proofs = prior?.proofs.orEmpty()
+        paymentPayer = prior?.payer ?: payer
+        paymentMethod = prior?.method ?: method
+    }
     fun readFields() = order.copy(name = name.trim(), supplier = supplier.trim(), document = document.trim(),
         documentDate = parseDate(documentDate), dueDate = parseDate(dueDate),
         deliveryExpected = parseDate(delivery), receivedDate = parseDate(received),
@@ -249,10 +266,14 @@ private fun PurchaseEditor(
         })
 
     fun saveFields(line: String?) {
-        val payment = if (recordPayment) Payment(id = paymentId, kind = CostKind.MATERIAL, targetId = order.id,
-            amount = parseMoney(paidAmount) ?: 0, date = parseDate(paidDate), payer = payer.trim(),
-            method = method.trim(), proofs = proofs) else null
-        save(readFields(), payment, line)
+        val payment = if (recordPayment) {
+            val original = if (paymentAction == "edit") requireNotNull(existingPayments.firstOrNull { it.id == selectedPaymentId }) {
+                "Selecione o pagamento que deseja editar. Para somar outro valor, escolha Novo pagamento adicional."
+            } else Payment(id = paymentId, kind = CostKind.MATERIAL, targetId = order.id)
+            original.copy(amount = parseMoney(paidAmount) ?: 0, date = parseDate(paidDate), payer = paymentPayer.trim(),
+                method = paymentMethod.trim(), proofs = proofs)
+        } else null
+        save(readFields(), payment, line, paymentAction == "new" && existingPayments.isNotEmpty())
     }
 
     Form(remove = remove, deletePrompt = "Excluir esta compra e os seus itens?", available = !processing, save = { saveFields(null) }) {
@@ -270,9 +291,7 @@ private fun PurchaseEditor(
         CalendarField("Pagamento previsto", dueDate, { dueDate = it })
         CalendarField("Entrega prevista", delivery, { delivery = it })
         CalendarField("Recebido em", received, { received = it })
-        if (project.stages.isNotEmpty()) {
-            Select("Etapa vinculada", stageId, listOf("" to "Sem vínculo") + project.stages.map { it.id to it.name }) { stageId = it }
-        }
+        Select("Etapa vinculada", stageId, project.stageOptions()) { stageId = it }
         HorizontalDivider()
         Heading("Valores da compra")
         Field("Total do documento ou da cotação (R$)", total, { total = it }, KeyboardType.Decimal)
@@ -294,20 +313,33 @@ private fun PurchaseEditor(
         }
         val alreadyPaid = balance.paid(CostKind.MATERIAL, order.id)
         LedgerLine("Pago efetivo", alreadyPaid.brl())
+        if (existingPayments.isNotEmpty() && reviewPayments != null) TextButton(onClick = reviewPayments) { Text("Corrigir / editar pago efetivo") }
         runCatching { readFields() }.getOrNull()?.let { draft ->
             LedgerLine("A pagar", InstallmentBalance(draft, alreadyPaid).remaining.costText())
         }
         Detail("Informe apenas o valor realmente pago. Parcelar a compra não registra pagamento.")
         Check("Registrar pagamento nesta compra", recordPayment) { checked ->
             recordPayment = checked
-            if (checked && paidAmount.isBlank() && paymentTerms != "installments") {
+            if (checked) loadPayment(if (paymentAction == "edit") selectedPaymentId else null)
+            if (checked && paymentAction == "new" && paidAmount.isBlank() && paymentTerms != "installments") {
                 submit {
                     paidAmount = readFields().forecast?.minus(alreadyPaid)?.takeIf { it > 0 }.moneyInput()
                 }
             }
         }
         if (recordPayment) {
+            if (existingPayments.isNotEmpty()) {
+                Select("Ação de pagamento", paymentAction, listOf("edit" to "Editar pagamento existente", "new" to "Novo pagamento adicional")) {
+                    paymentAction = it; loadPayment(if (it == "edit") existingPayments.singleOrNull()?.id else null)
+                }
+                if (paymentAction == "edit") Select("Pagamento existente", selectedPaymentId, existingPayments.map {
+                    it.id to "${it.date.dateOr("Sem data")} · ${it.amount.brl()} · ${it.payer.textOr()}"
+                }) { loadPayment(it) }
+                Detail(if (paymentAction == "edit") "Salvar atualiza este lançamento; o valor não é somado novamente." else "Esta opção soma um novo desembolso real ao que já foi pago.")
+            }
             Field("Valor pago (R$)", paidAmount, { paidAmount = it }, KeyboardType.Decimal)
+            SuggestedField("Pagador deste lançamento", paymentPayer, project.payerOptions) { paymentPayer = it }
+            SuggestedField("Forma deste pagamento", paymentMethod, project.paymentMethodOptions()) { paymentMethod = it }
             CalendarField("Data do pagamento", paidDate, { paidDate = it })
             DocumentEditor(DocumentUse.PAYMENT, proofs, { proofs = it }, { processing = it }) { amount, _ ->
                 paidAmount = amount.cents.moneyInput()
@@ -369,12 +401,15 @@ private fun PaymentEditor(
     var scheduleId by rememberSaveable { mutableStateOf(payment.scheduleId) }
     var processing by remember { mutableStateOf(false) }
     val order = project.purchases.firstOrNull { kind == CostKind.MATERIAL.name && it.id == target }
+    val linked = project.linkedCosts().firstOrNull { it.kind.name == kind && it.id == target }
+    var nature by rememberSaveable { mutableStateOf((linked?.nature ?: if (kind == CostKind.LABOR.name) CostNature.SERVICE else CostNature.MATERIAL).name) }
+    var stageFilter by rememberSaveable { mutableStateOf(linked?.stageId ?: if (kind == CostKind.LABOR.name) project.stages.firstOrNull()?.id.orEmpty() else "") }
     var editingTerms by rememberSaveable(kind, target) { mutableStateOf(false) }
     var purchaseMethod by rememberSaveable(kind, target) { mutableStateOf(order?.method.orEmpty()) }
     var purchaseCondition by rememberSaveable(kind, target) { mutableStateOf(order?.termsKey() ?: "unknown") }
     var purchaseCount by rememberSaveable(kind, target) { mutableStateOf(order?.installmentCount?.toString().orEmpty()) }
     var purchaseTotal by rememberSaveable(kind, target) { mutableStateOf(order?.total.moneyInput()) }
-    val targets = project.targets(CostKind.valueOf(kind))
+    val targets = project.linkedCostOptions(CostNature.valueOf(nature), stageFilter)
     Form(remove = remove, deletePrompt = "Excluir este pagamento? Os totais do painel serão recalculados.", available = !processing, save = {
         save(payment.copy(kind = CostKind.valueOf(kind), targetId = target, amount = parseMoney(amount) ?: 0,
             date = parseDate(date), payer = payer.trim(), method = method.trim(), receipt = receipt.trim(), notes = notes.trim(), proofs = proofs,
@@ -382,12 +417,17 @@ private fun PaymentEditor(
                 readPurchaseTerms(order, purchaseMethod, purchaseCondition, purchaseCount, purchaseTotal) else null)
     }) {
         Detail("Registre aqui somente valores já pagos. As parcelas futuras permanecem em A pagar.")
-        Select("Vincular a", kind, CostKind.entries.map { it.name to it.label }) {
-            if (kind != it) { kind = it; target = ""; scheduleId = null }
+        Select("Tipo de custo", nature, CostNature.entries.map { it.name to it.label }) {
+            if (nature != it) { nature = it; target = ""; scheduleId = null }
         }
-        if (targets.isEmpty()) Detail("Cadastre uma etapa ou compra desse tipo antes de lançar um pagamento.")
-        else Select(if (kind == CostKind.LABOR.name) "Etapa" else "Compra", target, targets) {
-            if (target != it) { target = it; scheduleId = null }
+        Select("Etapa vinculada", stageFilter, project.stageOptions()) {
+            if (stageFilter != it) { stageFilter = it; target = ""; scheduleId = null }
+        }
+        if (nature == CostNature.SERVICE.name) Detail("Mão de obra é um serviço. Selecione a mão de obra da etapa ou o serviço contratado já cadastrado.")
+        if (targets.isEmpty()) Detail("Nenhum custo desse tipo vinculado à etapa selecionada. Confira o vínculo no cadastro de Compras.")
+        else Select("Custo vinculado", "${kind}/$target", targets.map { it.key to it.label }) { key ->
+            val selected = targets.first { it.key == key }
+            if (target != selected.id || kind != selected.kind.name) { target = selected.id; kind = selected.kind.name; scheduleId = null }
         }
         val plans = project.scheduledPayments.filter { it.kind.name == kind && it.targetId == target }
         if (plans.isNotEmpty()) Select("Parcela vinculada", scheduleId.orEmpty(), listOf("" to "Sem parcela específica") +

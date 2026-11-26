@@ -2,6 +2,9 @@ package br.com.obracontrol
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
+import androidx.compose.foundation.selection.triStateToggleable
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,6 +19,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.state.ToggleableState
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -25,12 +29,18 @@ import java.time.LocalDate
 internal fun PaymentFlag(status: FinancialStatus, tag: String, onClick: (() -> Unit)?) {
     val paid = status == FinancialStatus.PAID || status == FinancialStatus.OVERPAID
     val partial = status in listOf(FinancialStatus.PARTIAL, FinancialStatus.PARTIAL_OVERDUE, FinancialStatus.PAID_UNPRICED)
-    TriStateCheckbox(state = if (paid) ToggleableState.On else if (partial) ToggleableState.Indeterminate else ToggleableState.Off,
-        onClick = { onClick?.invoke() }, enabled = onClick != null,
-        modifier = Modifier.testTag(tag).semantics { contentDescription = status.label },
-        colors = CheckboxDefaults.colors(checkedColor = if (status == FinancialStatus.PARTIAL_OVERDUE) Color(0xFFB3261E) else if (partial) Amber else Green,
-            uncheckedColor = if (status == FinancialStatus.UNPRICED || status == FinancialStatus.NO_COST) Muted else Color(0xFFB3261E),
-            disabledCheckedColor = Green))
+    val color = when { status == FinancialStatus.OVERPAID -> Amber; paid -> Green; partial -> Amber; status in listOf(FinancialStatus.OVERDUE, FinancialStatus.PARTIAL_OVERDUE) -> Color(0xFFB3261E); else -> Muted }
+    Box(Modifier.size(38.dp).testTag(tag).semantics { contentDescription = status.label }
+        .triStateToggleable(state = if (paid) ToggleableState.On else if (partial) ToggleableState.Indeterminate else ToggleableState.Off,
+            enabled = onClick != null, role = Role.Checkbox, onClick = { onClick?.invoke() }), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(25.dp).background(color.copy(alpha = 0.09f), RoundedCornerShape(9.dp))
+            .border(1.dp, color.copy(alpha = 0.24f), RoundedCornerShape(9.dp)), contentAlignment = Alignment.Center) {
+            if (partial) Canvas(Modifier.size(15.dp)) {
+                drawCircle(color, style = androidx.compose.ui.graphics.drawscope.Stroke(1.5.dp.toPx()))
+                drawArc(color, -90f, 180f, true)
+            } else AppIcon(if (paid) AppSymbol.CHECK else AppSymbol.CLOCK, Modifier.size(16.dp), color)
+        }
+    }
 }
 
 @Composable
@@ -155,6 +165,7 @@ internal fun CostPaymentDetailScreen(project: Project, kind: CostKind, id: Strin
                 Heading(target.name, "${target.category.label} · Visão completa deste custo")
                 LedgerLine("Valor cadastrado", target.total.costText())
                 LedgerLine("Pago efetivo", paid.brl())
+                TextButton(onClick = { navigate("revisar-pago/${kind.name}/$id") }) { Text("Corrigir / editar pago efetivo") }
                 LedgerLine("Saldo a pagar", remaining.costText())
                 if (target.total != null && paid > target.total) LedgerLine("Pago a maior", (paid - target.total).brl())
                 Tag(if (target.total == 0L && paid == 0L) "Sem custo previsto" else if (target.total != null && remaining == 0L && target.total > 0) "Pagamento concluído" else if (paid > 0) "Pagamento parcial" else "Pagamento em aberto",

@@ -112,7 +112,7 @@ class WorkPlanningTest {
         val json = JSONObject(ProjectCodec.encode(old)).put("version", 8).apply { remove("workPlans") }.toString()
         assertEquals(old, ProjectCodec.decode(json))
         val current = approved().let { p -> p.activatePlanStage(p.workPlans.single().id, p.workPlans.single().stages.single().id) }
-        assertEquals(10, JSONObject(ProjectCodec.encode(current)).getInt("version"))
+        assertEquals(11, JSONObject(ProjectCodec.encode(current)).getInt("version"))
         assertEquals(current, ProjectCodec.decode(ProjectCodec.encode(current)))
         val changed = current.workPlans.single().stages.single().let { s -> s.copy(services = s.services.map { service ->
             service.copy(items = service.items.map { it.copy(unitPrice = 1L) }) }) }

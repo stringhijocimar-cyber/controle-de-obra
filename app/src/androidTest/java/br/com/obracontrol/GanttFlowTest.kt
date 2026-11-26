@@ -12,6 +12,10 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.assertTextEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -77,11 +81,12 @@ class GanttFlowTest {
             app.onNodeWithText("Etapas").performClick()
             app.onNodeWithText("Desembolsos").performClick()
             app.onNodeWithText("Calendário de desembolsos").assertIsDisplayed()
-            app.onNodeWithText("${monday.dateText()} a ${monday.plusDays(6).dateText()}").assertIsDisplayed()
-            app.onAllNodesWithText(20_000L.brl()).assertCountEquals(2)
-            app.onAllNodesWithText(100_000L.brl()).assertCountEquals(2)
-            val expected = "${stage.plannedEnd.dateText()} · A pagar · estimativa pelo fim previsto"
-            app.onNodeWithText(expected).performClick()
+            app.onNodeWithTag("flow-paid-total", useUnmergedTree = true).assertTextEquals(20_000L.brl())
+            app.onNodeWithTag("flow-pending-total", useUnmergedTree = true).assertTextEquals(100_000L.brl())
+            app.onNodeWithTag("flow-toggle-stage-SERVICE-${stage.id}").performClick()
+            app.onNodeWithTag("flow-table-body").performScrollToNode(hasTestTag("flow-row-cost-LABOR/${stage.id}"))
+            app.onNodeWithText("Mão de obra da etapa").performClick()
+            app.onNodeWithText("Editar cadastro do custo").performClick()
             app.onNodeWithText("Nome da etapa").assertIsDisplayed()
         } finally {
             store.save(previous)

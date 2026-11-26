@@ -47,6 +47,7 @@ internal object FullReport {
                 report.purchases()
                 report.projections()
                 report.costPaymentCalendar()
+                report.weeklyMatrix()
                 report.planning()
                 report.materials()
                 report.payments()
@@ -668,6 +669,32 @@ internal object FullReport {
             }
         }
 
+        fun weeklyMatrix() {
+            val model = DisbursementTable(project)
+            section("DESEMBOLSOS  |  TABELA SEMANAL EM CAMADAS", "Material e Serviço · Mão de obra integra Serviço · Etapas e custos com seus subtotais")
+            paragraph("As linhas de tipo e etapa são subtotais; a última linha é o total da obra. Pago e a pagar são totais gerais. As colunas semanais somam pagamentos reais e saldos nos vencimentos.")
+            if (model.entries.isEmpty()) { paragraph("Nenhum desembolso cadastrado."); return }
+            val rows = model.visible(model.roots.flatMap { it.children }.map { it.key }.toSet() + model.roots.map { it.key })
+                .filter { it.first.layer != FlowLayer.ENTRY }
+            val windows = (0 until model.pageCount).flatMap { model.columns(it).chunked(3) }
+            windows.forEachIndexed { index, dates ->
+                if (index > 0) startPage(continuation = true)
+                val dated = dates.filterNotNull()
+                heading(if (dated.isEmpty()) "SEM DATA DEFINIDA" else "${dated.first().dateText()} A ${dated.last().plusDays(6).dateText()}")
+                val labels = dates.map { date -> if (date == null) "SEM DATA" else "S${date.get(java.time.temporal.WeekFields.ISO.weekOfWeekBasedYear())} ${date.format(shortDate)}" }
+                val weekWidth = 234f / dates.size.coerceAtLeast(1)
+                fun row(node: FlowNode, prefix: String): List<String> = listOf(prefix + node.label, model.people(node, false), model.people(node, true),
+                    node.paid.brl(), if (node.pending.entirelyUndefined) UNDEFINED else node.pending.known.brl() + if (node.pending.partial) " + ?" else "") +
+                    dates.map { date ->
+                        val amount = node.amounts(date, CashView.TOTAL)
+                        if (amount.entirelyUndefined) UNDEFINED else amount.known.brl() + if (amount.partial) " + ?" else ""
+                    }
+                table(listOf("ETAPA / CUSTO", "QUEM PAGA", "COMO PAGA", "PAGO EFETIVO", "A PAGAR") + labels,
+                    listOf(180f, 90f, 90f, 90f, 90f) + dates.map { weekWidth },
+                    rows.map { (node, depth) -> row(node, when (depth) { 1 -> "Etapa: "; 2 -> "Custo: "; else -> "" }) } + listOf(row(model.total, "")), "")
+            }
+        }
+
         fun planning() {
             if (project.workPlans.isEmpty()) return
             project.workPlans.forEach { plan ->
@@ -735,6 +762,17 @@ internal object FullReport {
                 heading("CONSOLIDADO POR PAGADOR")
                 table(listOf("PAGADOR", "TIPO", "MEIO", "TOTAL PAGO"), listOf(242f, 167f, 191f, 174f),
                     total.payers.map { listOf(it.payer, it.kind.label, it.method, it.amount.brl()) }, "")
+            }
+            if (project.paymentAudit.isNotEmpty()) {
+                ensure(120f)
+                heading("HISTÓRICO DE REVISÃO DO PAGO EFETIVO")
+                paragraph("Os valores abaixo são registros anteriores ou retirados do total após revisão. Não são somados novamente ao pago efetivo.")
+                table(listOf("CUSTO", "VALOR ANTERIOR", "DATA ORIGINAL", "REVISÃO / SITUAÇÃO", "MOTIVO / COMPROVANTES"),
+                    listOf(180f, 110f, 100f, 165f, 219f), project.paymentAudit.map { entry ->
+                        listOf(entry.costName.ifBlank { project.targetName(entry.payment) }, entry.payment.amount.brl(), entry.payment.date.dateOr("Sem data"),
+                            "${entry.date.dateText()}\n" + if (!entry.voided) "Valor anterior" else if (entry.restoredAt != null) "Restaurado ${entry.restoredAt.dateText()}" else "Fora do total pago",
+                            entry.reason + "\n" + entry.payment.proofs.joinToString { it.name })
+                    }, "")
             }
         }
 

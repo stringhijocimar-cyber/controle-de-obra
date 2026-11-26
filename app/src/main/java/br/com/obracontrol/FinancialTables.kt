@@ -85,9 +85,10 @@ private data class FinancialRow(
     val settle: (() -> Unit)? = null,
     val editTerms: (() -> Unit)? = null,
     val editMethod: (() -> Unit)? = null,
+    val editPaid: (() -> Unit)? = null,
 )
 
-private data class SelectedTableCost(val rowKey: String, val value: String)
+private data class SelectedTableCost(val rowKey: String, val value: String, val paid: Boolean)
 
 private fun Long?.tableMoney(): String = this?.brl()?.replace("R$", "")?.replace("\u00a0", "")?.trim() ?: "A definir"
 
@@ -141,10 +142,10 @@ private fun FinancialTable(
     val scroll = rememberScrollState()
     val focus = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
-    val showCost: (FinancialRow, String) -> Unit = { row, value ->
+    val showCost: (FinancialRow, String, Boolean) -> Unit = { row, value, paid ->
         focus.clearFocus()
         keyboard?.hide()
-        selectedCost = SelectedTableCost(row.key, value)
+        selectedCost = SelectedTableCost(row.key, value, paid)
     }
     val summary = tableSummary(columns, rows)
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
@@ -191,7 +192,8 @@ private fun FinancialTable(
         rows.firstOrNull { it.key == selection.rowKey }?.let { row ->
             AlertDialog(onDismissRequest = { selectedCost = null }, title = { Text("Dados do custo") },
                 text = { Text("${row.name}\nValor selecionado: ${if (selection.value == "A definir") selection.value else "R$ ${selection.value}"}") },
-                confirmButton = { TextButton(onClick = { selectedCost = null; expanded = false; row.edit() }) { Text("Editar dados") } },
+                confirmButton = { TextButton(onClick = { selectedCost = null; expanded = false;
+                    if (selection.paid && row.editPaid != null) row.editPaid.invoke() else row.edit() }) { Text("Editar dados") } },
                 dismissButton = { TextButton(onClick = { selectedCost = null }) { Text("Cancelar") } })
         }
     }
@@ -269,7 +271,7 @@ private fun FinancialGrid(
     summary: List<TableSummaryMetric>,
     empty: String,
     open: (FinancialRow) -> Unit,
-    showCost: (FinancialRow, String) -> Unit,
+    showCost: (FinancialRow, String, Boolean) -> Unit,
 ) {
     val fontScale = LocalDensity.current.fontScale
     BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -326,7 +328,7 @@ private fun FinancialGrid(
                                             val termsAction = if (column.title == "Método") row.editMethod ?: row.editTerms else row.editTerms
                                             val termsCell = column.title in listOf("Método", "Parcelas", "Condição / valores") && termsAction != null
                                             GridCell(value, column.width, numeric = column.numeric,
-                                                edit = if (column.cost) ({ showCost(row, value) }) else if (termsCell) termsAction else null,
+                                                edit = if (column.cost) ({ showCost(row, value, column.title in listOf("Pago", "Pago efetivo", "Valor pago")) }) else if (termsCell) termsAction else null,
                                                 tone = if (termsCell) Blue else if (column.title in listOf("Pago", "Valor pago", "Pago efetivo")) Green else Navy,
                                                 tag = if (column.cost) "table-cost-${row.key}-$costIndex" else if (termsCell) "table-terms-${row.key}-${column.title}" else null,
                                                 actionLabel = if (termsCell) "Editar cartão e parcelamento" else "Opções do custo")
@@ -377,7 +379,7 @@ private fun GridCell(
 
 @Composable
 internal fun StageTable(project: Project, balance: Balance, today: LocalDate, edit: (String) -> Unit,
-    complete: (CostKind, String) -> Unit) {
+    complete: (CostKind, String) -> Unit, reviewPaid: (CostKind, String) -> Unit) {
     val columns = listOf(costColumn("Previsto", 94.dp), costColumn("Pago efetivo", 100.dp),
         costColumn("A pagar"), TableColumn("Tipo", 84.dp), TableColumn("Execução", 70.dp, true), TableColumn("Andamento", 130.dp),
         TableColumn("Início previsto", 108.dp), TableColumn("Fim previsto", 108.dp),
@@ -389,7 +391,7 @@ internal fun StageTable(project: Project, balance: Balance, today: LocalDate, ed
                 "${stage.progress}%", stage.status, stage.plannedStart.dateOr(), stage.plannedEnd.dateOr(),
                 stage.actualStart.dateOr(), stage.actualEnd.dateOr(), stage.dueDate.dateOr()),
             "Editar etapa", { edit(stage.id) }, costs = listOf(stage.budget, paid, stage.budget?.minus(paid)),
-            detail = "Serviço · ${stage.progress}%", settle = {
+            detail = "Serviço · ${stage.progress}%", editPaid = { reviewPaid(CostKind.LABOR, stage.id) }, settle = {
                 if (stage.budget != null && stage.budget > paid) complete(CostKind.LABOR, stage.id) else edit(stage.id)
             })
     }
@@ -401,6 +403,7 @@ internal fun PurchaseTableScreen(
     project: Project, balance: Balance, today: LocalDate, add: () -> Unit, open: (String) -> Unit,
     complete: (CostKind, String) -> Unit,
     editTerms: (String) -> Unit,
+    reviewPaid: (CostKind, String) -> Unit,
 ) {
     val columns = listOf(costColumn("Total"), costColumn("Pago efetivo", 100.dp),
         costColumn("A pagar"), TableColumn("Tipo", 84.dp), TableColumn("Parcelas", 64.dp), TableColumn("Condição / valores", 230.dp),
@@ -419,7 +422,7 @@ internal fun PurchaseTableScreen(
             "Abrir compra", { open(order.id) }, costs = listOf(order.forecast, paid, order.forecast?.minus(paid)),
             detail = listOfNotNull(order.nature.label, order.tableInstallments().takeUnless { it == "—" }).joinToString(" · "),
             settle = { if (order.forecast != null && order.forecast!! > paid) complete(CostKind.MATERIAL, order.id) else open(order.id) },
-            editTerms = { editTerms(order.id) })
+            editTerms = { editTerms(order.id) }, editPaid = { reviewPaid(CostKind.MATERIAL, order.id) })
     }
     Column(Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp)) {
@@ -447,6 +450,7 @@ internal fun PaymentTableScreen(
     complete: (CostKind, String) -> Unit,
     openCost: (CostKind, String) -> Unit,
     editTerms: (CostKind, String) -> Unit,
+    reviewPaid: (CostKind, String) -> Unit,
 ) {
     var selectedView by rememberSaveable { mutableStateOf(PaymentView.REGISTERED.name) }
     val view = PaymentView.valueOf(selectedView)
@@ -478,7 +482,7 @@ internal fun PaymentTableScreen(
                 edit = { editCost(CostKind.MATERIAL, order.id) }, costs = listOf(position.total, position.paid, position.remaining),
                 detail = "${order.nature.label} · ${order.tableInstallments()}",
                 settle = { if (position.remaining != null && position.remaining!! > 0) complete(CostKind.MATERIAL, order.id) else editCost(CostKind.MATERIAL, order.id) },
-                editTerms = { editTerms(CostKind.MATERIAL, order.id) })
+                editTerms = { editTerms(CostKind.MATERIAL, order.id) }, editPaid = { reviewPaid(CostKind.MATERIAL, order.id) })
         }
     } else if (outstanding) {
         balance.disbursements.map { entry ->
@@ -497,7 +501,7 @@ internal fun PaymentTableScreen(
                 detail = listOfNotNull(project.costNature(entry.kind, entry.targetId).label,
                     purchase?.tableInstallments()?.takeUnless { it == "—" }).joinToString(" · "),
                 settle = { if (value != null && entry.amount != null && entry.amount > 0) complete(entry.kind, entry.targetId) else editCost(entry.kind, entry.targetId) },
-                editTerms = { editTerms(entry.kind, entry.targetId) })
+                editTerms = { editTerms(entry.kind, entry.targetId) }, editPaid = { reviewPaid(entry.kind, entry.targetId) })
         }
     } else {
         project.payments.sortedWith(compareBy(nullsLast(reverseOrder())) { it.date }).map { payment ->
@@ -512,7 +516,7 @@ internal fun PaymentTableScreen(
                 "Editar pagamento", { edit(payment.id) }, costs = listOf(payment.amount),
                 detail = "Tipo: ${project.costNature(payment.kind, payment.targetId).label}",
                 editTerms = { editTerms(payment.kind, payment.targetId) },
-                editMethod = { edit(payment.id) })
+                editMethod = { edit(payment.id) }, editPaid = { edit(payment.id) })
         }
     }
     Column(Modifier.fillMaxSize()) {
@@ -524,7 +528,7 @@ internal fun PaymentTableScreen(
                 color = Muted, style = MaterialTheme.typography.bodySmall)
         }
         Box(Modifier.weight(1f)) {
-            if (view == PaymentView.WEEKS) CostPaymentCalendarScreen(project, today, openCost)
+            if (view == PaymentView.WEEKS) WeeklyDisbursementScreen(project, today, openCost)
             else FinancialTable(if (installments) "Compra" else "Referência", columns, rows,
                 if (installments) "Nenhuma compra cadastrada como parcelada."
                 else if (outstanding) "Nenhum valor em aberto." else "Nenhum pagamento registrado.")
