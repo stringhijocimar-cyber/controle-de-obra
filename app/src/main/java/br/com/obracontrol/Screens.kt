@@ -371,7 +371,7 @@ internal fun ExportScreen(busy: Boolean, pdf: () -> Unit, openPdf: (() -> Unit)?
         item {
             SheetCard {
                 IconBadge(AppSymbol.REPORT)
-                Heading("Relatório gerencial completo", "Resumo executivo, custos por tipo, próximos vencimentos, cartão e parcelas, gráficos, Gantt, cronograma físico-financeiro, projeções, composição dos custos, aprovações, compras, pagamentos, pendências, agenda e diário.")
+                Heading("Relatório gerencial completo", "Tabelas no estilo do app, com status por cor e totais abaixo. Mantém resumo executivo, gráficos, Gantt, custos, parcelas, calendário semanal, aprovações, compras, pagamentos, pendências, agenda e diário.")
                 Detail("Escala do cronograma no relatório")
                 ViewTabs(GanttScale.entries.map { it.label }, scale.ordinal) { changeScale(GanttScale.entries[it]) }
                 Detail("Cabeçalho por ano e mês, com semanas ISO e dias conforme a escala. Em períodos extensos, o PDF espaça os rótulos para manter a leitura.")

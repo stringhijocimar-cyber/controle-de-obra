@@ -22,15 +22,17 @@ internal object FullReport {
     private const val RIGHT = WIDTH - LEFT
     private const val CONTENT = RIGHT - LEFT
     private const val BOTTOM = 550f
-    private val ink = Color.rgb(20, 38, 59)
-    private val muted = Color.rgb(69, 92, 113)
-    private val light = Color.rgb(240, 245, 248)
-    private val track = Color.rgb(220, 231, 238)
-    private val green = Color.rgb(8, 116, 91)
-    private val greenTint = Color.rgb(230, 244, 239)
-    private val blue = Color.rgb(39, 108, 159)
-    private val gold = Color.rgb(145, 80, 9)
+    private val ink = Navy.toArgb()
+    private val muted = Muted.toArgb()
+    private val light = Color.rgb(241, 245, 248)
+    private val track = Line.toArgb()
+    private val green = Green.toArgb()
+    private val greenTint = Color.rgb(237, 246, 242)
+    private val blue = Blue.toArgb()
+    private val gold = Amber.toArgb()
     private val goldTint = Color.rgb(255, 242, 221)
+    private val alternate = Color.rgb(250, 252, 253)
+    private val red = Color.rgb(179, 38, 30)
     private val shortDate = DateTimeFormatter.ofPattern("dd/MM", brazil)
     private val shortDateWithYear = DateTimeFormatter.ofPattern("dd/MM/yy", brazil)
 
@@ -83,6 +85,7 @@ internal object FullReport {
         private var title = ""
         private var subtitle = ""
         private var y = 0f
+        private var tableHeading: String? = null
 
         fun finish() {
             page?.let(pdf::finishPage)
@@ -92,6 +95,7 @@ internal object FullReport {
         private fun section(heading: String, caption: String) {
             title = heading
             subtitle = caption
+            tableHeading = null
             startPage()
         }
 
@@ -141,8 +145,8 @@ internal object FullReport {
             canvas.drawText(fitted, left, baseline, paint)
         }
 
-        private fun wrap(value: String, width: Float, size: Float): List<String> {
-            paint.typeface = normal
+        private fun wrap(value: String, width: Float, size: Float, strong: Boolean = false): List<String> {
+            paint.typeface = if (strong) bold else normal
             paint.textSize = size
             return buildList {
                 value.split('\n').forEach { paragraph ->
@@ -163,6 +167,7 @@ internal object FullReport {
             ensure(38f)
             text(LEFT, y + 12f, value, 13f, ink, true, CONTENT)
             y += 25f
+            tableHeading = value
         }
 
         private fun paragraph(value: String, color: Int = muted) {
@@ -228,50 +233,162 @@ internal object FullReport {
             if (visible.size < entries.size) paragraph("A tabela desta seção traz todos os registros.")
         }
 
-        private fun table(columns: List<String>, widths: List<Float>, rows: List<List<String>>, empty: String) {
+        private fun sumText(values: Iterable<Long?>): String {
+            val amount = tableAmountTotal(values)
+            return if (amount.entirelyUndefined) UNDEFINED else amount.known.brl() + if (amount.partial) " + ?" else ""
+        }
+
+        private fun columnColor(label: String): Int = when {
+            "A PAGAR" in label || "SALDO" in label -> gold
+            "PAGO A MAIOR" in label || "CRÉDITO" in label -> blue
+            "PAGO" in label || "ABATIDO" in label -> green
+            else -> ink
+        }
+
+        private fun statusColor(value: String): Int? = when (value.lowercase(brazil)) {
+            "pago", "paga", "sim", "concluída", "concluído", "resolvida", "recebido" -> green
+            "parcial", "em aberto", "a pagar", "não", "conferir", "em andamento", "a iniciar" -> gold
+            "atrasado", "atrasada", "vencido", "vencida" -> red
+            "parcial em atraso" -> red
+            "pago a maior" -> blue
+            "a definir", "total a confirmar", "sem custo" -> muted
+            else -> null
+        }
+
+        private fun table(columns: List<String>, widths: List<Float>, rows: List<List<String>>, empty: String,
+            totals: Map<Int, String> = emptyMap(), emphasizedRows: Set<Int> = emptySet()) {
             if (rows.isEmpty()) {
                 paragraph(empty)
                 return
             }
-            fun header() {
-                box(LEFT, y, CONTENT, 25f, ink, 4f)
-                var x = LEFT
-                columns.zip(widths).forEach { (column, width) ->
-                    text(x + 7, y + 16, column, 8.5f, Color.WHITE, true, width - 14)
-                    x += width
-                }
-                y += 29f
+            require(columns.size == widths.size && rows.all { it.size == columns.size })
+            val caption = tableHeading
+            tableHeading = null
+            val freshTop = 87f + if (caption != null) 25f else 0f
+            val cellPadding = 8f
+            val fontSize = 9.4f
+            val lineHeight = 12.5f
+            val numeric = columns.map { label ->
+                listOf("VALOR", "TOTAL", "PAGO", "PREÇO", "SUBTOTAL", "SALDO", "ESTIMATIVA", "APROVADO", "PREVISÃO",
+                    "QUANTIDADE", "CRÉDITO", "ABATIDO", "PROGRAMADO", "A PAGAR", "A DEFINIR", "PARCELAS", "AVANÇO")
+                    .any { it in label } || Regex("S[0-9]+.*").matches(label)
             }
-            ensure(60f)
+            fun cellLines(row: List<String>, strong: Boolean) = row.mapIndexed { index, value ->
+                val status = ("SITUAÇÃO" in columns[index] || "CONCLUÍDO" in columns[index]) && statusColor(value) != null
+                wrap(value, widths[index] - cellPadding * 2 - if (status) 18f else 0f, fontSize, strong)
+            }
+            val headerLines = columns.zip(widths).map { (label, width) -> wrap(label, width - cellPadding * 2, 8.3f, true) }
+            val headerHeight = headerLines.maxOf { it.size } * 11f + 16f
+            val footerValues = columns.indices.map { index ->
+                totals[index] ?: if (index == 0) if (totals.isEmpty()) "${rows.size} registros" else "TOTAL" else ""
+            }
+            val footerLines = footerValues.zip(widths).map { (value, width) -> wrap(value, width - cellPadding * 2, fontSize, true) }
+            val footerHeight = footerLines.maxOf { it.size } * lineHeight + 20f
+            var tableTop = y
+            fun separators(top: Float, bottom: Float) {
+                var x = LEFT
+                widths.dropLast(1).forEach { width -> x += width; line(x, top, x, bottom, track) }
+            }
+            fun frame() {
+                paint.color = track
+                paint.strokeWidth = 0.8f
+                paint.style = Paint.Style.STROKE
+                canvas.drawRoundRect(LEFT, tableTop, RIGHT, y, 6f, 6f, paint)
+                paint.style = Paint.Style.FILL
+            }
+            fun header() {
+                tableTop = y
+                box(LEFT, y, CONTENT, headerHeight, light, 6f)
+                var x = LEFT
+                headerLines.forEachIndexed { index, lines ->
+                    lines.forEachIndexed { row, label ->
+                        text(x + cellPadding, y + 15f + row * 11f, label, 8.3f, muted, true,
+                            widths[index] - cellPadding * 2, numeric[index])
+                    }
+                    x += widths[index]
+                }
+                separators(y, y + headerHeight)
+                y += headerHeight
+                line(LEFT, y, RIGHT, y, track)
+            }
+            fun nextPage() {
+                frame()
+                startPage(continuation = true)
+                if (caption != null) {
+                    text(LEFT, y + 12f, caption, 13f, ink, true, CONTENT)
+                    y += 25f
+                }
+                header()
+            }
+            val firstHeight = cellLines(rows.first(), 0 in emphasizedRows).maxOf { it.size } * lineHeight + 14f
+            val initialPage = number
+            ensure(headerHeight + minOf(firstHeight + if (rows.size == 1) footerHeight else 0f, BOTTOM - freshTop - headerHeight))
+            if (initialPage != number && caption != null) {
+                text(LEFT, y + 12f, caption, 13f, ink, true, CONTENT)
+                y += 25f
+            }
             header()
             rows.forEachIndexed { rowIndex, row ->
-                val lines = row.zip(widths).map { (value, width) -> wrap(value, width - 14f, 9.4f) }
+                val lines = cellLines(row, rowIndex in emphasizedRows)
                 val depth = lines.maxOf { it.size }
+                val reserve = if (rowIndex == rows.lastIndex) footerHeight else 0f
+                val wholeHeight = depth * lineHeight + 14f
+                if (wholeHeight + reserve <= BOTTOM - freshTop - headerHeight && y + wholeHeight + reserve > BOTTOM) nextPage()
                 var offset = 0
                 while (offset < depth) {
-                    if (y + 24 > BOTTOM) {
-                        startPage(continuation = true)
-                        header()
-                    }
-                    val available = ((BOTTOM - y - 10f) / 12.5f).toInt().coerceAtLeast(1)
-                    if (offset == 0 && depth <= 25 && depth > available) {
-                        startPage(continuation = true)
-                        header()
-                    }
-                    val count = minOf(depth - offset, ((BOTTOM - y - 10f) / 12.5f).toInt().coerceAtLeast(1))
-                    val height = count * 12.5f + 10f
-                    if (rowIndex % 2 == 0) box(LEFT, y, CONTENT, height, light, 2f)
+                    val remainingHeight = (depth - offset) * lineHeight + 14f
+                    val keepFooter = reserve > 0 && remainingHeight + reserve <= BOTTOM - freshTop - headerHeight
+                    val room = BOTTOM - y - if (keepFooter) reserve else 0f
+                    if (room < lineHeight + 14f) { nextPage(); continue }
+                    val count = minOf(depth - offset, ((room - 14f) / lineHeight).toInt())
+                    val height = count * lineHeight + 14f
+                    val emphasized = rowIndex in emphasizedRows
+                    box(LEFT, y, CONTENT, height, if (emphasized) light else if (rowIndex % 2 == 0) Color.WHITE else alternate, 0f)
                     var x = LEFT
                     lines.forEachIndexed { index, cell ->
-                        cell.drop(offset).take(count).forEachIndexed { indexInCell, value ->
-                            text(x + 7, y + 14f + indexInCell * 12.5f, value, 9.4f)
+                        val visible = cell.drop(offset).take(count)
+                        if (index == 0 && offset > 0 && visible.isEmpty()) {
+                            text(x + cellPadding, y + 16f, cell.firstOrNull().orEmpty(), 8.2f, muted, true, widths[index] - cellPadding * 2)
+                        }
+                        val status = if ("SITUAÇÃO" in columns[index] || "CONCLUÍDO" in columns[index]) statusColor(row[index]) else null
+                        if (status != null && visible.isNotEmpty()) {
+                            val chipWidth = widths[index] - cellPadding * 2
+                            box(x + cellPadding, y + 3f, chipWidth, visible.size * lineHeight + 8f,
+                                when (status) { green -> greenTint; red -> Color.rgb(253, 235, 234)
+                                    blue -> Color.rgb(234, 241, 249); gold -> goldTint; else -> light }, 6f)
+                            paint.color = status
+                            canvas.drawCircle(x + cellPadding + 7f, y + 13f, 2.5f, paint)
+                            visible.forEachIndexed { indexInCell, value ->
+                                text(x + cellPadding + 14f, y + 16f + indexInCell * lineHeight, value,
+                                    8.6f, status, width = chipWidth - 18f)
+                            }
+                        } else visible.forEachIndexed { indexInCell, value ->
+                            text(x + cellPadding, y + 16f + indexInCell * lineHeight, value, fontSize,
+                                if (numeric[index]) columnColor(columns[index]) else statusColor(value) ?: ink,
+                                emphasized, widths[index] - cellPadding * 2, numeric[index])
                         }
                         x += widths[index]
                     }
+                    separators(y, y + height)
                     offset += count
                     y += height
+                    line(LEFT, y, RIGHT, y, track)
                 }
             }
+            if (y + footerHeight > BOTTOM) nextPage()
+            box(LEFT, y, CONTENT, footerHeight, greenTint, 0f)
+            var x = LEFT
+            footerLines.forEachIndexed { index, lines ->
+                lines.forEachIndexed { row, value ->
+                    text(x + cellPadding, y + 18f + row * lineHeight, value, fontSize,
+                        if (index == 0) ink else columnColor(columns[index]), true,
+                        widths[index] - cellPadding * 2, numeric[index])
+                }
+                x += widths[index]
+            }
+            separators(y, y + footerHeight)
+            y += footerHeight
+            frame()
             y += 13f
         }
 
@@ -282,7 +399,7 @@ internal object FullReport {
             tiles(
                 Tile("PREVISÃO PARCIAL", total.total.brl(), "Compras e mão de obra"),
                 Tile("TOTAL JÁ PAGO", total.paid.brl(), "${percent(ratio)} da previsão", green),
-                Tile("SALDO CONHECIDO", total.remaining.brl(), "Previsão parcial menos pagamentos", blue),
+                Tile("SALDO LÍQUIDO", total.remaining.brl(), "Previsão parcial menos pagamentos", blue),
                 Tile("ACRÉSCIMO DECLARADO", total.extras.brl(), "Compras marcadas como acréscimo", gold),
             )
             text(LEFT, y + 14, "COMPOSIÇÃO DOS CUSTOS", 12f, ink, true)
@@ -384,6 +501,7 @@ internal object FullReport {
         fun purchaseInstallments() {
             val orders = project.purchases.filter { order -> project.scheduledPayments.any { it.kind == CostKind.MATERIAL && it.targetId == order.id } }
             if (orders.isEmpty()) return
+            val positions = orders.flatMap { order -> project.costPaymentPositions(CostKind.MATERIAL, order.id).filter { it.schedule != null } }
             section("PAGAMENTOS A PRAZO  |  CONTROLE DE PARCELAS", "Parcelas futuras permanecem a pagar; somente pagamentos registrados compõem o pago efetivo")
             val rows = orders.flatMap { order -> project.costPaymentPositions(CostKind.MATERIAL, order.id).filter { it.schedule != null }.map { position ->
                 val actual = project.payments.filter { it.scheduleId == position.schedule?.id && it.targetId == order.id && it.kind == CostKind.MATERIAL }
@@ -393,7 +511,9 @@ internal object FullReport {
                     if (position.completed) "Paga" else if (position.applied > 0) "Parcial" else "Em aberto")
             } }
             table(listOf("COMPRA / PARCELA", "VALOR", "VENCIMENTO", "PAGO", "A PAGAR", "DATA DO PAGAMENTO", "SITUAÇÃO"),
-                listOf(210f, 90f, 90f, 100f, 100f, 100f, 84f), rows, "")
+                listOf(210f, 90f, 90f, 100f, 100f, 100f, 84f), rows, "",
+                totals = mapOf(1 to sumText(positions.map { it.gross }),
+                    3 to positions.sumOf { it.applied }.brl(), 4 to sumText(positions.map { it.remaining })))
             paragraph("Pagamentos antigos sem vínculo são abatidos por vencimento e permanecem no histórico original. Não são lançados novamente ao criar as parcelas.")
         }
 
@@ -408,13 +528,15 @@ internal object FullReport {
             table(listOf("TIPO DE CUSTO", "PREVISÃO CONHECIDA", "PAGO EFETIVO", "SALDO LÍQUIDO", "VALORES A DEFINIR"),
                 listOf(186f, 161f, 146f, 146f, 135f), summary.groups.map {
                     listOf(it.category.label, it.forecast.brl(), it.paid.brl(), it.balance.brl(), it.undefined.toString())
-                }, "")
+                }, "", totals = mapOf(1 to summary.forecast.brl(), 2 to summary.paid.brl(),
+                    3 to (summary.forecast - summary.paid).brl(), 4 to summary.undefined.toString()))
             heading("PROGRAMAÇÃO FINANCEIRA")
             table(listOf("PERÍODO", "SALDO A PAGAR CONHECIDO", "VENCIMENTOS COM VALOR A DEFINIR"), listOf(282f, 230f, 262f),
                 DueHorizon.entries.map { horizon ->
                     val amount = summary.pending(horizon)
                     listOf(horizon.label, if (amount.entirelyUndefined) UNDEFINED else amount.known.brl(), amount.undefinedCount.toString())
-                }, "")
+                }, "", totals = mapOf(1 to sumText(CostPaymentCalendar(project).pending.map { it.amount }),
+                    2 to CostPaymentCalendar(project).pending.count { it.amount == null }.toString()))
             paragraph("O saldo líquido pode incluir pagamentos a maior. A programação considera o saldo pendente de cada custo, com os pagamentos já abatidos. A mão de obra da programação segue as etapas; divergências com o contrato geral aparecem em Pendências.")
             ensure(145f)
             heading("CARTÃO E PARCELAMENTOS")
@@ -423,7 +545,10 @@ internal object FullReport {
                     val paid = total.paid(CostKind.MATERIAL, order.id)
                     listOf(order.name, "${project.purchaseMethods(order)}\n${order.installmentText()}", order.forecast.costText(),
                         paid.brl(), InstallmentBalance(order, paid).remaining.costText())
-                }, "Nenhuma compra identificada como cartão ou parcelada.")
+                }, "Nenhuma compra identificada como cartão ou parcelada.", totals = mapOf(
+                    2 to sumText(summary.cardPurchases.map { it.forecast }),
+                    3 to summary.cardPurchases.sumOf { total.paid(CostKind.MATERIAL, it.id) }.brl(),
+                    4 to sumText(summary.cardPurchases.map { InstallmentBalance(it, total.paid(CostKind.MATERIAL, it.id)).remaining })))
             paragraph("A condição do cartão descreve a divisão comercial do total. As parcelas futuras só reduzem o saldo quando o pagamento é registrado. Os vencimentos detalhados estão no calendário de pagamentos.")
             ensure(85f)
             heading("PRÓXIMAS DECISÕES")
@@ -546,14 +671,20 @@ internal object FullReport {
             if (project.stages.size > visible.size) paragraph("Todas as etapas estão discriminadas na tabela físico-financeira.")
             if (project.stages.size > 4) startPage(continuation = true)
             heading("CONCILIAÇÃO E CRONOGRAMA FÍSICO-FINANCEIRO")
-            table(listOf("ETAPA / OBSERVAÇÕES", "PREVISTO", "REALIZADO", "AVANÇO", "VALOR PREVISTO", "PAGO", "SALDO / DATA"),
-                listOf(179f, 101f, 101f, 79f, 90f, 91f, 133f), project.stages.map { stage ->
+            table(listOf("ETAPA / OBSERVAÇÕES", "PREVISTO", "REALIZADO", "AVANÇO", "VALOR PREVISTO", "PAGO EFETIVO", "A PAGAR / VENCIMENTO", "PAGO A MAIOR"),
+                listOf(171f, 90f, 90f, 65f, 94f, 90f, 95f, 79f), project.stages.map { stage ->
                     val paid = total.paid(CostKind.LABOR, stage.id)
+                    val next = project.nextPendingPosition(CostKind.LABOR, stage.id)
                     listOf(listOf(stage.name, stage.notes).filter(String::isNotBlank).joinToString("\n"),
                         "${stage.plannedStart.dateOr()} a ${stage.plannedEnd.dateOr()}", "${stage.actualStart.dateOr()} a ${stage.actualEnd.dateOr()}",
                         "${stage.progress}%\n${stage.status}", stage.budget.costText(), paid.brl(),
-                        "${stage.budget?.minus(paid).costText()}\n${stage.dueDate.dateOr()}")
-                }, "Nenhuma etapa cadastrada.")
+                        "${stage.budget?.let { (it - paid).coerceAtLeast(0) }.costText()}\n${(next?.date ?: stage.dueDate).dateOr("Sem data")}" +
+                            if (next?.estimatedDate == true) "\nEstimativa pelo fim previsto" else "",
+                        stage.budget?.let { (paid - it).coerceAtLeast(0) }.costText())
+                }, "Nenhuma etapa cadastrada.", totals = mapOf(4 to sumText(project.stages.map { it.budget }),
+                    5 to total.laborPaid.brl(),
+                    6 to sumText(project.stages.map { stage -> stage.budget?.let { (it - total.paid(CostKind.LABOR, stage.id)).coerceAtLeast(0) } }),
+                    7 to sumText(project.stages.map { stage -> stage.budget?.let { (total.paid(CostKind.LABOR, stage.id) - it).coerceAtLeast(0) } })))
             val undefined = project.stages.count { it.budget == null }
             if (undefined > 0) paragraph("$undefined etapa(s) com valor a definir. Confirme se os serviços estão cobertos pelo contrato informado.", gold)
         }
@@ -569,12 +700,15 @@ internal object FullReport {
                 Bar(supplier, amount, listOf(green, blue, gold)[index % 3])
             }, "Nenhuma compra paga foi registrada.")
             heading("RESUMO DAS COMPRAS")
-            table(listOf("COMPRA / FORNECEDOR", "TIPO", "DOCUMENTO", "TOTAL PREVISTO", "PAGO", "SITUAÇÃO", "CLASSIFICAÇÃO"),
-                listOf(200f, 70f, 94f, 100f, 90f, 95f, 125f), project.purchases.map { order ->
-                    listOf("${order.name}\n${order.supplier.textOr("Fornecedor a definir")}", order.nature.label, order.document.textOr(), order.forecast.costText(),
-                        total.paid(CostKind.MATERIAL, order.id).brl(), total.purchaseStatus(order),
-                        if (order.extra) "Acréscimo declarado" else "Escopo previsto")
-                }, "Nenhuma compra cadastrada.")
+            table(listOf("COMPRA / FORNECEDOR", "TIPO", "DOCUMENTO", "TOTAL PREVISTO", "PAGO EFETIVO", "A PAGAR", "SITUAÇÃO", "PAGO A MAIOR"),
+                listOf(160f, 65f, 80f, 100f, 100f, 100f, 89f, 80f), project.purchases.map { order ->
+                    val position = InstallmentBalance(order, total.paid(CostKind.MATERIAL, order.id))
+                    listOf("${order.name}\n${order.supplier.textOr("Fornecedor a definir")}\n" + if (order.extra) "Acréscimo declarado" else "Escopo previsto",
+                        order.nature.label, order.document.textOr(), order.forecast.costText(), position.paid.brl(),
+                        position.remaining.costText(), financialStatus(order.forecast, position.paid, project.purchaseNextDue(order), today).label, position.credit.costText())
+                }, "Nenhuma compra cadastrada.", totals = mapOf(3 to sumText(project.purchases.map { it.forecast }),
+                    4 to total.materialPaid.brl(), 5 to sumText(project.purchases.map { total.materialOutstanding(it) }),
+                    7 to sumText(project.purchases.map { InstallmentBalance(it, total.paid(CostKind.MATERIAL, it.id)).credit })))
             if (project.purchases.any { it.installmentCount != null }) {
                 heading("CONDIÇÕES DE PAGAMENTO DAS COMPRAS")
                 table(listOf("COMPRA", "MÉTODO", "PARCELAMENTO"), listOf(330f, 180f, 264f),
@@ -588,7 +722,8 @@ internal object FullReport {
                     listOf(228f, 58f, 120f, 124f, 124f, 120f), installments.map { position ->
                         listOf(position.purchase.name, position.purchase.installmentCount.toString(), position.total.costText(),
                             position.paid.brl(), position.remaining.costText(), position.credit.costText())
-                    }, "")
+                    }, "", totals = mapOf(2 to sumText(installments.map { it.total }), 3 to installments.sumOf { it.paid }.brl(),
+                        4 to sumText(installments.map { it.remaining }), 5 to sumText(installments.map { it.credit })))
             }
         }
 
@@ -609,12 +744,15 @@ internal object FullReport {
                     val date = it.date.dateOr("Sem data")
                     listOf("${it.target.name}\n${it.label}", it.target.category.label,
                         if (it.estimatedDate) "$date\nEstimativa pelo fim previsto" else date, it.amount.costText())
-                }, "Nenhum desembolso previsto foi cadastrado.")
+                }, "Nenhum desembolso previsto foi cadastrado.",
+                totals = mapOf(3 to sumText(CostPaymentCalendar(project).pending.map { it.amount })))
             heading("DESEMBOLSOS DE MÃO DE OBRA POR SEMANA")
             table(listOf("SEMANA", "TOTAL PAGO", "SALDO CONHECIDO A PAGAR", "VALORES A DEFINIR"),
                 listOf(250f, 135f, 205f, 184f), laborSpend.weeks.map {
                     listOf(it.label, it.paid.brl(), it.balance.brl(), it.undefined.toString())
-                }, "Nenhum desembolso de mão de obra registrado ou previsto.")
+                }, "Nenhum desembolso de mão de obra registrado ou previsto.", totals = mapOf(
+                    1 to laborSpend.weeks.sumOf { it.paid }.brl(), 2 to laborSpend.weeks.sumOf { it.balance }.brl(),
+                    3 to laborSpend.weeks.sumOf { it.undefined }.toString()))
             callout("CRITÉRIO DE CONTROLE", "Compras previstas permanecem no escopo da obra. Acréscimos são sinalizados apenas nas compras marcadas como acréscimo. Datas e valores em aberto aguardam confirmação.")
         }
 
@@ -626,7 +764,9 @@ internal object FullReport {
                 listOf(250f, 125f, 160f, 155f, 84f), calendar.weeks.map { week ->
                     listOf(week.label, week.paid.brl(), if (week.pending.entirelyUndefined) UNDEFINED else week.pending.known.brl(),
                         week.knownTotal.brl(), week.pending.undefinedCount.toString())
-                }, "Nenhum custo ou pagamento cadastrado.")
+                }, "Nenhum custo ou pagamento cadastrado.", totals = mapOf(1 to total.paid.brl(),
+                    2 to sumText(calendar.pending.map { it.amount }), 3 to sumText(calendar.entries.map { it.amount }),
+                    4 to calendar.pending.count { it.amount == null }.toString()))
             calendar.weeks.forEach { week ->
                 heading(week.label)
                 table(listOf("CUSTO / PARCELA", "TIPO", "DATA", "SITUAÇÃO", "VALOR"),
@@ -634,7 +774,7 @@ internal object FullReport {
                         listOf("${entry.target.name}\n${entry.label}", entry.target.category.label,
                             entry.date.dateOr("Sem data") + if (entry.estimatedDate) "\nEstimativa pelo fim previsto" else "",
                             if (entry.paid) "Pago" else "A pagar", entry.amount.costText())
-                    }, "")
+                    }, "", totals = mapOf(0 to "TOTAL DA SEMANA", 4 to sumText(week.entries.map { it.amount })))
             }
             if (project.scheduledPayments.isNotEmpty()) {
                 heading("PROGRAMAÇÃO E QUITAÇÃO POR PARCELA")
@@ -643,7 +783,9 @@ internal object FullReport {
                     listOf(294f, 100f, 100f, 100f, 100f, 80f), calendar.positions.filter { it.schedule != null }.map { position ->
                         listOf("${position.target.name}\n${position.label}", position.date.dateOr("Sem data"), position.gross.costText(),
                             position.applied.brl(), position.remaining.costText(), if (position.completed) "Sim" else "Não")
-                    }, "")
+                    }, "", totals = calendar.positions.filter { it.schedule != null }.let { positions -> mapOf(
+                        2 to sumText(positions.map { it.gross }), 3 to positions.sumOf { it.applied }.brl(),
+                        4 to sumText(positions.map { it.remaining })) })
             }
         }
 
@@ -669,7 +811,8 @@ internal object FullReport {
                     listOf(374f, 87f, 78f, 113f, 122f), order.lines.map { item ->
                         listOf(item.name, item.quantity.quantityInput().textOr(UNDEFINED), item.unit.textOr(),
                             item.unitPrice.costText(), item.subtotal.costText())
-                    }, "Sem discriminação cadastrada para esta compra.")
+                    }, "Sem discriminação cadastrada para esta compra.",
+                    totals = mapOf(0 to "TOTAL DOS ITENS", 4 to sumText(order.lines.map { it.subtotal })))
                 val amounts = buildList {
                     order.lineSum?.let { add("Subtotal dos itens ${it.brl()}") }
                     if (order.discount != 0L) add("Desconto ${order.discount.brl()}")
@@ -708,7 +851,9 @@ internal object FullReport {
                     }
                 table(listOf("ETAPA / CUSTO", "QUEM PAGA", "COMO PAGA", "PAGO EFETIVO", "A PAGAR") + labels,
                     listOf(180f, 90f, 90f, 90f, 90f) + dates.map { weekWidth },
-                    rows.map { (node, depth) -> row(node, when (depth) { 1 -> "Etapa: "; 2 -> "Custo: "; else -> "" }) } + listOf(row(model.total, "")), "")
+                    rows.map { (node, depth) -> row(node, when (depth) { 1 -> "Etapa: "; 2 -> "Custo: "; else -> "" }) }, "",
+                    totals = row(model.total, "").mapIndexed { column, value -> column to if (column == 0) "TOTAL DA OBRA" else value }.toMap(),
+                    emphasizedRows = rows.indices.filter { rows[it].second < 2 }.toSet())
             }
         }
 
@@ -730,7 +875,11 @@ internal object FullReport {
                             control?.paid.costText(), control?.let { value ->
                                 (stage.latestApproval?.let { (value.forecast - it.total).brl() } ?: UNDEFINED) + "\n${value.progress}% físico"
                             } ?: "Sem vínculo")
-                    }, "Sem etapas.")
+                    }, "Sem etapas.", totals = mapOf(1 to plan.knownTotal.brl() + if (plan.missing > 0) " + ?" else "",
+                        2 to sumText(plan.stages.map { it.latestApproval?.total }),
+                        3 to sumText(plan.stages.map { project.planControl(it)?.forecast }) +
+                            if (plan.stages.any { (project.planControl(it)?.undefined ?: 0) > 0 } && plan.stages.all { project.planControl(it) != null }) " + ?" else "",
+                        4 to sumText(plan.stages.map { project.planControl(it)?.paid })))
                 paragraph("A previsão atual usa a mão de obra da etapa vinculada e todas as compras / serviços vinculados a ela. O pago usa apenas os pagamentos registrados. O rascunho e a aprovação não criam pagamentos.")
                 (plan.assumptions + plan.questions).forEach { paragraph("• $it") }
                 plan.stages.forEach { stage ->
@@ -745,7 +894,8 @@ internal object FullReport {
                                     item.quantity.quantityInput().ifBlank { UNDEFINED }, item.unit.textOr(UNDEFINED),
                                     item.unitPrice.costText(), item.subtotal.costText(),
                                     "${item.priceSource.textOr(UNDEFINED)}\n${item.priceDate.dateOr()}\n${item.notes}".trim())
-                            }, "Serviço sem insumos: detalhar antes de aprovar.")
+                            }, "Serviço sem insumos: detalhar antes de aprovar.",
+                            totals = mapOf(0 to "TOTAL DOS INSUMOS", 4 to sumText(service.items.map { it.subtotal })))
                     }
                     if (stage.approvals.isNotEmpty()) {
                         heading("HISTÓRICO DE APROVAÇÃO")
@@ -774,11 +924,12 @@ internal object FullReport {
                             addAll(it.proofs.map { proof -> proof.name })
                             if (it.notes.isNotBlank()) add(it.notes)
                         }.ifEmpty { listOf(UNREPORTED) }.joinToString("\n"))
-                }, "Nenhum pagamento registrado.")
+                }, "Nenhum pagamento registrado.", totals = mapOf(1 to total.paid.brl()))
             if (total.payers.isNotEmpty()) {
                 heading("CONSOLIDADO POR PAGADOR")
                 table(listOf("PAGADOR", "TIPO", "MEIO", "TOTAL PAGO"), listOf(242f, 167f, 191f, 174f),
-                    total.payers.map { listOf(it.payer, it.kind.label, it.method, it.amount.brl()) }, "")
+                    total.payers.map { listOf(it.payer, it.kind.label, it.method, it.amount.brl()) }, "",
+                    totals = mapOf(3 to total.paid.brl()))
             }
             if (project.paymentAudit.isNotEmpty()) {
                 ensure(120f)
@@ -820,7 +971,7 @@ internal object FullReport {
                 listOf(295f, 142f, 101f, 121f, 115f), agenda.entries.map {
                     listOf(it.name, it.kind.label, it.date.dateOr("Sem data"), agenda.window(it.date).label,
                         if (it.isPayment) it.amount.costText() else "—")
-                }, "Nenhum compromisso em aberto.")
+                }, "Nenhum compromisso em aberto.", totals = mapOf(4 to sumText(agenda.entries.filter { it.isPayment }.map { it.amount })))
         }
 
         fun diary() {
