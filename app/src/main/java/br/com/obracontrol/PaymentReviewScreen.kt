@@ -40,8 +40,9 @@ internal fun PaymentReviewScreen(project: Project, kind: CostKind, targetId: Str
                 Checkbox(payment.id in kept, { checked -> kept = ArrayList(if (checked) kept + payment.id else kept - payment.id) },
                     Modifier.testTag("review-keep-${payment.id}"))
                 Column(Modifier.weight(1f)) {
-                    Text("Pagamento ${index + 1} · ${payment.date.dateOr("Sem data")}")
+                    Text("Pagamento ${index + 1} · ${project.paymentParcelLabel(payment)} · ${payment.date.dateOr("Sem data")}")
                     Detail("${payment.payer.textOr()} · ${payment.method.textOr()} · ${payment.proofs.size} comprovante(s)")
+                    if (payment.receipt.isNotBlank()) Detail("Referência: ${payment.receipt}")
                 }
             }
             if (payment.id in kept) Field("Valor do pagamento ${index + 1} (R$)", values[index], { next ->

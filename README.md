@@ -2,6 +2,13 @@
 
 Aplicativo Android para planejar etapas e custos, acompanhar a execução da obra, controlar compras e pagamentos e emitir o relatório executivo em PDF. O cadastro e os modelos funcionam sem internet. O fluxo opcional com ChatGPT requer acesso ao serviço.
 
+## Versão 2.3.1 — conferência de pagamentos repetidos
+
+- **Pagamentos → Registrados → Conferir duplicados** agrupa os lançamentos por custo, mostra possíveis repetições e valores pagos a maior. Use **Todos os custos** para conferir registros com datas ou dados diferentes. Abra **Revisar pagamentos**, mantenha os reais e confira o total antes de salvar. Os registros retirados e seus comprovantes permanecem no histórico e no backup.
+- O cadastro de um novo pagamento avisa quando já existe outro com os mesmos dados. É possível abrir o lançamento existente para editar. **Confirmar outro pagamento igual** permite um desembolso real distinto mediante escolha explícita. Editar e salvar o mesmo ID continua atualizando seu registro.
+- Parcelas vinculadas e referências bancárias distintas são tratadas separadamente. A lista mostra a parcela ou a data no detalhe da linha, para distinguir pagamentos de mesmo valor. A atualização preserva todos os lançamentos existentes; a revisão aplica somente as escolhas confirmadas pelo usuário.
+- Mantém o formato de backup 11, o relatório completo, a programação de parcelas e a assinatura permanente.
+
 ## Versão 2.3.0 — parcelas com datas e flags de pagamento
 
 - No cadastro da compra parcelada, a lista mostra cada parcela, valor, vencimento e flag de pago. Informe o **Primeiro vencimento** para calcular as datas mensais. Se marcar a primeira como paga antes de definir o vencimento, a data real desse pagamento inicia o calendário das demais. Os centavos são distribuídos para fechar o total, inclusive nos meses mais curtos.
@@ -110,7 +117,7 @@ Em **Pagamentos**, abra um lançamento e adicione os comprovantes com a câmera 
 
 ## Instalação e primeiro uso
 
-A versão 2.3.0 requer Android 8.0 ou mais recente e atualiza diretamente o **ObraControl 1.7.0 a 2.2.0**, usando a mesma assinatura permanente e o cadastro salvo no aparelho. Abra o instalador e escolha **Atualizar**, mantendo o aplicativo instalado.
+A versão 2.3.1 requer Android 8.0 ou mais recente e atualiza diretamente o **ObraControl 1.7.0 a 2.3.0**, usando a mesma assinatura permanente e o cadastro salvo no aparelho. Abra o instalador e escolha **Atualizar**, mantendo o aplicativo instalado.
 
 Para transferir dados das edições **ObraControl Financeiro** ou **ObraControl Gestão**, abra **Relatório → Exportar backup com anexos** no app anterior. No **ObraControl**, abra **Relatório → Importar dados da obra**, selecione o ZIP e confirme. Confira o cadastro importado antes de desinstalar a edição anterior. Os backups JSON e ZIP das versões anteriores do formato continuam aceitos.
 

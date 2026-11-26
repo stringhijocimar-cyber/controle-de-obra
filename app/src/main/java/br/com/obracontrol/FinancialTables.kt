@@ -472,12 +472,14 @@ internal fun PaymentTableScreen(
     reviewPaid: (CostKind, String) -> Unit,
     saveProject: (Project) -> Unit,
     editParcels: (String) -> Unit,
+    checkPayments: () -> Unit,
 ) {
     var selectedView by rememberSaveable { mutableStateOf(PaymentView.REGISTERED.name) }
     val view = PaymentView.valueOf(selectedView)
     val outstanding = view == PaymentView.OUTSTANDING
     val installments = view == PaymentView.INSTALLMENTS
     val purchases = project.purchases.associateBy { it.id }
+    val repeatedIds = project.payments.groupBy(::similarPaymentKey).values.filter { it.size > 1 }.flatten().map { it.id }.toSet()
     val columns = if (installments) {
         listOf(costColumn("Total"), costColumn("Pago efetivo", 100.dp), costColumn("A pagar"), TableColumn("Parcelas", 64.dp),
             TableColumn("Condição / valores", 230.dp), TableColumn("Tipo", 84.dp), TableColumn("Quem pagou", 120.dp),
@@ -538,7 +540,8 @@ internal fun PaymentTableScreen(
                         else laborPlans.takeIf { it.isNotEmpty() }?.size?.toString() ?: "—",
                     terms, payment.kind.label, payment.proofs.size.toString(), payment.receipt.textOr()),
                 "Editar pagamento", { edit(payment.id) }, costs = listOf(payment.amount),
-                detail = "Tipo: ${project.costNature(payment.kind, payment.targetId).label}",
+                detail = (if (payment.scheduleId != null) project.paymentParcelLabel(payment) else payment.date.dateOr("Sem data")) +
+                    if (payment.id in repeatedIds) " · Conferir repetição" else " · ${project.costNature(payment.kind, payment.targetId).label}",
                 editTerms = { editTerms(payment.kind, payment.targetId) },
                 editMethod = { edit(payment.id) }, editPaid = { edit(payment.id) })
         }
@@ -548,6 +551,9 @@ internal fun PaymentTableScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)) {
             ListHeading("Pagamentos", "+ Novo", add, "Valores pagos e compromissos em aberto")
             ViewTabs(PaymentView.entries.map { it.label }, view.ordinal) { selectedView = PaymentView.entries[it].name }
+            if (view == PaymentView.REGISTERED) TextButton(onClick = checkPayments, modifier = Modifier.height(32.dp), contentPadding = PaddingValues(2.dp)) {
+                Text("Conferir duplicados${if (repeatedIds.isNotEmpty()) " · ${repeatedIds.size} lançamentos semelhantes" else ""}", style = MaterialTheme.typography.labelMedium)
+            }
         }
         Box(Modifier.weight(1f)) {
             if (view == PaymentView.WEEKS) WeeklyDisbursementScreen(project, today, openCost)

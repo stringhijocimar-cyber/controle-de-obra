@@ -11,7 +11,8 @@ internal data class PaymentAudit(
 internal fun Project.paymentsFor(kind: CostKind, target: String) = payments.filter { it.kind == kind && it.targetId == target }
 
 internal fun similarPaymentKey(payment: Payment): String = listOf(payment.kind.name, payment.targetId, payment.amount,
-    payment.date, payment.payer.trim().lowercase(brazil), payment.method.trim().lowercase(brazil)).joinToString("|")
+    payment.date, payment.payer.trim().lowercase(brazil), payment.method.trim().lowercase(brazil),
+    payment.scheduleId.orEmpty(), payment.receipt.trim().lowercase(brazil)).joinToString("|") { "${it.toString().length}:$it" }
 
 /** Apply only reviewed rows. Original records and their proofs remain in the audit, outside paid totals. */
 internal fun Project.reviewPayments(kind: CostKind, targetId: String, amounts: Map<String, Long?>,

@@ -262,7 +262,7 @@ class MainActivity : ComponentActivity() {
                             { kind, target -> navigate("pagamento/novo/${kind.name}/$target/saldo") },
                             { kind, target -> navigate("custo/${kind.name}/$target") },
                             { kind, target -> navigate(if (kind == CostKind.LABOR) "programacao/LABOR/$target" else "condicao/$target") },
-                            { kind, target -> navigate("revisar-pago/${kind.name}/$target") }, ::save, { navigate("parcelas/$it") })
+                            { kind, target -> navigate("revisar-pago/${kind.name}/$target") }, ::save, { navigate("parcelas/$it") }, { navigate("conferir-pagamentos") })
                     }
                     Section.REPORT -> ExportScreen(
                         activeFileOperation,
@@ -291,6 +291,7 @@ class MainActivity : ComponentActivity() {
 }
 
 private fun editorTitle(route: String): String = when (route.substringBefore('/')) {
+    "conferir-pagamentos" -> "Conferência dos pagamentos"
     "parcelas" -> "Parcelas da compra"
     "planejamento" -> "Planejamento e orçamento"
     "obra" -> "Dados da obra"

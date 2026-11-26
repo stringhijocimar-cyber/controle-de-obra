@@ -106,14 +106,17 @@ internal fun EditorScreen(
                 PaymentEditor(project, payment, if (existing != null) ({
                     save(project.copy(payments = project.payments.filterNot { it.id == payment.id }))
                     back()
-                }) else null, registerPayer = { save(project.registerPayer(it)) }) { next, terms ->
-                    save(project.recordPayment(next, terms))
+                }) else null, registerPayer = { save(project.registerPayer(it)) }, openExisting = { existingId ->
+                    back(); navigate("pagamento/$existingId")
+                }) { next, terms, allowSimilar ->
+                    save(project.recordPayment(next, terms, allowSimilar))
                     back()
                 }
             }
             "condicao" -> PurchaseTermsEditor(project, requireNotNull(id)) { save(project.applyPurchaseTerms(it)); back() }
             "parcelas" -> PurchaseInstallmentsEditor(project, requireNotNull(id)) { save(it); back() }
             "revisar-pago" -> PaymentReviewScreen(project, CostKind.valueOf(requireNotNull(id)), parts[2], save, navigate, back)
+            "conferir-pagamentos" -> PaymentIntegrityScreen(project, navigate)
             "custo" -> CostPaymentDetailScreen(project, CostKind.valueOf(requireNotNull(id)), parts[2], navigate)
             "programacao" -> PaymentScheduleEditor(project, CostKind.valueOf(requireNotNull(id)), parts[2]) { save(it); back() }
             "diario" -> DiaryScreen(project, { navigate("registro/novo") }) { navigate("registro/$it") }
@@ -399,7 +402,8 @@ private fun LineEditor(line: PurchaseLine, remove: (() -> Unit)?, save: (Purchas
 
 @Composable
 private fun PaymentEditor(
-    project: Project, payment: Payment, remove: (() -> Unit)?, registerPayer: (String) -> Unit, save: (Payment, PurchaseTermsChange?) -> Unit,
+    project: Project, payment: Payment, remove: (() -> Unit)?, registerPayer: (String) -> Unit,
+    openExisting: (String) -> Unit, save: (Payment, PurchaseTermsChange?, Boolean) -> Unit,
 ) {
     var kind by rememberSaveable { mutableStateOf(payment.kind.name) }
     var target by rememberSaveable { mutableStateOf(payment.targetId) }
@@ -422,11 +426,15 @@ private fun PaymentEditor(
     var purchaseCount by rememberSaveable(kind, target) { mutableStateOf(order?.installmentCount?.toString().orEmpty()) }
     var purchaseTotal by rememberSaveable(kind, target) { mutableStateOf(order?.total.moneyInput()) }
     val targets = project.linkedCostOptions(CostNature.valueOf(nature), stageFilter)
+    fun readPayment() = payment.copy(kind = CostKind.valueOf(kind), targetId = target, amount = parseMoney(amount) ?: 0,
+        date = parseDate(date), payer = payer.trim(), method = method.trim(), receipt = receipt.trim(), notes = notes.trim(), proofs = proofs,
+        scheduleId = scheduleId)
+    val draft = runCatching { readPayment() }.getOrNull()
+    val similar = draft?.let { project.similarExistingPayments(it) }.orEmpty()
+    var allowSimilar by rememberSaveable(draft?.let(::similarPaymentKey)) { mutableStateOf(false) }
     Form(remove = remove, deletePrompt = "Excluir este pagamento? Os totais do painel serão recalculados.", available = !processing, save = {
-        save(payment.copy(kind = CostKind.valueOf(kind), targetId = target, amount = parseMoney(amount) ?: 0,
-            date = parseDate(date), payer = payer.trim(), method = method.trim(), receipt = receipt.trim(), notes = notes.trim(), proofs = proofs,
-            scheduleId = scheduleId), if (editingTerms && order != null)
-                readPurchaseTerms(order, purchaseMethod, purchaseCondition, purchaseCount, purchaseTotal) else null)
+        save(readPayment(), if (editingTerms && order != null)
+                readPurchaseTerms(order, purchaseMethod, purchaseCondition, purchaseCount, purchaseTotal) else null, allowSimilar)
     }) {
         Detail("Registre aqui somente valores já pagos. As parcelas futuras permanecem em A pagar.")
         Select("Tipo de custo", nature, CostNature.entries.map { it.name to it.label }) {
@@ -465,6 +473,18 @@ private fun PaymentEditor(
             amount = recognized.cents.moneyInput()
         }
         Field("Observações do pagamento", notes, { notes = it }, multiline = true)
+        if (similar.isNotEmpty()) {
+            HorizontalDivider()
+            Heading("Pagamento semelhante já registrado")
+            Detail("Confira os lançamentos abaixo para evitar somar o mesmo pagamento outra vez.", Amber)
+            similar.forEachIndexed { index, existing ->
+                Detail("${existing.amount.brl()} · ${existing.date.dateOr("Sem data")} · ${project.paymentParcelLabel(existing)}")
+                Detail("${existing.payer.textOr()} · ${existing.method.textOr()} · ${existing.proofs.size} comprovante(s)")
+                OutlinedButton(onClick = { openExisting(existing.id) }) { Text("Editar pagamento existente ${index + 1}") }
+            }
+            Check("Confirmar outro pagamento igual", allowSimilar) { allowSimilar = it }
+            Detail("Marque apenas se este for outro desembolso real, além dos lançamentos mostrados.")
+        }
     }
 }
 

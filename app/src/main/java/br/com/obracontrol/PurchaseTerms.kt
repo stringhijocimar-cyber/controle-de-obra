@@ -13,7 +13,10 @@ internal fun Project.applyPurchaseTerms(change: PurchaseTermsChange): Project {
 }
 
 /** One atomic edit: purchase terms and this actual payment. Other payments/proofs and due dates stay intact. */
-internal fun Project.recordPayment(payment: Payment, terms: PurchaseTermsChange? = null): Project {
+internal fun Project.recordPayment(payment: Payment, terms: PurchaseTermsChange? = null, allowSimilar: Boolean = false): Project {
+    require(allowSimilar || similarExistingPayments(payment).isEmpty()) {
+        "Já existe um pagamento com os mesmos dados. Edite o existente ou confirme que este é outro pagamento."
+    }
     if (terms != null) require(payment.kind == CostKind.MATERIAL && payment.targetId == terms.purchaseId) {
         "As condições precisam pertencer à compra deste pagamento."
     }
