@@ -242,6 +242,8 @@ internal class Balance(private val project: Project) {
     val materialForecast = project.purchases.sumOf { it.forecast ?: paid(CostKind.MATERIAL, it.id) }
     val total = materialForecast + laborForecast
     val paid = materialPaid + laborPaid
+    val overpaidByCost = project.stages.sumOf { stage -> stage.budget?.let { (paid(CostKind.LABOR, stage.id) - it).coerceAtLeast(0) } ?: 0L } +
+        project.purchases.sumOf { order -> order.forecast?.let { (paid(CostKind.MATERIAL, order.id) - it).coerceAtLeast(0) } ?: 0L }
     val remaining = total - paid
     val extras = project.purchases.filter { it.extra }.sumOf { it.forecast ?: paid(CostKind.MATERIAL, it.id) }
     val completed = project.stages.count { it.progress == 100 }
@@ -260,12 +262,12 @@ internal class Balance(private val project: Project) {
     val laborDisbursements = project.stages.mapNotNull { stage ->
         val outstanding = stage.budget?.minus(paid(CostKind.LABOR, stage.id))
         if (outstanding != null && outstanding <= 0) null
-        else Disbursement(stage.id, stage.name, CostKind.LABOR, stage.dueDate, outstanding,
-            forecastDate = stage.dueDate ?: stage.plannedEnd)
+        else project.costDisbursement(CostKind.LABOR, stage.id, outstanding)
     }
-    val disbursements = (projectedPurchases.map {
-        Disbursement(it.id, it.name, CostKind.MATERIAL, it.dueDate, materialOutstanding(it))
-    } + laborDisbursements).sortedWith(compareBy(nullsLast()) { it.date })
+    val disbursements = (projectedPurchases.mapNotNull {
+        project.costDisbursement(CostKind.MATERIAL, it.id, materialOutstanding(it))
+    } + laborDisbursements).sortedWith(compareBy(nullsLast()) { it.forecastDate })
+    val pendingByCost = tableAmountTotal(disbursements.map { it.amount })
 
     fun materialOutstanding(purchase: Purchase): Long? = purchase.forecast?.let {
         (it - paid(CostKind.MATERIAL, purchase.id)).coerceAtLeast(0)
@@ -303,6 +305,18 @@ internal class Balance(private val project: Project) {
         }
         project.purchases.filter { order -> order.forecast?.let { paid(CostKind.MATERIAL, order.id) > it } == true }.forEach {
             add(it.name to "Pagamentos acima do total previsto. Confira a conciliação.")
+        }
+        project.purchases.filter { (it.installmentCount ?: 0) > 1 && (materialOutstanding(it) == null || materialOutstanding(it)!! > 0) }.forEach { order ->
+            val rows = project.scheduledPayments.filter { it.kind == CostKind.MATERIAL && it.targetId == order.id }
+            if (rows.isEmpty()) add(order.name to "Compra parcelada sem programação de vencimentos. Defina a primeira data e confira as parcelas.")
+            else {
+                if (rows.size != order.installmentCount || rows.sumOf { it.amount } != order.forecast) {
+                    add(order.name to "A condição comercial e a programação têm quantidades ou valores diferentes. Confira as parcelas; os pagamentos registrados foram preservados.")
+                }
+                if (project.costPaymentPositions(CostKind.MATERIAL, order.id).any { (it.remaining == null || it.remaining > 0) && it.date == null }) {
+                    add(order.name to "Há saldo de parcelas sem vencimento definido.")
+                }
+            }
         }
         project.stages.filter { it.budget != null && paid(CostKind.LABOR, it.id) > it.budget }.forEach {
             add(it.name to "Pagamentos acima do valor previsto para a etapa.")

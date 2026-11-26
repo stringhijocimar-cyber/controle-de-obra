@@ -7,7 +7,7 @@ internal data class PurchaseInstallmentChange(val rows: List<ScheduledPayment>, 
 
 internal fun Project.purchaseNextDue(order: Purchase): LocalDate? =
     if (scheduledPayments.none { it.kind == CostKind.MATERIAL && it.targetId == order.id }) order.dueDate
-    else costPaymentPositions(CostKind.MATERIAL, order.id).filter { it.remaining == null || it.remaining > 0 }.mapNotNull { it.date }.minOrNull()
+    else nextPendingPosition(CostKind.MATERIAL, order.id)?.date
 
 /** A parcel flag records only the outstanding amount. Repeated saves update the same payment ID. */
 internal fun Project.applyPurchaseInstallments(order: Purchase, change: PurchaseInstallmentChange, validate: Boolean = true): Project {

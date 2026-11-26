@@ -37,6 +37,14 @@ internal data class CostPaymentPosition(
     val completed get() = remaining == 0L && (gross ?: 0) > 0
 }
 
+internal fun Project.nextPendingPosition(kind: CostKind, targetId: String): CostPaymentPosition? =
+    costPaymentPositions(kind, targetId).firstOrNull { it.remaining == null || it.remaining > 0 }
+
+internal fun Project.costDisbursement(kind: CostKind, targetId: String, amount: Long?): Disbursement? =
+    nextPendingPosition(kind, targetId)?.let { position ->
+        Disbursement(targetId, position.target.name, kind, position.date.takeUnless { position.estimatedDate }, amount, position.date)
+    }
+
 /** Direct parcel links are applied first. Unlinked payments are deducted once, by due date. */
 internal fun Project.costPaymentPositions(kind: CostKind, targetId: String): List<CostPaymentPosition> {
     val target = costTarget(kind, targetId) ?: return emptyList()

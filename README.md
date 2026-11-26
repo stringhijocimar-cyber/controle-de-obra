@@ -2,6 +2,13 @@
 
 Aplicativo Android para planejar etapas e custos, acompanhar a execução da obra, controlar compras e pagamentos e emitir o relatório executivo em PDF. O cadastro e os modelos funcionam sem internet. O fluxo opcional com ChatGPT requer acesso ao serviço.
 
+## Versão 2.3.2 — conciliação dos vínculos financeiros
+
+- **A pagar**, Compras e Etapas usam o próximo vencimento em aberto da programação. Quitar uma parcela avança a data mostrada; a compra permanece uma única linha com seu saldo agregado. Agenda, tabela semanal, Gantt da mão de obra e relatório continuam usando as mesmas parcelas e pagamentos.
+- **A pagar** em Compras e Etapas fica limitado ao saldo pendente de cada custo. O excesso aparece na coluna **Pago a maior**, sem quitar outro custo. O Painel identifica o **Saldo líquido** e, quando há excessos, mostra a conciliação com as contas ainda abertas.
+- Pendências e relatório avisam quando a condição comercial difere da programação ou existem parcelas em aberto sem vencimento. Esse aviso preserva os pagamentos e programações manuais para conferência.
+- Os testes de integração confrontam os totais de painel, gráficos, agenda, calendário, parcelas, relatório e backup. O formato de dados permanece 11 e o histórico é preservado.
+
 ## Versão 2.3.1 — conferência de pagamentos repetidos
 
 - **Pagamentos → Registrados → Conferir duplicados** agrupa os lançamentos por custo, mostra possíveis repetições e valores pagos a maior. Use **Todos os custos** para conferir registros com datas ou dados diferentes. Abra **Revisar pagamentos**, mantenha os reais e confira o total antes de salvar. Os registros retirados e seus comprovantes permanecem no histórico e no backup.
@@ -117,7 +124,7 @@ Em **Pagamentos**, abra um lançamento e adicione os comprovantes com a câmera 
 
 ## Instalação e primeiro uso
 
-A versão 2.3.1 requer Android 8.0 ou mais recente e atualiza diretamente o **ObraControl 1.7.0 a 2.3.0**, usando a mesma assinatura permanente e o cadastro salvo no aparelho. Abra o instalador e escolha **Atualizar**, mantendo o aplicativo instalado.
+A versão 2.3.2 requer Android 8.0 ou mais recente e atualiza diretamente o **ObraControl 1.7.0 a 2.3.1**, usando a mesma assinatura permanente e o cadastro salvo no aparelho. Abra o instalador e escolha **Atualizar**, mantendo o aplicativo instalado.
 
 Para transferir dados das edições **ObraControl Financeiro** ou **ObraControl Gestão**, abra **Relatório → Exportar backup com anexos** no app anterior. No **ObraControl**, abra **Relatório → Importar dados da obra**, selecione o ZIP e confirme. Confira o cadastro importado antes de desinstalar a edição anterior. Os backups JSON e ZIP das versões anteriores do formato continuam aceitos.
 

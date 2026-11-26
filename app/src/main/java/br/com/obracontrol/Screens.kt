@@ -242,8 +242,16 @@ internal fun Dashboard(
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Metric("Saldo conhecido", total.remaining.brl(), Blue, Modifier.weight(1f), AppSymbol.CLOCK)
+                Metric("Saldo líquido", total.remaining.brl(), Blue, Modifier.weight(1f), AppSymbol.CLOCK)
                 Metric("Acréscimos", total.extras.brl(), Amber, Modifier.weight(1f), AppSymbol.PLUS)
+            }
+        }
+        if (total.overpaidByCost > 0) item {
+            SheetCard {
+                Heading("Conciliação dos custos")
+                LedgerLine("A pagar por custo", if (total.pendingByCost.entirelyUndefined) UNDEFINED else total.pendingByCost.known.brl() + if (total.pendingByCost.partial) " + ?" else "")
+                LedgerLine("Pago a maior", total.overpaidByCost.brl())
+                Detail("O saldo líquido desconta todos os pagamentos da previsão. Valores pagos a maior ficam separados das contas ainda em aberto.")
             }
         }
         val installments = project.installmentBalances(total)

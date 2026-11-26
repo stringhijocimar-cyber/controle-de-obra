@@ -343,7 +343,9 @@ private fun FinancialGrid(
                                             GridCell(value, column.width, numeric = column.numeric,
                                                 edit = if (column.cost) ({ showCost(row, value, column.title in listOf("Pago", "Pago efetivo", "Valor pago")) }) else if (termsCell) termsAction else null,
                                                 tone = if (termsCell) Blue else if (column.title in listOf("Pago", "Valor pago", "Pago efetivo")) Green else Navy,
-                                                tag = if (column.cost) "table-cost-${row.key}-$costIndex" else if (termsCell) "table-terms-${row.key}-${column.title}" else null,
+                                                tag = if (column.cost) "table-cost-${row.key}-$costIndex" else if (termsCell) "table-terms-${row.key}-${column.title}"
+                                                else if (column.title in listOf("Vencimento", "Pagamento")) "table-due-${row.key}"
+                                                else if (column.title == "Pago a maior") "table-credit-${row.key}" else null,
                                                 actionLabel = if (termsCell) "Editar cartão e parcelamento" else "Opções do custo")
                                         }
                                     }
@@ -397,14 +399,18 @@ internal fun StageTable(project: Project, balance: Balance, today: LocalDate, ed
     val columns = listOf(costColumn("Previsto", 94.dp), costColumn("Pago efetivo", 100.dp),
         costColumn("A pagar"), TableColumn("Tipo", 84.dp), TableColumn("Execução", 70.dp, true), TableColumn("Andamento", 130.dp),
         TableColumn("Início previsto", 108.dp), TableColumn("Fim previsto", 108.dp),
-        TableColumn("Início real", 108.dp), TableColumn("Fim real", 108.dp), TableColumn("Pagamento", 108.dp))
+        TableColumn("Início real", 108.dp), TableColumn("Fim real", 108.dp), TableColumn("Pagamento", 108.dp), TableColumn("Pago a maior", 105.dp, numeric = true))
     val rows = project.stages.map { stage ->
         val paid = balance.paid(CostKind.LABOR, stage.id)
-        FinancialRow(stage.id, stage.name, financialStatus(stage.budget, paid, stage.dueDate, today),
-            listOf(stage.budget.tableMoney(), paid.tableMoney(), stage.budget?.minus(paid).tableMoney(), CostNature.SERVICE.label,
+        val pending = stage.budget?.let { (it - paid).coerceAtLeast(0) }
+        val credit = stage.budget?.let { (paid - it).coerceAtLeast(0) }
+        val position = project.nextPendingPosition(CostKind.LABOR, stage.id)
+        val due = if (position != null) position.date else stage.dueDate
+        FinancialRow(stage.id, stage.name, financialStatus(stage.budget, paid, due.takeUnless { position?.estimatedDate == true }, today),
+            listOf(stage.budget.tableMoney(), paid.tableMoney(), pending.tableMoney(), CostNature.SERVICE.label,
                 "${stage.progress}%", stage.status, stage.plannedStart.dateOr(), stage.plannedEnd.dateOr(),
-                stage.actualStart.dateOr(), stage.actualEnd.dateOr(), stage.dueDate.dateOr()),
-            "Editar etapa", { edit(stage.id) }, costs = listOf(stage.budget, paid, stage.budget?.minus(paid)),
+                stage.actualStart.dateOr(), stage.actualEnd.dateOr(), due.dateOr() + if (position?.estimatedDate == true) " · estim." else "", credit.tableMoney()),
+            "Editar etapa", { edit(stage.id) }, costs = listOf(stage.budget, paid, pending),
             detail = "Serviço · ${stage.progress}%", editPaid = { reviewPaid(CostKind.LABOR, stage.id) }, settle = {
                 if (stage.budget != null && stage.budget > paid) complete(CostKind.LABOR, stage.id) else edit(stage.id)
             })
@@ -425,18 +431,19 @@ internal fun PurchaseTableScreen(
         costColumn("A pagar"), TableColumn("Tipo", 84.dp), TableColumn("Parcelas", 64.dp), TableColumn("Condição / valores", 230.dp),
         TableColumn("Quem pagou", 120.dp), TableColumn("Método", 110.dp), TableColumn("Vencimento", 108.dp),
         TableColumn("Fornecedor", 150.dp), TableColumn("Entrega", 108.dp),
-        TableColumn("Anexos", 60.dp, true), TableColumn("Documento", 150.dp))
+        TableColumn("Anexos", 60.dp, true), TableColumn("Documento", 150.dp), TableColumn("Pago a maior", 105.dp, numeric = true))
     val rows = project.purchases.map { order ->
         val paid = balance.paid(CostKind.MATERIAL, order.id)
+        val position = InstallmentBalance(order, paid)
         val due = project.purchaseNextDue(order)
         FinancialRow(order.id, order.name,
             financialStatus(order.forecast, paid, due, today),
-            listOf(order.forecast.tableMoney(), paid.tableMoney(), order.forecast?.minus(paid).tableMoney(), order.nature.label,
+            listOf(order.forecast.tableMoney(), paid.tableMoney(), position.remaining.tableMoney(), order.nature.label,
                 order.tableInstallments(), order.installmentText(), project.purchasePayers(order), project.purchaseMethods(order),
                 due.dateOr(), order.supplier.textOr(),
                 order.receivedDate?.let { "✓ ${it.dateText()}" } ?: order.deliveryExpected.dateOr(),
-                order.documents.size.toString(), order.document.textOr()),
-            "Abrir compra", { open(order.id) }, costs = listOf(order.forecast, paid, order.forecast?.minus(paid)),
+                order.documents.size.toString(), order.document.textOr(), position.credit.tableMoney()),
+            "Abrir compra", { open(order.id) }, costs = listOf(order.forecast, paid, position.remaining),
             detail = listOfNotNull(order.nature.label, order.tableInstallments().takeUnless { it == "—" }).joinToString(" · "),
             settle = { if (order.forecast != null && order.forecast!! > paid) complete(CostKind.MATERIAL, order.id) else open(order.id) },
             editTerms = { editTerms(order.id) }, editPaid = { reviewPaid(CostKind.MATERIAL, order.id) },
