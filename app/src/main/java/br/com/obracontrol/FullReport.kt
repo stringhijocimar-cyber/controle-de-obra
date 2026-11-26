@@ -45,6 +45,7 @@ internal object FullReport {
                 report.schedule()
                 report.labor()
                 report.purchases()
+                report.purchaseInstallments()
                 report.projections()
                 report.costPaymentCalendar()
                 report.weeklyMatrix()
@@ -378,6 +379,22 @@ internal object FullReport {
                 legendY += 16f
             }
             y = if (number == chartPage) maxOf(chartTop + 152f, legendY) + 16f else legendY + 16f
+        }
+
+        fun purchaseInstallments() {
+            val orders = project.purchases.filter { order -> project.scheduledPayments.any { it.kind == CostKind.MATERIAL && it.targetId == order.id } }
+            if (orders.isEmpty()) return
+            section("PAGAMENTOS A PRAZO  |  CONTROLE DE PARCELAS", "Parcelas futuras permanecem a pagar; somente pagamentos registrados compõem o pago efetivo")
+            val rows = orders.flatMap { order -> project.costPaymentPositions(CostKind.MATERIAL, order.id).map { position ->
+                val actual = project.payments.filter { it.scheduleId == position.schedule?.id && it.targetId == order.id && it.kind == CostKind.MATERIAL }
+                listOf("${order.name}\n${position.label}", position.gross.costText(), position.date.dateOr("Sem data"), position.applied.brl(),
+                    position.remaining.costText(), if (actual.isNotEmpty()) actual.map { it.date.dateOr("Sem data") }.distinct().joinToString(" · ")
+                    else if (position.applied > 0) "Abatimento anterior; ver pagamentos" else "—",
+                    if (position.completed) "Paga" else if (position.applied > 0) "Parcial" else "Em aberto")
+            } }
+            table(listOf("COMPRA / PARCELA", "VALOR", "VENCIMENTO", "PAGO", "A PAGAR", "DATA DO PAGAMENTO", "SITUAÇÃO"),
+                listOf(210f, 90f, 90f, 100f, 100f, 100f, 84f), rows, "")
+            paragraph("Pagamentos antigos sem vínculo são abatidos por vencimento e permanecem no histórico original. Não são lançados novamente ao criar as parcelas.")
         }
 
         fun management() {

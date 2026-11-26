@@ -253,7 +253,7 @@ class MainActivity : ComponentActivity() {
                     Section.PURCHASES -> listState.SaveableStateProvider("compras") {
                         PurchaseTableScreen(project, balance, today, { navigate("compra/nova") }, { navigate("compra/$it") },
                             { kind, target -> navigate("pagamento/novo/${kind.name}/$target/saldo") }, { navigate("condicao/$it") },
-                            { kind, target -> navigate("revisar-pago/${kind.name}/$target") })
+                            { kind, target -> navigate("revisar-pago/${kind.name}/$target") }, ::save, { navigate("parcelas/$it") })
                     }
                     Section.PAYMENTS -> listState.SaveableStateProvider("pagamentos") {
                         PaymentTableScreen(project, balance, today, { navigate("pagamento/novo") }, { navigate("pagamento/$it") },
@@ -262,7 +262,7 @@ class MainActivity : ComponentActivity() {
                             { kind, target -> navigate("pagamento/novo/${kind.name}/$target/saldo") },
                             { kind, target -> navigate("custo/${kind.name}/$target") },
                             { kind, target -> navigate(if (kind == CostKind.LABOR) "programacao/LABOR/$target" else "condicao/$target") },
-                            { kind, target -> navigate("revisar-pago/${kind.name}/$target") })
+                            { kind, target -> navigate("revisar-pago/${kind.name}/$target") }, ::save, { navigate("parcelas/$it") })
                     }
                     Section.REPORT -> ExportScreen(
                         activeFileOperation,
@@ -291,6 +291,7 @@ class MainActivity : ComponentActivity() {
 }
 
 private fun editorTitle(route: String): String = when (route.substringBefore('/')) {
+    "parcelas" -> "Parcelas da compra"
     "planejamento" -> "Planejamento e orçamento"
     "obra" -> "Dados da obra"
     "agenda" -> "Agenda"

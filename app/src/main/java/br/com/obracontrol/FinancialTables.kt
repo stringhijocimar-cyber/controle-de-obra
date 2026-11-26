@@ -86,6 +86,7 @@ private data class FinancialRow(
     val editTerms: (() -> Unit)? = null,
     val editMethod: (() -> Unit)? = null,
     val editPaid: (() -> Unit)? = null,
+    val parcelContent: (@Composable () -> Unit)? = null,
 )
 
 private data class SelectedTableCost(val rowKey: String, val value: String, val paid: Boolean)
@@ -139,6 +140,8 @@ private fun FinancialTable(
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     var selectedCost by remember { mutableStateOf<SelectedTableCost?>(null) }
+    var openRows by rememberSaveable { mutableStateOf(arrayListOf<String>()) }
+    val toggleRow: (String) -> Unit = { key -> openRows = ArrayList(if (key in openRows) openRows - key else openRows + key) }
     val scroll = rememberScrollState()
     val focus = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
@@ -159,7 +162,7 @@ private fun FinancialTable(
         }
         Box(Modifier.weight(1f)) {
             FinancialGrid(nameColumn, columns, rows, scroll, summary, empty,
-                open = { it.open() }, showCost = showCost)
+                open = { it.open() }, showCost = showCost, openRows = openRows.toSet(), toggleRow = toggleRow)
         }
         TableLegend()
         Text("Marque para quitar · toque no valor para editar", color = Muted,
@@ -180,7 +183,7 @@ private fun FinancialTable(
                     Box(Modifier.weight(1f)) {
                         FinancialGrid(nameColumn, columns, rows, scroll, summary, empty,
                             open = { row -> expanded = false; row.open() },
-                            showCost = showCost)
+                            showCost = showCost, openRows = openRows.toSet(), toggleRow = toggleRow)
                     }
                     TableLegend()
                 }
@@ -272,6 +275,7 @@ private fun FinancialGrid(
     empty: String,
     open: (FinancialRow) -> Unit,
     showCost: (FinancialRow, String, Boolean) -> Unit,
+    openRows: Set<String>, toggleRow: (String) -> Unit,
 ) {
     val fontScale = LocalDensity.current.fontScale
     BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -285,7 +289,7 @@ private fun FinancialGrid(
         val summaryHeight = (if (stacked) maxOf(60.dp, (metricsHeight(summary.size) * fontScale).dp)
             else maxOf(66.dp, (60 * fontScale).dp)) +
             if (summary.any { it.total.partial }) (18 * fontScale).dp else 0.dp
-        val bodyHeight = minOf(if (rows.isEmpty()) 72.dp else rowHeight * rows.size,
+        val bodyHeight = minOf(if (rows.any { it.key in openRows && it.parcelContent != null }) maxHeight else if (rows.isEmpty()) 72.dp else rowHeight * rows.size,
             (maxHeight - headerHeight - summaryHeight).coerceAtLeast(0.dp))
         Surface(Modifier.fillMaxWidth().height(headerHeight + bodyHeight + summaryHeight)
             .border(1.dp, GridLine, TableShape), shape = TableShape, color = Color.White) {
@@ -307,14 +311,20 @@ private fun FinancialGrid(
                         Text(empty, color = Muted, fontSize = 12.sp)
                     }
                 } else {
-                    LazyColumn(Modifier.fillMaxWidth().height(bodyHeight)) {
+                    LazyColumn(Modifier.fillMaxWidth().height(bodyHeight).testTag("financial-table-body")) {
                         itemsIndexed(rows, key = { _, row -> row.key }) { index, row ->
                             Row(Modifier.fillMaxWidth().height(rowHeight)
                                 .background(if (index % 2 == 0) Color.White else AlternateRow)
                                 .testTag("table-row-${row.key}")
                                 .clickable(onClickLabel = row.action, onClick = { open(row) }),
                                 verticalAlignment = Alignment.CenterVertically) {
-                                GridCell(row.name, fixedWidth, strong = true, tag = "table-name-${row.key}", detail = row.detail)
+                                if (row.parcelContent != null) Row(Modifier.width(fixedWidth), verticalAlignment = Alignment.CenterVertically) {
+                                    TextButton(onClick = { toggleRow(row.key) }, modifier = Modifier.size(25.dp).testTag("table-parcels-${row.key}")
+                                        .semantics { contentDescription = "Abrir ou fechar parcelas de ${row.name}" }, contentPadding = PaddingValues(0.dp)) {
+                                        Text(if (row.key in openRows) "−" else "+", color = Green, fontSize = 19.sp)
+                                    }
+                                    GridCell(row.name, fixedWidth - 25.dp, strong = true, tag = "table-name-${row.key}", detail = row.detail)
+                                } else GridCell(row.name, fixedWidth, strong = true, tag = "table-name-${row.key}", detail = row.detail)
                                 Box(Modifier.weight(1f).horizontalScroll(scroll).testTag("table-values-${row.key}")) {
                                     Row(Modifier.width(statusWidth + contentWidth), verticalAlignment = Alignment.CenterVertically) {
                                         Box(Modifier.width(statusWidth).fillMaxHeight().drawBehind {
@@ -336,6 +346,7 @@ private fun FinancialGrid(
                                     }
                                 }
                             }
+                            if (row.key in openRows) row.parcelContent?.invoke()
                         }
                     }
                 }
@@ -404,6 +415,8 @@ internal fun PurchaseTableScreen(
     complete: (CostKind, String) -> Unit,
     editTerms: (String) -> Unit,
     reviewPaid: (CostKind, String) -> Unit,
+    saveProject: (Project) -> Unit,
+    editParcels: (String) -> Unit,
 ) {
     val columns = listOf(costColumn("Total"), costColumn("Pago efetivo", 100.dp),
         costColumn("A pagar"), TableColumn("Tipo", 84.dp), TableColumn("Parcelas", 64.dp), TableColumn("Condição / valores", 230.dp),
@@ -422,7 +435,9 @@ internal fun PurchaseTableScreen(
             "Abrir compra", { open(order.id) }, costs = listOf(order.forecast, paid, order.forecast?.minus(paid)),
             detail = listOfNotNull(order.nature.label, order.tableInstallments().takeUnless { it == "—" }).joinToString(" · "),
             settle = { if (order.forecast != null && order.forecast!! > paid) complete(CostKind.MATERIAL, order.id) else open(order.id) },
-            editTerms = { editTerms(order.id) }, editPaid = { reviewPaid(CostKind.MATERIAL, order.id) })
+            editTerms = { editTerms(order.id) }, editPaid = { reviewPaid(CostKind.MATERIAL, order.id) },
+            parcelContent = if ((order.installmentCount ?: 0) > 1) ({ PurchaseInstallmentPanel(project, order, saveProject,
+                { editParcels(order.id) }, { reviewPaid(CostKind.MATERIAL, order.id) }) }) else null)
     }
     Column(Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp)) {
@@ -451,6 +466,8 @@ internal fun PaymentTableScreen(
     openCost: (CostKind, String) -> Unit,
     editTerms: (CostKind, String) -> Unit,
     reviewPaid: (CostKind, String) -> Unit,
+    saveProject: (Project) -> Unit,
+    editParcels: (String) -> Unit,
 ) {
     var selectedView by rememberSaveable { mutableStateOf(PaymentView.REGISTERED.name) }
     val view = PaymentView.valueOf(selectedView)
@@ -482,7 +499,9 @@ internal fun PaymentTableScreen(
                 edit = { editCost(CostKind.MATERIAL, order.id) }, costs = listOf(position.total, position.paid, position.remaining),
                 detail = "${order.nature.label} · ${order.tableInstallments()}",
                 settle = { if (position.remaining != null && position.remaining!! > 0) complete(CostKind.MATERIAL, order.id) else editCost(CostKind.MATERIAL, order.id) },
-                editTerms = { editTerms(CostKind.MATERIAL, order.id) }, editPaid = { reviewPaid(CostKind.MATERIAL, order.id) })
+                editTerms = { editTerms(CostKind.MATERIAL, order.id) }, editPaid = { reviewPaid(CostKind.MATERIAL, order.id) },
+                parcelContent = { PurchaseInstallmentPanel(project, order, saveProject,
+                    { editParcels(order.id) }, { reviewPaid(CostKind.MATERIAL, order.id) }) })
         }
     } else if (outstanding) {
         balance.disbursements.map { entry ->

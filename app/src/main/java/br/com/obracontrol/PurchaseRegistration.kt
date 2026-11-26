@@ -7,7 +7,9 @@ internal fun Project.registerPayer(name: String): Project {
     return copy(payerNames = payerNames + trimmed)
 }
 
-internal fun Project.recordPurchase(purchase: Purchase, payment: Payment? = null, additionalPayment: Boolean = false): Project {
+internal fun Project.recordPurchase(purchase: Purchase, payment: Payment? = null, additionalPayment: Boolean = false,
+    installments: PurchaseInstallmentChange? = null): Project {
+    require(payment == null || installments?.payments.isNullOrEmpty()) { "Use os flags das parcelas ou o pagamento avulso nesta edição." }
     var result = copy(purchases = purchases.upsert(purchase, Purchase::id))
     if (workPlans.any { plan -> plan.stages.any { stage -> stage.linkedStageId != purchase.stageId && stage.items.any { it.purchaseId == purchase.id } } }) {
         result = result.unlinkPlanningPurchase(purchase.id)
@@ -23,6 +25,7 @@ internal fun Project.recordPurchase(purchase: Purchase, payment: Payment? = null
         result = result.copy(payments = result.payments.upsert(payment, Payment::id))
         if (payment.payer.isNotBlank()) result = result.registerPayer(payment.payer)
     }
+    if (installments != null) result = result.applyPurchaseInstallments(purchase, installments, validate = false)
     result.validate()
     return result
 }

@@ -2,6 +2,14 @@
 
 Aplicativo Android para planejar etapas e custos, acompanhar a execução da obra, controlar compras e pagamentos e emitir o relatório executivo em PDF. O cadastro e os modelos funcionam sem internet. O fluxo opcional com ChatGPT requer acesso ao serviço.
 
+## Versão 2.3.0 — parcelas com datas e flags de pagamento
+
+- No cadastro da compra parcelada, a lista mostra cada parcela, valor, vencimento e flag de pago. Informe o **Primeiro vencimento** para calcular as datas mensais. Se marcar a primeira como paga antes de definir o vencimento, a data real desse pagamento inicia o calendário das demais. Os centavos são distribuídos para fechar o total, inclusive nos meses mais curtos.
+- Marque somente parcelas realmente pagas e confira a **Data do pagamento da parcela** no calendário. As demais ficam em A pagar. Salvar novamente atualiza o mesmo pagamento; marcar uma parcela parcialmente coberta registra somente o saldo restante.
+- O **+** nas tabelas de **Compras** e **Pagamentos → Parcelados** abre as parcelas abaixo da compra. Toque no flag para pagar ou editar a data. Uma parcela paga por um único lançamento pode ser marcada como não paga; seu lançamento e comprovantes são guardados no histórico de revisão.
+- Pagamentos anteriores são mantidos e abatidos uma única vez. Se um pagamento antigo já cobriu o total da compra, as parcelas aparecem quitadas; use **Corrigir / editar pago efetivo** para revisar esse registro antes de cadastrar novos pagamentos. Criar a programação nunca lança o total outra vez.
+- A programação alimenta a tabela semanal e o PDF completo, que ganha **Controle de parcelas** com vencimentos, datas reais e situação. Mantém o formato de backup 11, os anexos e a assinatura permanente das versões anteriores.
+
 ## Versão 2.2.0 — correção do pago e desembolsos em tabela
 
 - Reabrir uma compra e editar um pagamento reutiliza o lançamento existente. Ao habilitar o pagamento, **Editar pagamento existente** é a opção inicial quando já há registros; **Novo pagamento adicional** é uma escolha explícita para somar outro desembolso real. Valores, datas, comprovantes e vínculos da parcela são preservados na edição.
@@ -102,7 +110,7 @@ Em **Pagamentos**, abra um lançamento e adicione os comprovantes com a câmera 
 
 ## Instalação e primeiro uso
 
-A versão 2.2.0 requer Android 8.0 ou mais recente e atualiza diretamente o **ObraControl 1.7.0 a 2.1.0**, usando a mesma assinatura permanente e o cadastro salvo no aparelho. Abra o instalador e escolha **Atualizar**, mantendo o aplicativo instalado.
+A versão 2.3.0 requer Android 8.0 ou mais recente e atualiza diretamente o **ObraControl 1.7.0 a 2.2.0**, usando a mesma assinatura permanente e o cadastro salvo no aparelho. Abra o instalador e escolha **Atualizar**, mantendo o aplicativo instalado.
 
 Para transferir dados das edições **ObraControl Financeiro** ou **ObraControl Gestão**, abra **Relatório → Exportar backup com anexos** no app anterior. No **ObraControl**, abra **Relatório → Importar dados da obra**, selecione o ZIP e confirme. Confira o cadastro importado antes de desinstalar a edição anterior. Os backups JSON e ZIP das versões anteriores do formato continuam aceitos.
 

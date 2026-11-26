@@ -65,8 +65,8 @@ internal fun EditorScreen(
                 PurchaseEditor(order, project, total, existing != null, onDelete,
                     registerPayer = { save(project.registerPayer(it)) },
                     reviewPayments = { navigate("revisar-pago/MATERIAL/${order.id}") },
-                    save = { next, payment, line, additional ->
-                        save(project.recordPurchase(next, payment, additional))
+                    save = { next, payment, line, additional, installments ->
+                        save(project.recordPurchase(next, payment, additional, installments))
                         if (line != null) openLine(next.id, line) else back()
                     },
                 )
@@ -112,6 +112,7 @@ internal fun EditorScreen(
                 }
             }
             "condicao" -> PurchaseTermsEditor(project, requireNotNull(id)) { save(project.applyPurchaseTerms(it)); back() }
+            "parcelas" -> PurchaseInstallmentsEditor(project, requireNotNull(id)) { save(it); back() }
             "revisar-pago" -> PaymentReviewScreen(project, CostKind.valueOf(requireNotNull(id)), parts[2], save, navigate, back)
             "custo" -> CostPaymentDetailScreen(project, CostKind.valueOf(requireNotNull(id)), parts[2], navigate)
             "programacao" -> PaymentScheduleEditor(project, CostKind.valueOf(requireNotNull(id)), parts[2]) { save(it); back() }
@@ -205,7 +206,7 @@ private fun PurchaseEditor(
     exists: Boolean,
     remove: (() -> Unit)?,
     registerPayer: (String) -> Unit,
-    save: (Purchase, Payment?, String?, Boolean) -> Unit,
+    save: (Purchase, Payment?, String?, Boolean, PurchaseInstallmentChange?) -> Unit,
     reviewPayments: (() -> Unit)? = null,
 ) {
     var name by rememberSaveable { mutableStateOf(order.name) }
@@ -232,6 +233,7 @@ private fun PurchaseEditor(
         })
     }
     var installmentCount by rememberSaveable { mutableStateOf(order.installmentCount?.toString().orEmpty()) }
+    var installmentDraft by rememberSaveable(stateSaver = purchaseInstallmentSaver) { mutableStateOf(PurchaseInstallmentDraft.initial(project, order)) }
     var recordPayment by rememberSaveable { mutableStateOf(false) }
     val paymentId = rememberSaveable { newId() }
     val existingPayments = project.paymentsFor(CostKind.MATERIAL, order.id)
@@ -273,7 +275,14 @@ private fun PurchaseEditor(
             original.copy(amount = parseMoney(paidAmount) ?: 0, date = parseDate(paidDate), payer = paymentPayer.trim(),
                 method = paymentMethod.trim(), proofs = proofs)
         } else null
-        save(readFields(), payment, line, paymentAction == "new" && existingPayments.isNotEmpty())
+        val purchase = readFields()
+        val parcels = if (paymentTerms == "installments") {
+            val latest = if (installmentDraft.automatic) runCatching { installmentDraft.rebuild(project, purchase) }.getOrElse {
+                if (purchase.forecast != null) throw it else installmentDraft
+            } else installmentDraft
+            latest.change(order.id)
+        } else null
+        save(purchase, payment, line, paymentAction == "new" && existingPayments.isNotEmpty(), parcels)
     }
 
     Form(remove = remove, deletePrompt = "Excluir esta compra e os seus itens?", available = !processing, save = { saveFields(null) }) {
@@ -344,6 +353,9 @@ private fun PurchaseEditor(
             DocumentEditor(DocumentUse.PAYMENT, proofs, { proofs = it }, { processing = it }) { amount, _ ->
                 paidAmount = amount.cents.moneyInput()
             }
+        }
+        if (paymentTerms == "installments") runCatching { readFields() }.getOrNull()?.let { draft ->
+            PurchaseInstallmentFields(project, draft, installmentDraft, { installmentDraft = it })
         }
         Field("Observações da compra", notes, { notes = it }, multiline = true)
         HorizontalDivider()
