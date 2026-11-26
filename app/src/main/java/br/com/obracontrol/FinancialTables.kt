@@ -425,11 +425,12 @@ internal fun PurchaseTableScreen(
         TableColumn("Anexos", 60.dp, true), TableColumn("Documento", 150.dp))
     val rows = project.purchases.map { order ->
         val paid = balance.paid(CostKind.MATERIAL, order.id)
+        val due = project.purchaseNextDue(order)
         FinancialRow(order.id, order.name,
-            financialStatus(order.forecast, paid, order.dueDate, today),
+            financialStatus(order.forecast, paid, due, today),
             listOf(order.forecast.tableMoney(), paid.tableMoney(), order.forecast?.minus(paid).tableMoney(), order.nature.label,
                 order.tableInstallments(), order.installmentText(), project.purchasePayers(order), project.purchaseMethods(order),
-                order.dueDate.dateOr(), order.supplier.textOr(),
+                due.dateOr(), order.supplier.textOr(),
                 order.receivedDate?.let { "✓ ${it.dateText()}" } ?: order.deliveryExpected.dateOr(),
                 order.documents.size.toString(), order.document.textOr()),
             "Abrir compra", { open(order.id) }, costs = listOf(order.forecast, paid, order.forecast?.minus(paid)),
@@ -490,10 +491,11 @@ internal fun PaymentTableScreen(
     val rows = if (installments) {
         project.installmentBalances(balance).map { position ->
             val order = position.purchase
-            FinancialRow("parcelado/${order.id}", order.name, financialStatus(position.total, position.paid, order.dueDate, today),
+            val due = project.purchaseNextDue(order)
+            FinancialRow("parcelado/${order.id}", order.name, financialStatus(position.total, position.paid, due, today),
                 listOf(position.total.tableMoney(), position.paid.tableMoney(), position.remaining.tableMoney(), order.tableInstallments(),
                     order.installmentText(), order.nature.label, project.purchasePayers(order), project.purchaseMethods(order),
-                    order.dueDate.dateOr(), position.credit.tableMoney()),
+                    due.dateOr(), position.credit.tableMoney()),
                 if (position.remaining == 0L) "Editar compra" else "Registrar pagamento",
                 { if (position.remaining == 0L) editCost(CostKind.MATERIAL, order.id) else payTarget(CostKind.MATERIAL, order.id) },
                 edit = { editCost(CostKind.MATERIAL, order.id) }, costs = listOf(position.total, position.paid, position.remaining),

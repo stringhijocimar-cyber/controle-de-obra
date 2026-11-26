@@ -26,7 +26,7 @@ internal fun PurchaseInstallmentDraft.preview(project: Project, order: Purchase)
 }
 
 @Composable
-internal fun PurchaseInstallmentFields(project: Project, order: Purchase, draft: PurchaseInstallmentDraft,
+internal fun FormActions.PurchaseInstallmentFields(project: Project, order: Purchase, draft: PurchaseInstallmentDraft,
     change: (PurchaseInstallmentDraft) -> Unit, prefix: String = "purchase-parcel") {
     LaunchedEffect(order.forecast, order.installmentCount) {
         if (draft.automatic) runCatching { draft.rebuild(project, order) }.onSuccess(change)
@@ -100,6 +100,11 @@ internal fun PurchaseInstallmentPanel(project: Project, order: Purchase, save: (
     val preview = draft.preview(project, order)
     val positions = preview.costPaymentPositions(CostKind.MATERIAL, order.id).associateBy { it.schedule?.id }
     var selected by remember { mutableStateOf<String?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+    fun submit(operation: () -> Unit) {
+        error = try { operation(); null } catch (failure: IllegalArgumentException) { failure.message ?: "Confira os dados da parcela." }
+        catch (_: Exception) { "Não foi possível salvar o pagamento. Tente novamente." }
+    }
     Column(Modifier.fillMaxWidth().background(androidx.compose.ui.graphics.Color(0xFFF7FAF9)).padding(horizontal = 9.dp, vertical = 6.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text("Parcelas · ${order.name}", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
@@ -113,6 +118,7 @@ internal fun PurchaseInstallmentPanel(project: Project, order: Purchase, save: (
                 Row(Modifier.fillMaxWidth().testTag("inline-parcel-${order.id}-${index + 1}"), verticalAlignment = Alignment.CenterVertically) {
                     ParcelCells("${index + 1}/${draft.rows.size}", row.due.textOr("Sem data"), row.amount.brl())
                     PaymentFlag(financialStatus(row.amount, position?.applied ?: 0, parseDate(row.due), LocalDate.now()), "inline-parcel-flag-${order.id}-${index + 1}") {
+                        error = null
                         if (position?.completed == true && project.payments.none { it.id == row.paymentId }) review() else selected = row.id
                     }
                 }
@@ -134,6 +140,7 @@ internal fun PurchaseInstallmentPanel(project: Project, order: Purchase, save: (
                 CalendarField("Data do pagamento da parcela", date, { date = it })
                 if (draft.firstDate.isBlank() && draft.rows.first().id != parcelId) CalendarField("Primeiro vencimento", first, { first = it })
                 if (original != null) Detail("Ao marcar como não paga, o lançamento e seus comprovantes ficam no histórico de revisão.")
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall) }
             } },
             confirmButton = { TextButton(onClick = { submit {
                 var changed = draft

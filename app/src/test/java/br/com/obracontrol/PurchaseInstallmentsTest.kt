@@ -25,6 +25,7 @@ class PurchaseInstallmentsTest {
         assertEquals(470_229L, InstallmentBalance(order, Balance(saved).paid).remaining)
         assertEquals(date, saved.payments.single().date)
         assertEquals(firstId, saved.payments.single().scheduleId)
+        assertEquals(date.plusMonths(1), saved.purchaseNextDue(order))
         assertEquals(5, saved.costPaymentPositions(CostKind.MATERIAL, order.id).count { !it.completed })
         val reopened = PurchaseInstallmentDraft.initial(saved, order)
         assertEquals(saved, saved.recordPurchase(order, installments = reopened.change(order.id)))
