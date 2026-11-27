@@ -594,9 +594,9 @@ internal object FullReport {
 
         fun schedule() {
             section("CRONOGRAMA FÍSICO  |  VISÃO GANTT",
-                "Barras azul/verde = previsto/realizado  •  Pontos azul-escuro/âmbar = pago/a pagar  •  Linha tracejada = data-base")
+                "Azul: decorrido / prazo total · Verde: execução · Roxo: entregas · Losangos: previsto / real · Pontos: pago / a pagar")
             val asOf = project.referenceDate ?: today
-            val rows = project.stages.map { it.ganttRow(asOf, laborSpend.byStage[it.id].orEmpty()) }
+            val rows = project.ganttRows(asOf, laborSpend)
             val axis = GanttAxis.from(rows)
             val timeline = axis?.let { GanttTimeline(it, project.ganttScale) }
             paragraph("Escala: ${project.ganttScale.label}. Cabeçalho: ano, mês" + if (project.ganttScale == GanttScale.MONTHS) "." else ", semana ISO" + if (project.ganttScale == GanttScale.DAYS) " e dia." else ".")
@@ -607,8 +607,8 @@ internal object FullReport {
                 val graphLeft = 258f
                 val graphRight = 621f
                 fun x(fraction: Float) = graphLeft + (graphRight - graphLeft) * fraction
-                val rowsPerPage = 5
-                val bandHeight = 58f
+                val rowsPerPage = 4
+                val bandHeight = 76f
                 rows.chunked(rowsPerPage).forEachIndexed { batch, group ->
                     if (batch > 0) startPage(continuation = true)
                     val headerHeight = (timeline?.rowCount ?: 1) * 13f
@@ -622,25 +622,49 @@ internal object FullReport {
                         text(LEFT + 7, band + 25, "Execução: ${stagePercent(evolution.execution.toDouble())}", 8.5f, green, width = 200f)
                         text(LEFT + 7, band + 37, "Materiais: ${evolution.materialsText}", 8.5f, blue, width = 200f)
                         text(LEFT + 7, band + 50, "Geral da etapa: ${evolution.generalText}", 9f, ink, true, width = 200f)
+                        text(LEFT + 7, band + 65, row.durationText(asOf), 8.2f, muted, width = 200f)
                         if (axis != null) {
                             fun bar(period: GanttPeriod, offset: Float, color: Int) {
                                 val left = x(axis.boundary(period.start))
                                 val right = x(axis.boundary(period.end.plusDays(1)))
                                 box(left, band + offset, (right - left).coerceAtLeast(1.5f), 8f, color, 2f)
                             }
-                            row.planned?.let { bar(it, 5f, blue) }
+                            fun milestone(date: LocalDate, offset: Float, color: Int, real: Boolean) {
+                                val center = x(axis.dayCenter(date))
+                                val top = band + offset
+                                val path = android.graphics.Path().apply { moveTo(center, top - 3.5f); lineTo(center + 3.5f, top); lineTo(center, top + 3.5f); lineTo(center - 3.5f, top); close() }
+                                paint.color = if (real) color else Color.WHITE
+                                canvas.drawPath(path, paint)
+                                if (!real) {
+                                    paint.color = color; paint.style = Paint.Style.STROKE; paint.strokeWidth = 1.1f
+                                    canvas.drawPath(path, paint)
+                                    paint.style = Paint.Style.FILL
+                                }
+                            }
+                            row.totalPeriod?.let { period ->
+                                bar(period, 5f, Color.rgb(220, 234, 246))
+                                if (asOf >= period.start) bar(GanttPeriod(period.start, minOf(asOf, period.end)), 5f, blue)
+                            }
                             row.actual?.let { bar(it, 16f, green) }
+                            row.materialPeriod?.let { bar(it, 30f, Color.rgb(234, 224, 244)) }
+                            row.deliveries.forEach { delivery ->
+                                delivery.expected?.let { milestone(it, 34f, MaterialArrival.toArgb(), false) }
+                                delivery.received?.let { milestone(it, 34f, MaterialArrival.toArgb(), true) }
+                            }
+                            row.stage.plannedEnd?.let { milestone(it, 20f, green, false) }
+                            row.stage.actualEnd?.let { milestone(it, 20f, green, true) }
                             for (event in row.spend) {
                                 val date = event.date ?: continue
                                 val center = x(axis.dayCenter(date))
                                 paint.color = if (event.paid) ink else gold
-                                canvas.drawCircle(center, band + if (event.paid) 30f else 37f, 2.7f, paint)
+                                canvas.drawCircle(center, band + if (event.paid) 49f else 60f, 2.7f, paint)
                             }
                         }
                         text(graphRight + 9, band + 13, "Prev. ${row.plannedDates}", 8.2f, if (row.planned == null) muted else blue, width = 174f)
                         text(graphRight + 9, band + 26, "Real ${row.actualDates}", 8.2f, if (row.actual == null) muted else green, width = 174f)
-                        text(graphRight + 9, band + 39, "Mão de obra ${row.stage.budget.costText()}", 8.2f, ink, true, width = 174f)
-                        text(graphRight + 9, band + 51, evolution.weightsText, 7.5f, muted, width = 174f)
+                        text(graphRight + 9, band + 39, "Entregas: ${row.materialPeriod?.dates() ?: UNDEFINED}", 8.2f, MaterialArrival.toArgb(), width = 174f)
+                        text(graphRight + 9, band + 52, "Mão de obra ${row.stage.budget.costText()}", 8.2f, ink, true, width = 174f)
+                        text(graphRight + 9, band + 65, evolution.weightsText, 7.5f, muted, width = 174f)
                     }
                     if (axis != null) {
                         timeline!!.gridDates((graphRight - graphLeft) * 3f).forEach { date ->
@@ -661,7 +685,7 @@ internal object FullReport {
             val completed = project.stages.filter { it.actualEnd != null }.maxOfOrNull { it.actualEnd!! }
             val forecast = project.stages.mapNotNull { it.plannedEnd }.maxOrNull()
             callout("MARCOS E PREVISÕES", "Início da obra: ${project.start.dateOr()}. Última conclusão registrada: ${completed.dateOr()}. Última data prevista informada: ${forecast.dateOr()}.")
-            paragraph("O calendário depende da execução, das entregas de materiais e da disponibilidade da equipe. Etapas sem datas continuam abertas no cronograma.")
+            paragraph("O prazo total vai da primeira data de execução ou entrega até a última. O preenchimento azul indica os dias decorridos até a data-base. Losangos vazados são previsões; preenchidos são datas reais. Recebimentos sem data não geram marcos. Pagamentos permanecem pontos financeiros separados.")
             paragraph("Semanas ISO começam na segunda-feira. Na virada do ano, o número da semana pode pertencer ao ano anterior ou seguinte. Em períodos extensos, rótulos intermediários são espaçados; o cronograma integral pode ser ampliado no app.")
         }
 
@@ -769,67 +793,105 @@ internal object FullReport {
             barSection("COMPRAS A ADQUIRIR OU PAGAR", total.projectedPurchases.mapNotNull { purchase ->
                 total.materialOutstanding(purchase)?.takeIf { it > 0 }?.let { Bar(purchase.name, it, blue) }
             }, "Nenhuma compra com saldo conhecido.")
-            paragraph("Consulte o calendário mensal de desembolsos para os pagamentos realizados e os vencimentos dos saldos. Cada mês apresenta os totais e a agenda com os custos e as parcelas.")
+            paragraph("Consulte o calendário semanal de desembolsos, organizado por categoria, etapa e custo, com os pagamentos e os saldos nos vencimentos. A agenda preserva as datas reais e as parcelas.")
             callout("CRITÉRIO DE CONTROLE", "Compras previstas permanecem no escopo da obra. Acréscimos são sinalizados apenas nas compras marcadas como acréscimo. Datas e valores em aberto aguardam confirmação.")
         }
 
         fun costPaymentCalendar() {
-            val calendar = MonthlyDisbursementCalendar(project)
-            if (calendar.entries.isEmpty()) {
-                section("CALENDÁRIO DE DESEMBOLSOS", "Pagamentos realizados e vencimentos por dia")
+            val flow = DisbursementTable(project)
+            if (flow.entries.isEmpty()) {
+                section("CALENDÁRIO DE DESEMBOLSOS", "Visão semanal por categoria, etapa e custo")
                 paragraph("Nenhum desembolso cadastrado.")
                 return
             }
-            calendar.months.forEach { month ->
-                val label = month.month.format(DateTimeFormatter.ofPattern("MMMM / uuuu", brazil)).uppercase(brazil)
-                section("CALENDÁRIO DE DESEMBOLSOS", "$label · Meses com movimentação · Segunda-feira a domingo")
-                heading(label)
-                val pending = if (month.pending.entirelyUndefined) UNDEFINED else month.pending.known.brl() + if (month.pending.partial) " + ?" else ""
-                text(LEFT, y + 11f, "Pago no mês: ${month.paid.brl()}    |    A pagar no mês: $pending    |    ${month.entries.size} lançamento(s)", 10f, ink, true, CONTENT)
-                y += 25f
-                val dayWidth = CONTENT / 7f
-                box(LEFT, y, CONTENT, 22f, light, 0f)
-                listOf("SEGUNDA", "TERÇA", "QUARTA", "QUINTA", "SEXTA", "SÁBADO", "DOMINGO").forEachIndexed { index, day ->
-                    text(LEFT + index * dayWidth + 7f, y + 15f, day, 8.4f, muted, true, dayWidth - 14f)
+            val columns = (0 until flow.pageCount).flatMap(flow::columns)
+            val open = flow.roots.flatMap { listOf(it.key) + it.children.map { stage -> stage.key } }.toSet()
+            val rows = flow.visible(open)
+            columns.chunked(6).forEachIndexed { block, weeks ->
+                val period = weeks.filterNotNull().let { if (it.isEmpty()) "SEM DATA DEFINIDA" else "${it.first().dateText()} a ${it.last().dateText()}" }
+                section("CALENDÁRIO DE DESEMBOLSOS | SEMANAS", "$period · Bloco ${block + 1} · Categoria / etapa / custo")
+                paragraph("Total = pago na data real + saldo no vencimento. Categorias e etapas são subtotais; o total da obra considera cada lançamento uma única vez. + ?: valor a definir.")
+                val nameWidth = 210f
+                val paidWidth = 70f
+                val pendingWidth = 70f
+                val weeksLeft = LEFT + nameWidth + paidWidth + pendingWidth
+                val weekWidth = (RIGHT - weeksLeft) / weeks.size
+                val headerHeight = 55f
+                val footerHeight = 32f
+                fun divider(top: Float, bottom: Float) {
+                    listOf(LEFT, LEFT + nameWidth, LEFT + nameWidth + paidWidth, weeksLeft, RIGHT).forEach { line(it, top, it, bottom, track) }
+                    weeks.indices.drop(1).forEach { line(weeksLeft + it * weekWidth, top, weeksLeft + it * weekWidth, bottom, track) }
                 }
-                y += 22f
-                val rowHeight = minOf(76f, (BOTTOM - y - 23f) / month.weeks.size)
-                month.weeks.forEach { week ->
-                    week.forEachIndexed { column, day ->
-                        val x = LEFT + column * dayWidth
-                        val inMonth = java.time.YearMonth.from(day.date) == month.month
-                        box(x, y, dayWidth, rowHeight, if (!inMonth) light else if (column >= 5) alternate else Color.WHITE, 0f)
-                        line(x, y, x + dayWidth, y, track)
-                        line(x, y, x, y + rowHeight, track)
-                        text(x + 7f, y + 15f, day.date.dayOfMonth.toString(), 11f, if (inMonth) ink else muted, inMonth)
-                        if (day.entries.isNotEmpty()) {
-                            if (day.paid > 0) text(x + 7f, y + 31f, "Pago ${day.paid.brl()}", 8.4f, green, true, dayWidth - 14f)
-                            if (day.pending.definedCount > 0 || day.pending.partial) {
-                                val amount = if (day.pending.entirelyUndefined) UNDEFINED else day.pending.known.brl() + if (day.pending.partial) " + ?" else ""
-                                text(x + 7f, y + 45f, "A pagar $amount", 8.4f, if (day.date < today) red else gold, true, dayWidth - 14f)
-                            }
-                            val estimates = day.entries.count { it.estimatedDate }
-                            text(x + 7f, y + rowHeight - 7f, "${day.entries.size} lanç." + if (estimates > 0) " · $estimates estim." else "", 7.6f, muted, width = dayWidth - 14f)
-                        }
-                        if (inMonth && day.date == today) {
-                            paint.color = blue
-                            paint.strokeWidth = 1.4f
-                            paint.style = Paint.Style.STROKE
-                            canvas.drawRect(x + 1f, y + 1f, x + dayWidth - 1f, y + rowHeight - 1f, paint)
-                            paint.style = Paint.Style.FILL
-                        }
+                fun groups(labels: List<String>, top: Float, color: Int) {
+                    var first = 0
+                    while (first < labels.size) {
+                        var next = first + 1
+                        while (next < labels.size && labels[next] == labels[first]) next++
+                        val left = weeksLeft + first * weekWidth
+                        val width = (next - first) * weekWidth
+                        box(left, top, width, 14f, color, 0f)
+                        text(left + 5, top + 10, labels[first], 8f, Color.WHITE, true, width - 10)
+                        line(left, top, left, top + 14f, muted)
+                        first = next
                     }
-                    line(RIGHT, y, RIGHT, y + rowHeight, track)
-                    y += rowHeight
                 }
-                line(LEFT, y, RIGHT, y, track)
-                text(LEFT, y + 16f, "Verde: pago na data real · Âmbar: a pagar · Vermelho: vencido · + ?: valor a definir · Detalhes na agenda do mês", 8.5f, muted, width = CONTENT)
-                y += 23f
-                calendarAgenda(month.entries, "AGENDA DE $label", "Custos, parcelas e responsáveis dos valores apresentados no calendário")
+                fun header() {
+                    box(LEFT, y, CONTENT, headerHeight, ink, 0f)
+                    text(LEFT + 7, y + 32, "ETAPA / DESCRIÇÃO", 9f, Color.WHITE, true, nameWidth - 14)
+                    text(LEFT + nameWidth + 5, y + 25, "PAGO", 8f, Color.WHITE, true, paidWidth - 10, true)
+                    text(LEFT + nameWidth + 5, y + 37, "EFETIVO", 8f, Color.WHITE, true, paidWidth - 10, true)
+                    text(LEFT + nameWidth + paidWidth + 5, y + 32, "A PAGAR", 8f, Color.WHITE, true, pendingWidth - 10, true)
+                    groups(weeks.map { it?.year?.toString() ?: "—" }, y, ink)
+                    groups(weeks.map { it?.format(DateTimeFormatter.ofPattern("MMM/yy", brazil))?.replace(".", "") ?: "—" }, y + 14f, Color.rgb(37, 70, 85))
+                    weeks.forEachIndexed { index, date ->
+                        val left = weeksLeft + index * weekWidth
+                        val labels = date?.cashWeekLabel()?.split("\n") ?: listOf("SEM DATA")
+                        labels.forEachIndexed { row, label -> text(left + 5, y + 39f + row * 10f, label, 8f, Color.WHITE, true, weekWidth - 10) }
+                    }
+                    divider(y, y + headerHeight)
+                    y += headerHeight
+                }
+                fun values(node: FlowNode, height: Float, strong: Boolean) {
+                    val baseline = y + height / 2 + 3f
+                    text(LEFT + nameWidth + 5, baseline, node.paid.brl(), 8.2f, green, strong, paidWidth - 10, true)
+                    text(LEFT + nameWidth + paidWidth + 5, baseline, sumText(node.entries.filterNot { it.paid }.map { it.amount }), 8.2f, gold, strong, pendingWidth - 10, true)
+                    weeks.forEachIndexed { index, week ->
+                        val entries = node.entries.filter { it.date?.cashWeekEnding() == week }
+                        val value = if (entries.isEmpty()) "—" else sumText(entries.map { it.amount })
+                        text(weeksLeft + index * weekWidth + 5, baseline, value, 8.3f, if (entries.isNotEmpty() && entries.all { it.paid }) green else ink,
+                            strong, weekWidth - 10, true)
+                    }
+                    divider(y, y + height)
+                }
+                fun footer() {
+                    box(LEFT, y, CONTENT, footerHeight, greenTint, 0f)
+                    text(LEFT + 7, y + 20f, "TOTAL DA OBRA", 9f, ink, true, nameWidth - 14)
+                    values(flow.total, footerHeight, true)
+                    y += footerHeight
+                    line(LEFT, y, RIGHT, y, track)
+                }
+                header()
+                rows.forEach { (node, depth) ->
+                    val isCost = node.layer == FlowLayer.COST
+                    val nameLines = wrap(node.label, nameWidth - 20f - depth * 9, if (isCost) 9f else 9.4f, !isCost).take(2)
+                    val height = maxOf(29f, nameLines.size * 12f + if (isCost) 22f else 12f)
+                    if (y + height + footerHeight > BOTTOM) {
+                        footer()
+                        startPage(continuation = true)
+                        header()
+                    }
+                    box(LEFT, y, CONTENT, height, if (node.layer == FlowLayer.FAMILY) light else if (node.layer == FlowLayer.STAGE) alternate else Color.WHITE, 0f)
+                    nameLines.forEachIndexed { lineIndex, value ->
+                        text(LEFT + 8 + depth * 9, y + 16 + lineIndex * 12, value, if (isCost) 9f else 9.4f, ink, !isCost, nameWidth - 20 - depth * 9)
+                    }
+                    if (isCost) text(LEFT + 8 + depth * 9, y + height - 6f, "${flow.people(node, false)} · ${flow.people(node, true)}", 7.5f, muted, width = nameWidth - 20 - depth * 9)
+                    values(node, height, !isCost)
+                    y += height
+                    line(LEFT, y, RIGHT, y, track)
+                }
+                footer()
             }
-            if (calendar.undated.isNotEmpty()) {
-                calendarAgenda(calendar.undated, "SEM DATA DEFINIDA", "Valores preservados fora da grade mensal até a data ser informada")
-            }
+            calendarAgenda(flow.entries, "AGENDA DO CALENDÁRIO SEMANAL", "Detalhamento integral: datas, custos, parcelas, responsáveis e métodos. SEM DATA DEFINIDA permanece fora das colunas datadas.")
         }
 
         private fun calendarAgenda(entries: List<CashFlowEntry>, label: String, caption: String) {

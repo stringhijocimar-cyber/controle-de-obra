@@ -4,6 +4,8 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -53,7 +55,9 @@ class GanttFlowTest {
             val planned = "${stage.plannedStart.dateText()} a ${stage.plannedEnd.dateText()}"
             val actual = "${stage.actualStart.dateText()} a ${stage.actualEnd.dateText()}"
             val spend = "Pago ${paid.amount.brl()} em ${paid.date.dateText()} · A pagar ${200_000L.brl()} em ${stage.dueDate.dateText()}"
-            val bars = app.onNodeWithContentDescription("Previsto $planned · Realizado $actual · $spend", useUnmergedTree = true)
+            val bars = app.onNodeWithTag("gantt-bars-${stage.id}", useUnmergedTree = true)
+                .assert(hasContentDescription("Previsto $planned · Realizado $actual", substring = true))
+                .assert(hasContentDescription(spend, substring = true))
             val bitmap = bars.captureToImage().toPixelMap()
             val colors = mutableSetOf(Blue.toArgb(), Green.toArgb(), Navy.toArgb(), Amber.toArgb())
             for (y in 0 until bitmap.height step 2) {

@@ -2,6 +2,8 @@ package br.com.obracontrol
 
 import android.graphics.Bitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -93,7 +95,9 @@ class PaymentRepairFlowTest {
             assertEquals(2, saved.payments.size)
             assertEquals(CostKind.MATERIAL, saved.payments.last().kind)
             assertEquals(service.id, saved.payments.last().targetId)
-            app.onNodeWithText("Etapas").performClick()
+            val stagesTab = app.onNode(hasText("Etapas") and SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab))
+            stagesTab.performSemanticsAction(SemanticsActions.OnClick) { it() }
+            stagesTab.assertIsSelected()
             app.onNodeWithText("Desembolsos").performClick()
             app.onNodeWithTag("flow-paid-total", useUnmergedTree = true).assertTextEquals(21_000L.brl())
             scrollTo("flow-toggle-stage-SERVICE-${stage.id}")

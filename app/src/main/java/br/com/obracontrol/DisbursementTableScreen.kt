@@ -7,6 +7,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -24,16 +25,16 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
-import java.time.temporal.WeekFields
 
 private val FlowNameWidth = 132.dp
 private val FlowMetaWidth = 112.dp
 private val FlowWeekWidth = 108.dp
-private val flowDate = DateTimeFormatter.ofPattern("dd/MM", brazil)
 private val flowMonth = DateTimeFormatter.ofPattern("MMM/yy", brazil)
 
 @Composable
 internal fun WeeklyDisbursementScreen(project: Project, today: LocalDate, openCost: (CostKind, String) -> Unit, category: CostCategory? = null) {
+    var fullScreen by rememberSaveable { mutableStateOf(false) }
+    val listState = rememberLazyListState()
     val table = remember(project, category) { DisbursementTable(project, category) }
     var open by rememberSaveable(category) { mutableStateOf(ArrayList(table.roots.map { it.key })) }
     var view by rememberSaveable { mutableStateOf(CashView.TOTAL.name) }
@@ -51,53 +52,57 @@ internal fun WeeklyDisbursementScreen(project: Project, today: LocalDate, openCo
     if (info) AlertDialog(onDismissRequest = { info = false }, title = { Text("Como ler os desembolsos") },
         text = { Text("Abra + para ver categoria, etapa, custo e pagamentos ou parcelas. Total soma o pago na data real e o saldo no vencimento. Materiais, mão de obra e serviços terceirizados aparecem separados. Deslize para ver as semanas ou os responsáveis; valores e responsáveis desconhecidos ficam a definir.") },
         confirmButton = { TextButton(onClick = { info = false }) { Text("Entendi") } })
-    Column(Modifier.fillMaxSize().padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-        Text("Calendário de desembolsos", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-        ViewTabs(CashView.entries.map { it.label }, mode.ordinal) { view = CashView.entries[it].name }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            TextButton(onClick = { scope.launch { scroll.animateScrollTo(0) } }, modifier = Modifier.height(32.dp), contentPadding = PaddingValues(3.dp)) { Text("Responsáveis e saldos", style = MaterialTheme.typography.labelSmall) }
-            TextButton(onClick = { scope.launch { scroll.animateScrollTo(with(density) { (FlowMetaWidth * 4).roundToPx() }.coerceAtMost(scroll.maxValue)) } }, modifier = Modifier.height(32.dp), contentPadding = PaddingValues(3.dp)) { Text("Ver semanas", style = MaterialTheme.typography.labelSmall) }
-            TextButton(onClick = { info = true }, modifier = Modifier.height(32.dp), contentPadding = PaddingValues(3.dp)) { Text("Como ler", style = MaterialTheme.typography.labelSmall) }
-        }
-        if (table.pageCount > 1) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            TextButton(enabled = activePage > 0, onClick = { page = activePage - 1 }) { Text("‹ Anterior") }
-            Text("${activePage + 1} / ${table.pageCount}")
-            TextButton(enabled = activePage + 1 < table.pageCount, onClick = { page = activePage + 1 }) { Text("Próximo ›") }
-        }
-        Surface(Modifier.fillMaxWidth().weight(1f).border(1.dp, Line, RoundedCornerShape(12.dp)), shape = RoundedCornerShape(12.dp)) {
-            Column {
-                Row(Modifier.fillMaxWidth().height(60.dp).background(Navy)) {
-                    FlowCell("Etapa / descrição", FlowNameWidth, header = true)
-                    Box(Modifier.weight(1f).horizontalScroll(scroll)) {
-                        Row(Modifier.width(width)) {
-                            listOf("Quem paga", "Como paga", "Pago efetivo", "A pagar").forEach { FlowCell(it, FlowMetaWidth, header = true) }
-                            Column(Modifier.width(FlowWeekWidth * columns.size)) {
-                                FlowHeaderGroups(columns.map { it?.year?.toString() ?: "—" }, scroll.value)
-                                FlowHeaderGroups(columns.map { it?.format(flowMonth)?.replace(".", "") ?: "—" }, scroll.value)
-                                Row(Modifier.height(28.dp)) {
-                                    columns.forEach { date ->
-                                        val label = date?.let {
-                                            val year = it.get(WeekFields.ISO.weekBasedYear())
-                                            "S${it.get(WeekFields.ISO.weekOfWeekBasedYear()).toString().padStart(2, '0')}" +
-                                                if (year != it.year) "/${year % 100}\n${it.format(flowDate)}" else "\n${it.format(flowDate)}"
-                                        } ?: "Sem data"
-                                        FlowCell(label, FlowWeekWidth, header = true, tag = "flow-week-${date ?: "undated"}")
+    val content: @Composable () -> Unit = {
+        Column(Modifier.fillMaxSize().testTag("flow-screen").padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            if (!fullScreen) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("Calendário de desembolsos", Modifier.weight(1f), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                if (!fullScreen) TextButton(onClick = { fullScreen = true }, modifier = Modifier.testTag("flow-full-screen")) { Text("Tela cheia") }
+            }
+            if (fullScreen) CompactChartTabs(CashView.entries.map { it.label }, mode.ordinal) { view = CashView.entries[it].name }
+            else ViewTabs(CashView.entries.map { it.label }, mode.ordinal) { view = CashView.entries[it].name }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                TextButton(onClick = { scope.launch { scroll.animateScrollTo(0) } }, modifier = Modifier.height(32.dp), contentPadding = PaddingValues(3.dp)) { Text("Responsáveis e saldos", style = MaterialTheme.typography.labelSmall) }
+                TextButton(onClick = { scope.launch { scroll.animateScrollTo(with(density) { (FlowMetaWidth * 4).roundToPx() }.coerceAtMost(scroll.maxValue)) } }, modifier = Modifier.height(32.dp), contentPadding = PaddingValues(3.dp)) { Text("Ver semanas", style = MaterialTheme.typography.labelSmall) }
+                TextButton(onClick = { info = true }, modifier = Modifier.height(32.dp), contentPadding = PaddingValues(3.dp)) { Text("Como ler", style = MaterialTheme.typography.labelSmall) }
+            }
+            if (table.pageCount > 1) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                TextButton(enabled = activePage > 0, onClick = { page = activePage - 1 }, modifier = Modifier.height(32.dp)) { Text("‹ Anterior") }
+                Text("${activePage + 1} / ${table.pageCount}")
+                TextButton(enabled = activePage + 1 < table.pageCount, onClick = { page = activePage + 1 }, modifier = Modifier.height(32.dp)) { Text("Próximo ›") }
+            }
+            Surface(Modifier.fillMaxWidth().weight(1f).border(1.dp, Line, RoundedCornerShape(12.dp)), shape = RoundedCornerShape(12.dp)) {
+                Column {
+                    Row(Modifier.fillMaxWidth().height(60.dp).background(Navy)) {
+                        FlowCell("Etapa / descrição", FlowNameWidth, header = true)
+                        Box(Modifier.weight(1f).horizontalScroll(scroll)) {
+                            Row(Modifier.width(width)) {
+                                listOf("Quem paga", "Como paga", "Pago efetivo", "A pagar").forEach { FlowCell(it, FlowMetaWidth, header = true) }
+                                Column(Modifier.width(FlowWeekWidth * columns.size)) {
+                                    FlowHeaderGroups(columns.map { it?.year?.toString() ?: "—" }, scroll.value)
+                                    FlowHeaderGroups(columns.map { it?.format(flowMonth)?.replace(".", "") ?: "—" }, scroll.value)
+                                    Row(Modifier.height(28.dp)) {
+                                        columns.forEach { date ->
+                                            val label = date?.cashWeekLabel() ?: "Sem data"
+                                            FlowCell(label, FlowWeekWidth, header = true, tag = "flow-week-${date ?: "undated"}")
+                                        }
                                     }
                                 }
                             }
                         }
                     }
-                }
-                LazyColumn(Modifier.weight(1f).testTag("flow-table-body")) {
-                    items(rows, key = { it.first.key }) { (node, depth) ->
-                        FlowTableRow(table, node, depth, columns, mode, width, scroll, node.key in open, { toggle(node.key) }, openCost)
+                    LazyColumn(Modifier.weight(1f).testTag("flow-table-body"), state = listState) {
+                        items(rows, key = { it.first.key }) { (node, depth) ->
+                            FlowTableRow(table, node, depth, columns, mode, width, scroll, node.key in open, { toggle(node.key) }, { kind, id -> fullScreen = false; openCost(kind, id) })
+                        }
+                        if (rows.isEmpty()) item { Detail("Nenhum desembolso cadastrado.") }
                     }
-                    if (rows.isEmpty()) item { Detail("Nenhum desembolso cadastrado.") }
+                    FlowTableRow(table, table.total, 0, columns, mode, width, scroll, false, {}, openCost, total = true)
                 }
-                FlowTableRow(table, table.total, 0, columns, mode, width, scroll, false, {}, openCost, total = true)
             }
         }
     }
+    if (fullScreen) FullScreenChart("Desembolsos" + (category?.let { " · ${it.filterLabel}" } ?: ""), { fullScreen = false }, content)
+    else content()
 }
 
 @Composable
@@ -146,7 +151,7 @@ private fun FlowTableRow(table: DisbursementTable, node: FlowNode, depth: Int, c
                     FlowMetaWidth, tone = Blue, tag = "flow-pending-${node.key}")
                 columns.forEach { week ->
                     val amount = node.amounts(week, view)
-                    val matching = node.entries.filter { it.date?.with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY)) == week }
+                    val matching = node.entries.filter { it.date?.cashWeekEnding() == week }
                     val hasRows = matching.any { view == CashView.TOTAL || it.paid == (view == CashView.PAID) }
                     val label = when { !hasRows -> "—"; amount.entirelyUndefined -> UNDEFINED; else -> amount.known.brl() + if (amount.partial) " + ?" else "" }
                     FlowCell(label, FlowWeekWidth, tone = if (view == CashView.PAID || matching.all { it.paid }) Green else Navy,
