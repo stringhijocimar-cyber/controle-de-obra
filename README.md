@@ -2,6 +2,14 @@
 
 Aplicativo Android para planejar etapas e custos, acompanhar a execução da obra, controlar compras e pagamentos e emitir o relatório executivo em PDF. O cadastro e os modelos funcionam sem internet. O fluxo opcional com ChatGPT requer acesso ao serviço.
 
+## Versão 2.8.0 — leitura e navegação do Gantt
+
+- O Gantt passa a usar quatro faixas identificadas em cada etapa: **tempo / prazo total**, **execução prevista / realizada**, **entregas de materiais** e **pagamentos**. O contorno verde tracejado indica o período previsto; a barra verde mantém o realizado. A faixa azul clara mostra o prazo total e o preenchimento mostra os dias decorridos. Losangos vazados continuam sendo previsões e preenchidos são datas reais.
+- O cabeçalho fica mais compacto e a coluna de identificação ocupa menos largura, ampliando a área útil da linha do tempo. Execução, materiais e avanço geral continuam separados, com os mesmos pesos e cálculos.
+- **Ajustar** mostra todo o período; **− / +** ajustam o zoom de 50% a 400%, limitado à largura segura do gráfico. **Ir para hoje** funciona também em tela cheia. Os cabeçalhos continuam alinhados às barras; ao ajustar períodos extensos, as faixas de semanas se agrupam sem deixar intervalos em branco.
+- Toque nas barras para abrir a consulta das datas previstas/reais, entregas de cada material, percentuais e pagamentos da mão de obra. **Editar etapa** leva ao cadastro; tocar diretamente no nome mantém o acesso rápido à edição. **Como ler** explica as faixas e os símbolos.
+- O PDF usa as mesmas faixas e distingue execução prevista de realizada. O zoom e a consulta são visuais e não alteram os registros. Mantém o calendário semanal, a tela cheia, o formato de backup 12 e a assinatura permanente.
+
 ## Versão 2.7.0 — calendário semanal e gráficos em tela cheia
 
 - O relatório usa a grade semanal da tela de pagamentos: **categoria → etapa → custo**, colunas por ano, mês e semana, pago efetivo, a pagar e total da obra. Cada bloco traz até seis semanas; cabeçalhos e totais se repetem nas continuações. A agenda completa mantém as datas, parcelas, responsáveis e métodos.

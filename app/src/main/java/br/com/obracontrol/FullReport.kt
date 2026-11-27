@@ -594,7 +594,7 @@ internal object FullReport {
 
         fun schedule() {
             section("CRONOGRAMA FÍSICO  |  VISÃO GANTT",
-                "Azul: decorrido / prazo total · Verde: execução · Roxo: entregas · Losangos: previsto / real · Pontos: pago / a pagar")
+                "Azul: tempo / prazo · Verde: previsto / real · Roxo: entregas · Pontos: pago / a pagar · Linha vertical: data-base")
             val asOf = project.referenceDate ?: today
             val rows = project.ganttRows(asOf, laborSpend)
             val axis = GanttAxis.from(rows)
@@ -608,7 +608,7 @@ internal object FullReport {
                 val graphRight = 621f
                 fun x(fraction: Float) = graphLeft + (graphRight - graphLeft) * fraction
                 val rowsPerPage = 4
-                val bandHeight = 76f
+                val bandHeight = 88f
                 rows.chunked(rowsPerPage).forEachIndexed { batch, group ->
                     if (batch > 0) startPage(continuation = true)
                     val headerHeight = (timeline?.rowCount ?: 1) * 13f
@@ -620,7 +620,7 @@ internal object FullReport {
                         text(LEFT + 7, band + 13, "${batch * rowsPerPage + index + 1}. ${row.stage.name}", 9.7f, ink, true, graphLeft - LEFT - 16f)
                         val evolution = project.stageProgress(row.stage)
                         text(LEFT + 7, band + 25, "Execução: ${stagePercent(evolution.execution.toDouble())}", 8.5f, green, width = 200f)
-                        text(LEFT + 7, band + 37, "Materiais: ${evolution.materialsText}", 8.5f, blue, width = 200f)
+                        text(LEFT + 7, band + 37, "Materiais: ${evolution.materialsText}", 8.5f, MaterialArrival.toArgb(), width = 200f)
                         text(LEFT + 7, band + 50, "Geral da etapa: ${evolution.generalText}", 9f, ink, true, width = 200f)
                         text(LEFT + 7, band + 65, row.durationText(asOf), 8.2f, muted, width = 200f)
                         if (axis != null) {
@@ -641,23 +641,33 @@ internal object FullReport {
                                     paint.style = Paint.Style.FILL
                                 }
                             }
+                            listOf("TEMPO / PRAZO TOTAL", "EXECUÇÃO PREVISTA / REAL", "ENTREGAS DE MATERIAIS", "PAGAMENTOS").forEachIndexed { lane, label ->
+                                text(graphLeft + 4f, band + 7f + lane * 22f, label, 6.6f, muted, width = graphRight - graphLeft - 8f)
+                            }
+                            row.planned?.let { period ->
+                                paint.color = green; paint.strokeWidth = 0.9f; paint.style = Paint.Style.STROKE
+                                paint.pathEffect = DashPathEffect(floatArrayOf(3f, 2f), 0f)
+                                canvas.drawRoundRect(x(axis.boundary(period.start)), band + 33f,
+                                    x(axis.boundary(period.end.plusDays(1))), band + 41f, 2f, 2f, paint)
+                                paint.pathEffect = null; paint.style = Paint.Style.FILL
+                            }
                             row.totalPeriod?.let { period ->
-                                bar(period, 5f, Color.rgb(220, 234, 246))
-                                if (asOf >= period.start) bar(GanttPeriod(period.start, minOf(asOf, period.end)), 5f, blue)
+                                bar(period, 11f, Color.rgb(220, 234, 246))
+                                if (asOf >= period.start) bar(GanttPeriod(period.start, minOf(asOf, period.end)), 11f, blue)
                             }
-                            row.actual?.let { bar(it, 16f, green) }
-                            row.materialPeriod?.let { bar(it, 30f, Color.rgb(234, 224, 244)) }
+                            row.actual?.let { bar(it, 33f, green) }
+                            row.materialPeriod?.let { bar(it, 55f, Color.rgb(234, 224, 244)) }
                             row.deliveries.forEach { delivery ->
-                                delivery.expected?.let { milestone(it, 34f, MaterialArrival.toArgb(), false) }
-                                delivery.received?.let { milestone(it, 34f, MaterialArrival.toArgb(), true) }
+                                delivery.expected?.let { milestone(it, 59f, MaterialArrival.toArgb(), false) }
+                                delivery.received?.let { milestone(it, 59f, MaterialArrival.toArgb(), true) }
                             }
-                            row.stage.plannedEnd?.let { milestone(it, 20f, green, false) }
-                            row.stage.actualEnd?.let { milestone(it, 20f, green, true) }
+                            row.stage.plannedEnd?.let { milestone(it, 37f, green, false) }
+                            row.stage.actualEnd?.let { milestone(it, 37f, green, true) }
                             for (event in row.spend) {
                                 val date = event.date ?: continue
                                 val center = x(axis.dayCenter(date))
                                 paint.color = if (event.paid) ink else gold
-                                canvas.drawCircle(center, band + if (event.paid) 49f else 60f, 2.7f, paint)
+                                canvas.drawCircle(center, band + if (event.paid) 79f else 84f, 2.7f, paint)
                             }
                         }
                         text(graphRight + 9, band + 13, "Prev. ${row.plannedDates}", 8.2f, if (row.planned == null) muted else blue, width = 174f)
@@ -685,7 +695,7 @@ internal object FullReport {
             val completed = project.stages.filter { it.actualEnd != null }.maxOfOrNull { it.actualEnd!! }
             val forecast = project.stages.mapNotNull { it.plannedEnd }.maxOrNull()
             callout("MARCOS E PREVISÕES", "Início da obra: ${project.start.dateOr()}. Última conclusão registrada: ${completed.dateOr()}. Última data prevista informada: ${forecast.dateOr()}.")
-            paragraph("O prazo total vai da primeira data de execução ou entrega até a última. O preenchimento azul indica os dias decorridos até a data-base. Losangos vazados são previsões; preenchidos são datas reais. Recebimentos sem data não geram marcos. Pagamentos permanecem pontos financeiros separados.")
+            paragraph("O prazo total vai da primeira data de execução ou entrega até a última. O preenchimento azul indica os dias decorridos até a data-base. O contorno verde tracejado mostra a execução prevista e a barra verde mostra a execução real. Losangos vazados são previsões; preenchidos são datas reais. Recebimentos sem data não geram marcos. Pagamentos permanecem pontos financeiros separados.")
             paragraph("Semanas ISO começam na segunda-feira. Na virada do ano, o número da semana pode pertencer ao ano anterior ou seguinte. Em períodos extensos, rótulos intermediários são espaçados; o cronograma integral pode ser ampliado no app.")
         }
 
