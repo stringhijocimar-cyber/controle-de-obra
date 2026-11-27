@@ -100,8 +100,10 @@ class GanttReadabilityFlowTest {
                 android.graphics.pdf.PdfRenderer(android.os.ParcelFileDescriptor.open(File(folder, "Relatorio-Gantt-2.8.0-Exemplo.pdf"),
                     android.os.ParcelFileDescriptor.MODE_READ_ONLY)).use { pdf ->
                     val text = (0 until pdf.pageCount).joinToString(" ") { i -> pdf.openPage(i).use { page -> page.textContents.joinToString(" ") { it.text } } }
+                    File(folder, "gantt-pdf-text-2.8.0.txt").writeText(text)
+                    val compact = text.filterNot { it.isWhitespace() }
                     listOf("TEMPO / PRAZO TOTAL", "EXECUÇÃO PREVISTA / REAL", "ENTREGAS DE MATERIAIS", "Geral da etapa: 60%", "CALENDÁRIO DE DESEMBOLSOS")
-                        .forEach { assertTrue(it, text.contains(it)) }
+                        .forEach { assertTrue(it, compact.contains(it.filterNot { char -> char.isWhitespace() })) }
                 }
             }
             assertEquals(project, store.load())

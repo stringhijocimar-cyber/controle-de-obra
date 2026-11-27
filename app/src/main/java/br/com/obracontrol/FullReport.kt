@@ -620,7 +620,7 @@ internal object FullReport {
                         text(LEFT + 7, band + 13, "${batch * rowsPerPage + index + 1}. ${row.stage.name}", 9.7f, ink, true, graphLeft - LEFT - 16f)
                         val evolution = project.stageProgress(row.stage)
                         text(LEFT + 7, band + 25, "Execução: ${stagePercent(evolution.execution.toDouble())}", 8.5f, green, width = 200f)
-                        text(LEFT + 7, band + 37, "Materiais: ${evolution.materialsText}", 8.5f, blue, width = 200f)
+                        text(LEFT + 7, band + 37, "Materiais: ${evolution.materialsText}", 8.5f, MaterialArrival.toArgb(), width = 200f)
                         text(LEFT + 7, band + 50, "Geral da etapa: ${evolution.generalText}", 9f, ink, true, width = 200f)
                         text(LEFT + 7, band + 65, row.durationText(asOf), 8.2f, muted, width = 200f)
                         if (axis != null) {

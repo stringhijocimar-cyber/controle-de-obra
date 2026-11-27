@@ -78,6 +78,7 @@ class FullScreenTimelineFlowTest {
             assertEquals(project, store.load())
             app.onNodeWithTag("flow-full-screen").performScrollTo().performClick()
             InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
+            app.waitUntil(5_000) { app.onAllNodesWithTag("full-screen-chart").fetchSemanticsNodes().isEmpty() }
             app.onNodeWithTag("full-screen-chart").assertDoesNotExist()
             assertEquals(project, store.load())
         } finally {

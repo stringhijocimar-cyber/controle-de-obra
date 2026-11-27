@@ -198,11 +198,10 @@ private fun StageGanttChart(
                             val overdue = stage.progress < 100 && stage.plannedEnd?.let { it < today } == true
                             Row(
                                 Modifier.fillMaxWidth().height(rowHeight)
-                                    .background(if (index % 2 == 0) Color.White else Mist)
-                                    .clickable(onClickLabel = "Editar etapa") { edit(stage.id) },
+                                    .background(if (index % 2 == 0) Color.White else Mist),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                Column(Modifier.width(labelWidth).padding(horizontal = 10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Column(Modifier.width(labelWidth).padding(horizontal = 10.dp).clickable(onClickLabel = "Editar etapa") { edit(stage.id) }.testTag("gantt-edit-${stage.id}"), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                     Text(stage.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold,
                                         maxLines = 2, overflow = TextOverflow.Ellipsis)
                                     val status = when {
@@ -234,7 +233,7 @@ private fun StageGanttChart(
 private fun StageProgressReadout(id: String, progress: StageProgress) {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         listOf(Triple("Execução", stagePercent(progress.execution.toDouble()), Green),
-            Triple("Materiais", if (progress.materials == null) "—" else progress.materialsText, Blue),
+            Triple("Materiais", if (progress.materials == null) "—" else progress.materialsText, MaterialArrival),
             Triple("Geral", progress.generalText, Navy)).forEachIndexed { index, (label, value, color) ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(label, Modifier.weight(1f), color = Muted, style = MaterialTheme.typography.labelSmall)
