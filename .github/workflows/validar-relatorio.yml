@@ -35,15 +35,19 @@ jobs:
           }
           adb shell wm size 1080x2400
           adb shell wm density 440
-          timeout --kill-after=15s 150s ./gradlew :app:connectedDebugAndroidTest '-Pandroid.testInstrumentationRunnerArguments.class=br.com.obracontrol.ReportTablesFlowTest,br.com.obracontrol.PaymentOrganizationFlowTest#reportContainsMonthlyCalendarAndEveryAgendaEntryWithRepeatedPageHeaders'
+          timeout --kill-after=15s 150s ./gradlew :app:connectedDebugAndroidTest -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true '-Pandroid.testInstrumentationRunnerArguments.class=br.com.obracontrol.ReportTablesFlowTest,br.com.obracontrol.PaymentOrganizationFlowTest#reportContainsMonthlyCalendarAndEveryAgendaEntryWithRepeatedPageHeaders'
           report_result=$?
           capture pdf
           adb shell am force-stop br.com.obracontrol.app
-          timeout --kill-after=15s 150s ./gradlew :app:connectedDebugAndroidTest '-Pandroid.testInstrumentationRunnerArguments.class=br.com.obracontrol.PaymentOrganizationFlowTest#categoryFiltersApplyToAllPaymentViewsWhileOverallTotalsStayVisibleAndDataIsPreserved'
+          timeout --kill-after=15s 150s ./gradlew :app:connectedDebugAndroidTest -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true '-Pandroid.testInstrumentationRunnerArguments.class=br.com.obracontrol.PaymentOrganizationFlowTest#categoryFiltersApplyToAllPaymentViewsWhileOverallTotalsStayVisibleAndDataIsPreserved'
           ui_result=$?
           capture ui
-          echo "PDF result: $report_result / UI result: $ui_result"
-          [[ "$report_result" -eq 0 && "$ui_result" -eq 0 ]]
+          adb shell am force-stop br.com.obracontrol.app
+          timeout --kill-after=15s 90s ./gradlew :app:connectedDebugAndroidTest -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true '-Pandroid.testInstrumentationRunnerArguments.class=br.com.obracontrol.CostCalendarFlowTest#weeklyCalendarDrillsThroughTypesAndCostsSettlesParcelsAndPersistsNewSchedules'
+          flow_result=$?
+          capture flow
+          echo "PDF result: $report_result / UI result: $ui_result / Flow result: $flow_result"
+          [[ "$report_result" -eq 0 && "$ui_result" -eq 0 && "$flow_result" -eq 0 ]]
           SH
       - name: Preparar emulador
         run: |
