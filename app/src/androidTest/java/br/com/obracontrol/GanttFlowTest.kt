@@ -63,7 +63,7 @@ class GanttFlowTest {
             val folder = File(app.activity.filesDir, "screenshots").apply { mkdirs() }
             File(folder, "gantt-colors.png").outputStream().use { capture.asAndroidBitmap().compress(Bitmap.CompressFormat.PNG, 100, it) }
             File(folder, "gantt-screen.png").outputStream().use { app.activity.window.decorView.rootView.let { _ ->
-                androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot().compress(Bitmap.CompressFormat.PNG, 100, it)
+                androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()?.compress(Bitmap.CompressFormat.PNG, 100, it)
             } }
             val bitmap = capture.toPixelMap()
             val colors = mutableSetOf(Blue.toArgb(), Green.toArgb(), Navy.toArgb(), Amber.toArgb())
