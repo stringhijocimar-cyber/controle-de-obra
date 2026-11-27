@@ -77,6 +77,8 @@ class FullScreenTimelineFlowTest {
             mode("A pagar").assertIsSelected()
             assertEquals(project, store.load())
             app.onNodeWithTag("flow-full-screen").performScrollTo().performClick()
+            app.waitUntil(5_000) { !app.activity.window.decorView.hasWindowFocus() }
+            app.waitForIdle()
             InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
             app.waitUntil(5_000) { app.onAllNodesWithTag("full-screen-chart").fetchSemanticsNodes().isEmpty() }
             app.onNodeWithTag("full-screen-chart").assertDoesNotExist()
