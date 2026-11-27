@@ -47,6 +47,9 @@ class ReportTablesFlowTest {
             assertTrue(accounts.contains(400_000L.brl()))
             assertTrue(text.contains(20_000L.brl()))
             assertTrue(text.contains("+ ?"))
+            pages.filter { it.contains("RESUMO DAS COMPRAS") }.forEach { page ->
+                assertTrue("O título deve acompanhar o cabeçalho da tabela", page.contains("COMPRA / FORNECEDOR"))
+            }
         }
         assertEquals(encoded, ProjectCodec.encode(project))
         assertEquals(35, project.stages.single().progress)

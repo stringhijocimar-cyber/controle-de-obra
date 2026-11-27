@@ -86,6 +86,7 @@ internal object FullReport {
         private var subtitle = ""
         private var y = 0f
         private var tableHeading: String? = null
+        private var pendingTableTitle = false
 
         fun finish() {
             page?.let(pdf::finishPage)
@@ -96,6 +97,7 @@ internal object FullReport {
             title = heading
             subtitle = caption
             tableHeading = null
+            pendingTableTitle = false
             startPage()
         }
 
@@ -164,10 +166,16 @@ internal object FullReport {
         }
 
         private fun heading(value: String) {
-            ensure(38f)
+            ensure(44f)
             text(LEFT, y + 12f, value, 13f, ink, true, CONTENT)
             y += 25f
             tableHeading = value
+            pendingTableTitle = false
+        }
+
+        private fun tableTitle(value: String) {
+            tableHeading = value
+            pendingTableTitle = true
         }
 
         private fun paragraph(value: String, color: Int = muted) {
@@ -257,14 +265,18 @@ internal object FullReport {
 
         private fun table(columns: List<String>, columnWidths: List<Float>, rows: List<List<String>>, empty: String,
             totals: Map<Int, String> = emptyMap(), emphasizedRows: Set<Int> = emptySet()) {
+            val caption = tableHeading
+            val needsTitle = pendingTableTitle
+            tableHeading = null
+            pendingTableTitle = false
             if (rows.isEmpty()) {
+                if (needsTitle && caption != null) heading(caption)
                 paragraph(empty)
+                tableHeading = null
                 return
             }
             require(columns.size == columnWidths.size && rows.all { it.size == columns.size })
             val widths = columnWidths.map { it * CONTENT / columnWidths.sum() }
-            val caption = tableHeading
-            tableHeading = null
             val freshTop = TOP + if (caption != null) 25f else 0f
             val cellPadding = 8f
             val fontSize = 9.4f
@@ -323,8 +335,8 @@ internal object FullReport {
             }
             val firstHeight = cellLines(rows.first(), 0 in emphasizedRows).maxOf { it.size } * lineHeight + 14f
             val initialPage = number
-            ensure(headerHeight + minOf(firstHeight + if (rows.size == 1) footerHeight else 0f, BOTTOM - freshTop - headerHeight))
-            if (initialPage != number && caption != null) {
+            ensure((if (needsTitle) 25f else 0f) + headerHeight + minOf(firstHeight + if (rows.size == 1) footerHeight else 0f, BOTTOM - freshTop - headerHeight))
+            if ((needsTitle || initialPage != number) && caption != null) {
                 text(LEFT, y + 12f, caption, 13f, ink, true, CONTENT)
                 y += 25f
             }
@@ -534,7 +546,7 @@ internal object FullReport {
                     listOf(it.category.label, it.forecast.brl(), it.paid.brl(), it.balance.brl(), it.undefined.toString())
                 }, "", totals = mapOf(1 to summary.forecast.brl(), 2 to summary.paid.brl(),
                     3 to (summary.forecast - summary.paid).brl(), 4 to summary.undefined.toString()))
-            heading("PROGRAMAÇÃO FINANCEIRA")
+            tableTitle("PROGRAMAÇÃO FINANCEIRA")
             table(listOf("PERÍODO", "SALDO A PAGAR CONHECIDO", "VENCIMENTOS COM VALOR A DEFINIR"), listOf(282f, 230f, 262f),
                 DueHorizon.entries.map { horizon ->
                     val amount = summary.pending(horizon)
@@ -543,7 +555,7 @@ internal object FullReport {
                     2 to CostPaymentCalendar(project).pending.count { it.amount == null }.toString()))
             paragraph("O saldo líquido pode incluir pagamentos a maior. A programação considera o saldo pendente de cada custo, com os pagamentos já abatidos. A mão de obra da programação segue as etapas; divergências com o contrato geral aparecem em Pendências.")
             ensure(145f)
-            heading("CARTÃO E PARCELAMENTOS")
+            tableTitle("CARTÃO E PARCELAMENTOS")
             table(listOf("COMPRA / SERVIÇO", "MÉTODO / CONDIÇÃO", "TOTAL", "PAGO EFETIVO", "A PAGAR"),
                 listOf(219f, 225f, 110f, 110f, 110f), summary.cardPurchases.map { order ->
                     val paid = total.paid(CostKind.MATERIAL, order.id)
@@ -555,7 +567,7 @@ internal object FullReport {
                     4 to sumText(summary.cardPurchases.map { InstallmentBalance(it, total.paid(CostKind.MATERIAL, it.id)).remaining })))
             paragraph("A condição do cartão descreve a divisão comercial do total. As parcelas futuras só reduzem o saldo quando o pagamento é registrado. Os vencimentos detalhados estão no calendário de pagamentos.")
             ensure(85f)
-            heading("PRÓXIMAS DECISÕES")
+            tableTitle("PRÓXIMAS DECISÕES")
             table(listOf("ASSUNTO", "AÇÃO"), listOf(230f, 544f), summary.decisions.take(8).map { listOf(it.first, it.second) },
                 "Nenhuma decisão em aberto identificada no cadastro.")
             if (summary.decisions.size > 8) paragraph("${summary.decisions.size - 8} outras decisões estão detalhadas nas seções Pendências e Agenda.")
@@ -679,7 +691,7 @@ internal object FullReport {
             }
             if (project.stages.size > visible.size) paragraph("Todas as etapas estão discriminadas na tabela físico-financeira.")
             if (project.stages.size > 4) startPage(continuation = true)
-            heading("EVOLUÇÃO DAS ETAPAS | EXECUÇÃO E MATERIAIS")
+            tableTitle("EVOLUÇÃO DAS ETAPAS | EXECUÇÃO E MATERIAIS")
             val evolutions = project.stages.map { project.stageProgress(it) }
             table(listOf("ETAPA", "EXECUÇÃO", "MATERIAIS", "GERAL", "PESOS", "APURAÇÃO DOS MATERIAIS"),
                 listOf(220f, 88f, 88f, 88f, 132f, 158f), project.stages.zip(evolutions).map { (stage, evolution) ->
@@ -689,7 +701,7 @@ internal object FullReport {
                     2 to evolutions.mapNotNull { it.materials }.takeIf { it.isNotEmpty() }?.average()?.let(::stagePercent).orEmpty(),
                     3 to stagePercent(project.generalStageProgress)))
             paragraph("O avanço geral é a média ponderada da execução e do recebimento dos materiais da etapa. Sem compras de material vinculadas, considera apenas a execução. A coluna Materiais da última linha considera as etapas com material. Pagamentos não alteram esses percentuais.")
-            heading("CONCILIAÇÃO E CRONOGRAMA FÍSICO-FINANCEIRO")
+            tableTitle("CONCILIAÇÃO E CRONOGRAMA FÍSICO-FINANCEIRO")
             table(listOf("ETAPA / OBSERVAÇÕES", "PREVISTO", "REALIZADO", "AVANÇO", "VALOR PREVISTO", "PAGO EFETIVO", "A PAGAR / VENCIMENTO", "PAGO A MAIOR"),
                 listOf(171f, 90f, 90f, 65f, 94f, 90f, 95f, 79f), project.stages.map { stage ->
                     val paid = total.paid(CostKind.LABOR, stage.id)
@@ -718,7 +730,7 @@ internal object FullReport {
             barSection("COMPRAS PAGAS POR FORNECEDOR", total.spendBySupplier.mapIndexed { index, (supplier, amount) ->
                 Bar(supplier, amount, listOf(green, blue, gold)[index % 3])
             }, "Nenhuma compra paga foi registrada.")
-            heading("RESUMO DAS COMPRAS")
+            tableTitle("RESUMO DAS COMPRAS")
             table(listOf("COMPRA / FORNECEDOR", "TIPO", "DOCUMENTO", "TOTAL PREVISTO", "PAGO EFETIVO", "A PAGAR", "SITUAÇÃO", "PAGO A MAIOR"),
                 listOf(160f, 65f, 80f, 100f, 100f, 100f, 89f, 80f), project.purchases.map { order ->
                     val position = InstallmentBalance(order, total.paid(CostKind.MATERIAL, order.id))
@@ -729,7 +741,7 @@ internal object FullReport {
                     4 to total.materialPaid.brl(), 5 to sumText(project.purchases.map { total.materialOutstanding(it) }),
                     7 to sumText(project.purchases.map { InstallmentBalance(it, total.paid(CostKind.MATERIAL, it.id)).credit })))
             if (project.purchases.any { it.installmentCount != null }) {
-                heading("CONDIÇÕES DE PAGAMENTO DAS COMPRAS")
+                tableTitle("CONDIÇÕES DE PAGAMENTO DAS COMPRAS")
                 table(listOf("COMPRA", "MÉTODO", "PARCELAMENTO"), listOf(330f, 180f, 264f),
                     project.purchases.map { listOf(it.name, project.purchaseMethods(it), it.installmentText()) }, "")
             }
@@ -916,7 +928,7 @@ internal object FullReport {
                     if (stage.notes.isNotBlank()) paragraph(stage.notes)
                     stage.services.forEach { service ->
                         ensure(125f)
-                        heading(service.name)
+                        tableTitle(service.name)
                         table(listOf("INSUMO / TIPO", "QUANTIDADE", "UNIDADE", "PREÇO UNIT.", "SUBTOTAL", "FONTE / DATA / CONDIÇÕES"),
                             listOf(230f, 78f, 85f, 96f, 100f, 185f), service.items.map { item ->
                                 listOf("${item.name}\n${item.category.label}" + if (item.estimated && item.subtotal != null) " · Estimado" else "",
@@ -927,7 +939,7 @@ internal object FullReport {
                             totals = mapOf(0 to "TOTAL DOS INSUMOS", 4 to sumText(service.items.map { it.subtotal })))
                     }
                     if (stage.approvals.isNotEmpty()) {
-                        heading("HISTÓRICO DE APROVAÇÃO")
+                        tableTitle("HISTÓRICO DE APROVAÇÃO")
                         table(listOf("REVISÃO", "DATA", "RESPONSÁVEL", "APROVADO", "CONDIÇÕES"),
                             listOf(75f, 95f, 170f, 110f, 324f), stage.approvals.map { approval ->
                                 listOf(approval.revision.toString(), approval.date.dateText(), approval.approver,
@@ -955,7 +967,7 @@ internal object FullReport {
                         }.ifEmpty { listOf(UNREPORTED) }.joinToString("\n"))
                 }, "Nenhum pagamento registrado.", totals = mapOf(1 to total.paid.brl()))
             if (total.payers.isNotEmpty()) {
-                heading("CONSOLIDADO POR PAGADOR")
+                tableTitle("CONSOLIDADO POR PAGADOR")
                 table(listOf("PAGADOR", "TIPO", "MEIO", "TOTAL PAGO"), listOf(242f, 167f, 191f, 174f),
                     total.payers.map { listOf(it.payer, it.kind.label, it.method, it.amount.brl()) }, "",
                     totals = mapOf(3 to total.paid.brl()))
