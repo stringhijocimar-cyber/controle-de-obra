@@ -40,13 +40,13 @@ class GanttReadabilityFlowTest {
             tab("Etapas"); tab("Gantt")
             app.onNodeWithTag("gantt-full-screen").performScrollTo().performClick()
             val bars = app.onNodeWithTag("gantt-bars-${stage.id}", useUnmergedTree = true)
-            val originalWidth = bars.getUnclippedBoundsInRoot().width
+            val originalWidth = bars.getUnclippedBoundsInRoot().let { it.right - it.left }
             app.onNodeWithTag("gantt-fit").performClick()
             app.onNodeWithTag("gantt-zoom-label").assertTextEquals("Tudo")
-            val fittedWidth = bars.getUnclippedBoundsInRoot().width
+            val fittedWidth = bars.getUnclippedBoundsInRoot().let { it.right - it.left }
             assertTrue(fittedWidth < originalWidth)
             app.onNodeWithTag("gantt-zoom-in").performClick()
-            assertTrue(bars.getUnclippedBoundsInRoot().width > fittedWidth)
+            assertTrue(bars.getUnclippedBoundsInRoot().let { it.right - it.left } > fittedWidth)
             app.onNodeWithTag("gantt-today").performClick()
             app.onNodeWithTag("gantt-general-${stage.id}", useUnmergedTree = true).assertIsDisplayed().assertTextEquals("60%")
             bars.performClick()
