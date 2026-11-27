@@ -119,6 +119,7 @@ internal data class Stage(
     val dueDate: LocalDate? = null,
     val progress: Int = 0,
     val notes: String = "",
+    val materialWeight: Int = 50,
 ) {
     val status get() = when {
         progress == 100 -> "Concluída"
@@ -130,6 +131,7 @@ internal data class Stage(
     fun validate() {
         require(name.isNotBlank()) { "Informe o nome da etapa." }
         require(progress in 0..100) { "O avanço deve estar entre 0% e 100%." }
+        require(materialWeight in 0..100) { "O peso dos materiais deve estar entre 0% e 100%." }
         require(plannedStart == null || plannedEnd == null || plannedEnd >= plannedStart) {
             "O fim previsto deve ser igual ou posterior ao início previsto."
         }
@@ -160,6 +162,7 @@ internal data class Purchase(
     val method: String = "",
     val installmentCount: Int? = null,
     val nature: CostNature = CostNature.MATERIAL,
+    val receivedProgress: Int? = null,
 ) {
     val lineSum: Long? get() = lines.takeIf { it.isNotEmpty() && it.all { line -> line.subtotal != null } }
         ?.sumOf { it.subtotal!! }

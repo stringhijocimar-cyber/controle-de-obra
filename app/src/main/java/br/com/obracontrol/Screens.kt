@@ -277,6 +277,9 @@ internal fun Dashboard(
                 Heading("Execução da obra")
                 val physical = total.physicalProgress / 100.0
                 ProgressBar("Avanço físico médio", percent(physical), physical, Green)
+                val general = project.generalStageProgress / 100.0
+                ProgressBar("Avanço geral das etapas", percent(general), general, Blue)
+                Detail("O avanço geral combina execução e materiais recebidos com os pesos de cada etapa. É a média simples das etapas.")
                 Detail("${total.completed} de ${project.stages.size} etapas concluídas")
                 Spacer(Modifier.height(3.dp))
                 val financial = if (total.total > 0) total.paid.toDouble() / total.total else 0.0
@@ -357,7 +360,7 @@ internal fun StageList(project: Project, total: Balance, today: LocalDate, add: 
         Box(Modifier.weight(1f)) {
             when (view) {
                 StageView.LIST -> StageTable(project, total, today, edit, complete, reviewPaid)
-                StageView.GANTT -> StageGantt(project.stages, spend, today, chartScroll, edit, project.ganttScale, changeScale)
+                StageView.GANTT -> StageGantt(project, spend, today, chartScroll, edit, project.ganttScale, changeScale)
                 StageView.SPEND -> WeeklyDisbursementScreen(project, today, openCost)
             }
         }

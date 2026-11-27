@@ -24,6 +24,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -58,22 +59,28 @@ private val yearTick = DateTimeFormatter.ofPattern("dd/MM/yy", brazil)
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun StageGantt(
-    stages: List<Stage>, spend: LaborSpendCalendar, today: LocalDate, scroll: ScrollState, edit: (String) -> Unit,
+    project: Project, spend: LaborSpendCalendar, today: LocalDate, scroll: ScrollState, edit: (String) -> Unit,
     scale: GanttScale, changeScale: (GanttScale) -> Unit,
 ) {
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).testTag("gantt-scale-selector")) {
             ViewTabs(GanttScale.entries.map { it.label }, scale.ordinal) { changeScale(GanttScale.entries[it]) }
         }
-        Box(Modifier.weight(1f)) { StageGanttChart(stages, spend, today, scroll, edit, scale) }
+        Text("Geral combina execução e materiais recebidos. Ajuste os pesos ao editar a etapa.",
+            Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.labelSmall, color = Muted)
+        if (project.unlinkedMaterials > 0) Text("${project.unlinkedMaterials} compra(s) de material sem etapa vinculada.",
+            Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.labelSmall, color = Amber)
+        Box(Modifier.weight(1f)) { StageGanttChart(project, spend, today, scroll, edit, scale) }
     }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun StageGanttChart(
-    stages: List<Stage>, spend: LaborSpendCalendar, today: LocalDate, scroll: ScrollState, edit: (String) -> Unit, scale: GanttScale,
+    project: Project, spend: LaborSpendCalendar, today: LocalDate, scroll: ScrollState, edit: (String) -> Unit, scale: GanttScale,
 ) {
+    val stages = project.stages
+    val evolution = remember(project) { stages.associate { it.id to project.stageProgress(it) } }
     val rows = remember(stages, spend, today) { stages.map { it.ganttRow(today, spend.byStage[it.id].orEmpty()) } }
     val axis = remember(rows) { GanttAxis.from(rows) }
     if (axis == null) {
@@ -87,6 +94,7 @@ private fun StageGanttChart(
             itemsIndexed(rows, key = { _, row -> row.stage.id }) { _, row ->
                 SheetCard {
                     Heading(row.stage.name, "Datas a definir")
+                    StageProgressReadout(row.stage.id, evolution.getValue(row.stage.id))
                     LedgerLine("Mão de obra", row.stage.budget.costText())
                     TextButton(onClick = { edit(row.stage.id) }) { Text("Editar etapa") }
                 }
@@ -101,7 +109,7 @@ private fun StageGanttChart(
     BoxWithConstraints(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, bottom = 12.dp)) {
         val labelWidth = (maxWidth * 0.39f).coerceIn(105.dp, 188.dp)
         val chartWidth = maxOf(maxWidth - labelWidth, timeline.preferredWidth.dp)
-        val rowHeight = maxOf(85.dp, (94 * density.fontScale).dp)
+        val rowHeight = maxOf(126.dp, (134 * density.fontScale).dp)
         val headerHeight = maxOf(24.dp, (24 * density.fontScale).dp) * timeline.rowCount
         Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -131,7 +139,7 @@ private fun StageGanttChart(
             ) {
                 Column(Modifier.fillMaxSize()) {
                     Row(Modifier.fillMaxWidth().height(headerHeight).background(Navy), verticalAlignment = Alignment.CenterVertically) {
-                        Text("Etapa / custo", Modifier.width(labelWidth).padding(start = 10.dp), color = Color.White,
+                        Text("Etapa / evolução", Modifier.width(labelWidth).padding(start = 10.dp), color = Color.White,
                             style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                         Box(Modifier.weight(1f).horizontalScroll(scroll)) {
                             DateAxis(timeline, chartWidth, headerHeight, scroll)
@@ -155,8 +163,9 @@ private fun StageGanttChart(
                                         row.planned == null && row.actual == null -> "Datas a definir"
                                         else -> stage.status
                                     }
-                                    Text("$status · ${stage.progress}%", color = if (overdue) Amber else Muted,
+                                    Text(status, color = if (overdue) Amber else Muted,
                                         style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    StageProgressReadout(stage.id, evolution.getValue(stage.id))
                                     Text(stage.budget.costText(), color = Navy, style = MaterialTheme.typography.labelMedium,
                                         fontWeight = FontWeight.Bold)
                                 }
@@ -170,6 +179,24 @@ private fun StageGanttChart(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun StageProgressReadout(id: String, progress: StageProgress) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        listOf(Triple("Execução", stagePercent(progress.execution.toDouble()), Green),
+            Triple("Materiais", if (progress.materials == null) "—" else progress.materialsText, Blue),
+            Triple("Geral", progress.generalText, Navy)).forEachIndexed { index, (label, value, color) ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(label, Modifier.weight(1f), color = Muted, style = MaterialTheme.typography.labelSmall)
+                Text(value, Modifier.testTag("gantt-${listOf("execution", "materials", "general")[index]}-$id"),
+                    color = color, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+            }
+        }
+        LinearProgressIndicator(progress = { (progress.general / 100).toFloat().coerceIn(0f, 1f) },
+            modifier = Modifier.fillMaxWidth().height(4.dp), color = Green, trackColor = Line,
+            gapSize = 0.dp, drawStopIndicator = {})
     }
 }
 

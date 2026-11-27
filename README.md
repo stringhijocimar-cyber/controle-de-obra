@@ -2,6 +2,16 @@
 
 Aplicativo Android para planejar etapas e custos, acompanhar a execução da obra, controlar compras e pagamentos e emitir o relatório executivo em PDF. O cadastro e os modelos funcionam sem internet. O fluxo opcional com ChatGPT requer acesso ao serviço.
 
+## Versão 2.5.0 — execução, materiais e avanço geral por etapa
+
+- O Gantt mostra os percentuais de **Execução**, **Materiais recebidos** e **Geral** em cada etapa. A tabela de etapas, o painel e o relatório completo usam a mesma composição.
+- O avanço da execução continua sendo informado na etapa. Nas compras de material, **Material recebido (%)** permite registrar entregas parciais; informar a data de recebimento indica entrega completa. Os recebimentos antigos continuam contando como 100%.
+- Apenas compras classificadas como Material e vinculadas à etapa entram no percentual de materiais. Quando todas têm valor positivo definido, o cálculo é ponderado pelo valor previsto; se houver compra sem esse valor, usa a média das compras e informa o critério. Serviços ficam no avanço de execução da etapa.
+- O percentual geral usa, por padrão, **50% de execução + 50% de materiais**. Em **Editar etapa → Peso dos materiais no avanço geral (%)**, ajuste de 0 a 100; o restante será o peso da execução. Sem material vinculado, o geral considera somente a execução.
+- O painel distingue avanço físico de execução, avanço geral combinado e execução financeira. O geral da obra é a média simples dos gerais das etapas. Pagamentos e condições comerciais não alteram os recebimentos nem os avanços.
+- Gantt sem datas mantém os três indicadores. Compras de material sem etapa são sinalizadas para que possam ser vinculadas.
+- Backup no **formato 12**, com leitura dos formatos **1 a 11**, preserva pesos, recebimentos parciais, cadastros, pagamentos, parcelas, anexos e histórico. Mesclar mantém edições locais de registros correspondentes; substituir restaura os dados completos do backup.
+
 ## Versão 2.4.0 — relatórios no estilo das tabelas
 
 - O PDF completo usa cabeçalhos claros, grade discreta, linhas alternadas e valores alinhados à direita, com a paleta das tabelas do aplicativo.
@@ -133,7 +143,7 @@ Em **Pagamentos**, abra um lançamento e adicione os comprovantes com a câmera 
 
 ## Instalação e primeiro uso
 
-A versão 2.4.0 requer Android 8.0 ou mais recente e atualiza diretamente o **ObraControl 1.7.0 a 2.3.2**, usando a mesma assinatura permanente e o cadastro salvo no aparelho. Abra o instalador e escolha **Atualizar**, mantendo o aplicativo instalado.
+A versão 2.5.0 requer Android 8.0 ou mais recente e atualiza diretamente o **ObraControl 1.7.0 a 2.4.0**, usando a mesma assinatura permanente e o cadastro salvo no aparelho. Abra o instalador e escolha **Atualizar**, mantendo o aplicativo instalado.
 
 Para transferir dados das edições **ObraControl Financeiro** ou **ObraControl Gestão**, abra **Relatório → Exportar backup com anexos** no app anterior. No **ObraControl**, abra **Relatório → Importar dados da obra**, selecione o ZIP e confirme. Confira o cadastro importado antes de desinstalar a edição anterior. Os backups JSON e ZIP das versões anteriores do formato continuam aceitos.
 

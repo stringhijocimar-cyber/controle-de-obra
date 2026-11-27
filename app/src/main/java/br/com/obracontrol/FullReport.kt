@@ -269,7 +269,7 @@ internal object FullReport {
             val fontSize = 9.4f
             val lineHeight = 12.5f
             val numeric = columns.map { label ->
-                listOf("VALOR", "TOTAL", "PAGO", "PREÇO", "SUBTOTAL", "SALDO", "ESTIMATIVA", "APROVADO", "PREVISÃO",
+                listOf("VALOR", "TOTAL", "PAGO", "PREÇO", "SUBTOTAL", "SALDO", "ESTIMATIVA", "APROVADO", "PREVISÃO", "EXECUÇÃO", "MATERIAIS", "GERAL",
                     "QUANTIDADE", "CRÉDITO", "ABATIDO", "PROGRAMADO", "A PAGAR", "A DEFINIR", "PARCELAS", "AVANÇO")
                     .any { it in label } || Regex("S[0-9]+.*").matches(label)
             }
@@ -419,6 +419,7 @@ internal object FullReport {
             val marker = latest?.let { " Última etapa concluída: ${it.name}, em ${it.actualEnd.dateOr()}." }.orEmpty()
             callout("MARCO DA OBRA", "Início: ${project.start.dateOr()} • ${total.completed} de ${project.stages.size} etapas concluídas • Avanço físico médio de ${percent(total.physicalProgress / 100)}.$marker")
             paragraph("O avanço físico é a média simples dos percentuais das etapas. Os valores a cotar aparecem como pendências.")
+            paragraph("Avanço geral das etapas: ${stagePercent(project.generalStageProgress)}. Combina execução e materiais recebidos com os pesos de cada etapa; a média da obra atribui o mesmo peso a cada etapa.")
         }
 
         fun paymentCharts() {
@@ -584,14 +585,15 @@ internal object FullReport {
             val axis = GanttAxis.from(rows)
             val timeline = axis?.let { GanttTimeline(it, project.ganttScale) }
             paragraph("Escala: ${project.ganttScale.label}. Cabeçalho: ano, mês" + if (project.ganttScale == GanttScale.MONTHS) "." else ", semana ISO" + if (project.ganttScale == GanttScale.DAYS) " e dia." else ".")
+            paragraph("Avanço geral da obra: ${stagePercent(project.generalStageProgress)}. Execução e materiais recebidos aparecem separados; os pesos podem ser ajustados por etapa. Materiais sem etapa vinculada: ${project.unlinkedMaterials}.")
             if (rows.isEmpty()) paragraph("Nenhuma etapa cadastrada.")
             if (rows.isNotEmpty() && axis == null) paragraph("Informe as datas da execução ou do pagamento para montar o Gantt.")
             if (rows.isNotEmpty()) {
                 val graphLeft = 258f
                 val graphRight = 621f
                 fun x(fraction: Float) = graphLeft + (graphRight - graphLeft) * fraction
-                val rowsPerPage = if (axis == null || project.ganttScale == GanttScale.DAYS) 8 else 9
-                val bandHeight = 43f
+                val rowsPerPage = 5
+                val bandHeight = 58f
                 rows.chunked(rowsPerPage).forEachIndexed { batch, group ->
                     if (batch > 0) startPage(continuation = true)
                     val headerHeight = (timeline?.rowCount ?: 1) * 13f
@@ -601,8 +603,10 @@ internal object FullReport {
                         val band = top + index * bandHeight
                         if (index % 2 == 0) box(LEFT, band, CONTENT, bandHeight, light, 1f)
                         text(LEFT + 7, band + 13, "${batch * rowsPerPage + index + 1}. ${row.stage.name}", 9.7f, ink, true, graphLeft - LEFT - 16f)
-                        text(LEFT + 7, band + 25, "${row.stage.status} · ${row.stage.progress}%", 8.1f, muted, width = 200f)
-                        text(LEFT + 7, band + 37, "Mão de obra ${row.stage.budget.costText()}", 8.4f, ink, true, width = 200f)
+                        val evolution = project.stageProgress(row.stage)
+                        text(LEFT + 7, band + 25, "Execução: ${stagePercent(evolution.execution.toDouble())}", 8.5f, green, width = 200f)
+                        text(LEFT + 7, band + 37, "Materiais: ${evolution.materialsText}", 8.5f, blue, width = 200f)
+                        text(LEFT + 7, band + 50, "Geral da etapa: ${evolution.generalText}", 9f, ink, true, width = 200f)
                         if (axis != null) {
                             fun bar(period: GanttPeriod, offset: Float, color: Int) {
                                 val left = x(axis.boundary(period.start))
@@ -620,6 +624,8 @@ internal object FullReport {
                         }
                         text(graphRight + 9, band + 13, "Prev. ${row.plannedDates}", 8.2f, if (row.planned == null) muted else blue, width = 174f)
                         text(graphRight + 9, band + 26, "Real ${row.actualDates}", 8.2f, if (row.actual == null) muted else green, width = 174f)
+                        text(graphRight + 9, band + 39, "Mão de obra ${row.stage.budget.costText()}", 8.2f, ink, true, width = 174f)
+                        text(graphRight + 9, band + 51, evolution.weightsText, 7.5f, muted, width = 174f)
                     }
                     if (axis != null) {
                         timeline!!.gridDates((graphRight - graphLeft) * 3f).forEach { date ->
@@ -670,6 +676,16 @@ internal object FullReport {
             }
             if (project.stages.size > visible.size) paragraph("Todas as etapas estão discriminadas na tabela físico-financeira.")
             if (project.stages.size > 4) startPage(continuation = true)
+            heading("EVOLUÇÃO DAS ETAPAS | EXECUÇÃO E MATERIAIS")
+            val evolutions = project.stages.map { project.stageProgress(it) }
+            table(listOf("ETAPA", "EXECUÇÃO", "MATERIAIS", "GERAL", "PESOS", "APURAÇÃO DOS MATERIAIS"),
+                listOf(220f, 88f, 88f, 88f, 132f, 158f), project.stages.zip(evolutions).map { (stage, evolution) ->
+                    listOf(stage.name, stagePercent(evolution.execution.toDouble()), evolution.materialsText, evolution.generalText,
+                        evolution.weightsText, evolution.basisText)
+                }, "Nenhuma etapa cadastrada.", totals = mapOf(0 to "MÉDIA DAS ETAPAS", 1 to stagePercent(total.physicalProgress),
+                    2 to evolutions.mapNotNull { it.materials }.takeIf { it.isNotEmpty() }?.average()?.let(::stagePercent).orEmpty(),
+                    3 to stagePercent(project.generalStageProgress)))
+            paragraph("O avanço geral é a média ponderada da execução e do recebimento dos materiais da etapa. Sem compras de material vinculadas, considera apenas a execução. A coluna Materiais da última linha considera as etapas com material. Pagamentos não alteram esses percentuais.")
             heading("CONCILIAÇÃO E CRONOGRAMA FÍSICO-FINANCEIRO")
             table(listOf("ETAPA / OBSERVAÇÕES", "PREVISTO", "REALIZADO", "AVANÇO", "VALOR PREVISTO", "PAGO EFETIVO", "A PAGAR / VENCIMENTO", "PAGO A MAIOR"),
                 listOf(171f, 90f, 90f, 65f, 94f, 90f, 95f, 79f), project.stages.map { stage ->
@@ -803,6 +819,7 @@ internal object FullReport {
                 if (order.deliveryExpected != null || order.receivedDate != null) {
                     paragraph("Entrega prevista: ${order.deliveryExpected.dateOr()}  •  Recebido em: ${order.receivedDate.dateOr()}")
                 }
+                if (order.nature == CostNature.MATERIAL) paragraph("Material recebido: ${stagePercent(order.receivedPercent.toDouble())}. Alimenta o avanço dos materiais da etapa vinculada.")
                 if (order.method.isNotBlank() || order.payer.isNotBlank()) {
                     paragraph("Método de pagamento: ${order.method.textOr()}  •  Quem pagou: ${order.payer.textOr()}")
                 }

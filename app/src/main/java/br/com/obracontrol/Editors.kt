@@ -45,7 +45,7 @@ internal fun EditorScreen(
                         scheduledPayments = project.scheduledPayments.filterNot { it.kind == CostKind.LABOR && it.targetId == stage.id }).unlinkPlanningStage(stage.id))
                     back()
                 }) else null
-                StageEditor(stage, onDelete) { next ->
+                StageEditor(stage, project, onDelete) { next ->
                     save(project.copy(stages = project.stages.upsert(next, Stage::id)))
                     back()
                 }
@@ -173,7 +173,7 @@ private fun ProjectEditor(project: Project, save: (Project) -> Unit) {
 }
 
 @Composable
-private fun StageEditor(stage: Stage, remove: (() -> Unit)?, save: (Stage) -> Unit) {
+private fun StageEditor(stage: Stage, project: Project, remove: (() -> Unit)?, save: (Stage) -> Unit) {
     var name by rememberSaveable { mutableStateOf(stage.name) }
     var budget by rememberSaveable { mutableStateOf(stage.budget.moneyInput()) }
     var plannedStart by rememberSaveable { mutableStateOf(stage.plannedStart.dateText()) }
@@ -182,15 +182,24 @@ private fun StageEditor(stage: Stage, remove: (() -> Unit)?, save: (Stage) -> Un
     var actualEnd by rememberSaveable { mutableStateOf(stage.actualEnd.dateText()) }
     var dueDate by rememberSaveable { mutableStateOf(stage.dueDate.dateText()) }
     var completion by rememberSaveable { mutableStateOf(stage.progress.toString()) }
+    var materialWeight by rememberSaveable { mutableStateOf(stage.materialWeight.toString()) }
     var notes by rememberSaveable { mutableStateOf(stage.notes) }
     Form(remove = remove, deletePrompt = "Excluir esta etapa? Compras e registros do diário ficarão sem o vínculo com ela.", save = {
         val progress = completion.toIntOrNull() ?: throw IllegalArgumentException("Informe o avanço em número inteiro.")
         save(stage.copy(name = name.trim(), budget = parseMoney(budget), plannedStart = parseDate(plannedStart),
             plannedEnd = parseDate(plannedEnd), actualStart = parseDate(actualStart), actualEnd = parseDate(actualEnd),
-            dueDate = parseDate(dueDate), progress = progress, notes = notes.trim()))
+            dueDate = parseDate(dueDate), progress = progress, notes = notes.trim(),
+            materialWeight = materialWeight.toIntOrNull() ?: throw IllegalArgumentException("Informe o peso dos materiais em número inteiro.")))
     }) {
         Field("Nome da etapa", name, { name = it })
         Field("Avanço físico (%)", completion, { completion = it }, KeyboardType.Number)
+        Detail("Percentual executado de mão de obra e serviços. O recebimento dos materiais é apurado nas compras vinculadas.")
+        Field("Peso dos materiais no avanço geral (%)", materialWeight, { materialWeight = it }, KeyboardType.Number)
+        val evolution = project.stageProgress(stage.copy(progress = (completion.toIntOrNull() ?: stage.progress).coerceIn(0, 100),
+            materialWeight = (materialWeight.toIntOrNull() ?: stage.materialWeight).coerceIn(0, 100)))
+        LedgerLine("Materiais recebidos", evolution.materialsText)
+        LedgerLine("Avanço geral da etapa", evolution.generalText)
+        Detail("${evolution.weightsText}. ${evolution.basisText} O padrão é 50% para execução e 50% para materiais; ajuste os pesos conforme a etapa.")
         Field("Valor da etapa (R$)", budget, { budget = it }, KeyboardType.Decimal)
         CalendarField("Início previsto", plannedStart, { plannedStart = it })
         CalendarField("Fim previsto", plannedEnd, { plannedEnd = it })
@@ -219,6 +228,7 @@ private fun PurchaseEditor(
     var dueDate by rememberSaveable { mutableStateOf(order.dueDate.dateText()) }
     var delivery by rememberSaveable { mutableStateOf(order.deliveryExpected.dateText()) }
     var received by rememberSaveable { mutableStateOf(order.receivedDate.dateText()) }
+    var receivedProgress by rememberSaveable { mutableStateOf((order.receivedProgress ?: order.receivedDate?.let { 100 })?.toString().orEmpty()) }
     var stageId by rememberSaveable { mutableStateOf(order.stageId.orEmpty()) }
     var total by rememberSaveable { mutableStateOf(order.total.moneyInput()) }
     var discount by rememberSaveable { mutableStateOf(order.discount.takeUnless { it == 0L }.moneyInput()) }
@@ -260,6 +270,8 @@ private fun PurchaseEditor(
     fun readFields() = order.copy(name = name.trim(), supplier = supplier.trim(), document = document.trim(),
         documentDate = parseDate(documentDate), dueDate = parseDate(dueDate),
         deliveryExpected = parseDate(delivery), receivedDate = parseDate(received),
+        receivedProgress = if (nature != CostNature.MATERIAL.name) order.receivedProgress else if (receivedProgress.isBlank()) null
+            else receivedProgress.toIntOrNull() ?: throw IllegalArgumentException("Informe o recebimento em número inteiro de 0 a 100."),
         stageId = stageId.takeIf(String::isNotBlank), total = parseMoney(total),
         discount = parseMoney(discount) ?: 0, extra = extra, notes = notes.trim(), documents = documents,
         payer = payer.trim(), method = method.trim(), nature = CostNature.valueOf(nature),
@@ -302,7 +314,17 @@ private fun PurchaseEditor(
         CalendarField("Data do documento", documentDate, { documentDate = it })
         CalendarField("Pagamento previsto", dueDate, { dueDate = it })
         CalendarField("Entrega prevista", delivery, { delivery = it })
-        CalendarField("Recebido em", received, { received = it })
+        CalendarField("Recebido em", received, {
+            received = it
+            if (it.isNotBlank() && nature == CostNature.MATERIAL.name) receivedProgress = "100"
+        })
+        if (nature == CostNature.MATERIAL.name) {
+            Field("Material recebido (%)", receivedProgress, {
+                receivedProgress = it
+                if (it.toIntOrNull()?.let { value -> value in 0..99 } == true) received = ""
+            }, KeyboardType.Number)
+            Detail("Informe de 0 a 100 para entregas parciais. A data de recebimento indica entrega completa. Este percentual alimenta o avanço dos materiais da etapa vinculada.")
+        }
         Select("Etapa vinculada", stageId, project.stageOptions()) { stageId = it }
         HorizontalDivider()
         Heading("Valores da compra")

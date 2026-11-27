@@ -11,7 +11,7 @@ import java.io.InputStream
 import java.math.BigDecimal
 import java.math.RoundingMode
 
-private const val FORMAT_VERSION = 11
+private const val FORMAT_VERSION = 12
 internal const val MAX_BACKUP_BYTES = 5 * 1024 * 1024
 
 internal class ProjectStore(context: Context) {
@@ -80,6 +80,7 @@ internal object ProjectCodec {
             "actualEnd" to stage.actualEnd.dateText(),
             "dueDate" to stage.dueDate.dateText(),
             "progress" to stage.progress,
+            "materialWeight" to stage.materialWeight,
             "notes" to stage.notes,
         ) }),
         "purchases" to array(project.purchases.map { purchase -> obj(
@@ -90,6 +91,7 @@ internal object ProjectCodec {
             "documentDate" to purchase.documentDate.dateText(),
             "deliveryExpected" to purchase.deliveryExpected.dateText(),
             "receivedDate" to purchase.receivedDate.dateText(),
+            "receivedProgress" to purchase.receivedProgress,
             "payer" to purchase.payer,
             "method" to purchase.method,
             "installmentCount" to purchase.installmentCount,
@@ -142,7 +144,7 @@ internal object ProjectCodec {
         val version = if (root.has("version")) root.getInt("version") else 1
         val project = when (version) {
             1 -> migrateLegacy(root)
-            2, 3, 4, 5, 6, 7, 8, 9, 10, FORMAT_VERSION -> decodeCurrent(root)
+            2, 3, 4, 5, 6, 7, 8, 9, 10, 11, FORMAT_VERSION -> decodeCurrent(root)
             else -> throw IllegalArgumentException("Versão de backup incompatível.")
         }
         project.validate()
@@ -176,6 +178,7 @@ internal object ProjectCodec {
             actualEnd = stage.date("actualEnd"),
             dueDate = stage.date("dueDate"),
             progress = stage.getInt("progress"),
+            materialWeight = stage.optionalInt("materialWeight") ?: 50,
             notes = stage.string("notes"),
         ) },
         purchases = root.objects("purchases").map { purchase -> Purchase(
@@ -186,6 +189,7 @@ internal object ProjectCodec {
             documentDate = purchase.date("documentDate"),
             deliveryExpected = purchase.date("deliveryExpected"),
             receivedDate = purchase.date("receivedDate"),
+            receivedProgress = purchase.optionalInt("receivedProgress"),
             payer = purchase.string("payer"),
             method = purchase.string("method"),
             installmentCount = if (purchase.isNull("installmentCount")) null
@@ -309,6 +313,7 @@ internal object ProjectCodec {
     private fun JSONObject.optionalObjects(key: String) = if (isNull(key)) emptyList() else objects(key)
     private fun JSONObject.string(key: String) = if (isNull(key)) "" else getString(key)
     private fun JSONObject.date(key: String) = parseDate(string(key))
+    private fun JSONObject.optionalInt(key: String): Int? = if (isNull(key)) null else BigDecimal(get(key).toString()).intValueExact()
     private fun JSONObject.cents(key: String) = if (isNull(key)) null else checkedMoney(
         BigDecimal(get(key).toString()).longValueExact(),
     )
@@ -353,6 +358,7 @@ internal fun Project.validate() {
     stages.forEach(Stage::validate)
     purchases.forEach { order ->
         require(order.name.isNotBlank()) { "Informe o nome da compra." }
+        require(order.receivedProgress == null || order.receivedProgress in 0..100) { "O recebimento deve estar entre 0% e 100%." }
         require(order.installmentCount == null || order.installmentCount > 0) { "Informe uma quantidade de parcelas maior que zero." }
         require(order.stageId == null || stages.any { it.id == order.stageId }) { "A etapa da compra não existe." }
         requireDistinctIds(order.lines.map { it.id })

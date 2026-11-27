@@ -43,7 +43,7 @@ class GanttFlowTest {
             app.onNodeWithText("Gantt").performClick()
             app.onNodeWithText("Cobertura de teste").assertIsDisplayed()
             app.onNodeWithText(260_000L.brl()).assertIsDisplayed()
-            app.onNodeWithText("Datas a definir · 0%").assertIsDisplayed()
+            app.onNodeWithText("Datas a definir").assertIsDisplayed()
             val planned = "${stage.plannedStart.dateText()} a ${stage.plannedEnd.dateText()}"
             val actual = "${stage.actualStart.dateText()} a ${stage.actualEnd.dateText()}"
             val spend = "Pago ${paid.amount.brl()} em ${paid.date.dateText()} · A pagar ${200_000L.brl()} em ${stage.dueDate.dateText()}"

@@ -399,19 +399,22 @@ internal fun StageTable(project: Project, balance: Balance, today: LocalDate, ed
     val columns = listOf(costColumn("Previsto", 94.dp), costColumn("Pago efetivo", 100.dp),
         costColumn("A pagar"), TableColumn("Tipo", 84.dp), TableColumn("Execução", 70.dp, true), TableColumn("Andamento", 130.dp),
         TableColumn("Início previsto", 108.dp), TableColumn("Fim previsto", 108.dp),
-        TableColumn("Início real", 108.dp), TableColumn("Fim real", 108.dp), TableColumn("Pagamento", 108.dp), TableColumn("Pago a maior", 105.dp, numeric = true))
+        TableColumn("Início real", 108.dp), TableColumn("Fim real", 108.dp), TableColumn("Pagamento", 108.dp), TableColumn("Pago a maior", 105.dp, numeric = true),
+        TableColumn("Materiais", 90.dp, numeric = true), TableColumn("Geral", 90.dp, numeric = true))
     val rows = project.stages.map { stage ->
         val paid = balance.paid(CostKind.LABOR, stage.id)
         val pending = stage.budget?.let { (it - paid).coerceAtLeast(0) }
         val credit = stage.budget?.let { (paid - it).coerceAtLeast(0) }
+        val evolution = project.stageProgress(stage)
         val position = project.nextPendingPosition(CostKind.LABOR, stage.id)
         val due = if (position != null) position.date else stage.dueDate
         FinancialRow(stage.id, stage.name, financialStatus(stage.budget, paid, due.takeUnless { position?.estimatedDate == true }, today),
             listOf(stage.budget.tableMoney(), paid.tableMoney(), pending.tableMoney(), CostNature.SERVICE.label,
                 "${stage.progress}%", stage.status, stage.plannedStart.dateOr(), stage.plannedEnd.dateOr(),
-                stage.actualStart.dateOr(), stage.actualEnd.dateOr(), due.dateOr() + if (position?.estimatedDate == true) " · estim." else "", credit.tableMoney()),
+                stage.actualStart.dateOr(), stage.actualEnd.dateOr(), due.dateOr() + if (position?.estimatedDate == true) " · estim." else "", credit.tableMoney(),
+                evolution.materialsText, evolution.generalText),
             "Editar etapa", { edit(stage.id) }, costs = listOf(stage.budget, paid, pending),
-            detail = "Serviço · ${stage.progress}%", editPaid = { reviewPaid(CostKind.LABOR, stage.id) }, settle = {
+            detail = "Serviço · geral ${evolution.generalText}", editPaid = { reviewPaid(CostKind.LABOR, stage.id) }, settle = {
                 if (stage.budget != null && stage.budget > paid) complete(CostKind.LABOR, stage.id) else edit(stage.id)
             })
     }
@@ -431,7 +434,8 @@ internal fun PurchaseTableScreen(
         costColumn("A pagar"), TableColumn("Tipo", 84.dp), TableColumn("Parcelas", 64.dp), TableColumn("Condição / valores", 230.dp),
         TableColumn("Quem pagou", 120.dp), TableColumn("Método", 110.dp), TableColumn("Vencimento", 108.dp),
         TableColumn("Fornecedor", 150.dp), TableColumn("Entrega", 108.dp),
-        TableColumn("Anexos", 60.dp, true), TableColumn("Documento", 150.dp), TableColumn("Pago a maior", 105.dp, numeric = true))
+        TableColumn("Anexos", 60.dp, true), TableColumn("Documento", 150.dp), TableColumn("Pago a maior", 105.dp, numeric = true),
+        TableColumn("Recebido (%)", 105.dp, numeric = true))
     val rows = project.purchases.map { order ->
         val paid = balance.paid(CostKind.MATERIAL, order.id)
         val position = InstallmentBalance(order, paid)
@@ -442,7 +446,8 @@ internal fun PurchaseTableScreen(
                 order.tableInstallments(), order.installmentText(), project.purchasePayers(order), project.purchaseMethods(order),
                 due.dateOr(), order.supplier.textOr(),
                 order.receivedDate?.let { "✓ ${it.dateText()}" } ?: order.deliveryExpected.dateOr(),
-                order.documents.size.toString(), order.document.textOr(), position.credit.tableMoney()),
+                order.documents.size.toString(), order.document.textOr(), position.credit.tableMoney(),
+                if (order.nature == CostNature.MATERIAL) stagePercent(order.receivedPercent.toDouble()) else "—"),
             "Abrir compra", { open(order.id) }, costs = listOf(order.forecast, paid, position.remaining),
             detail = listOfNotNull(order.nature.label, order.tableInstallments().takeUnless { it == "—" }).joinToString(" · "),
             settle = { if (order.forecast != null && order.forecast!! > paid) complete(CostKind.MATERIAL, order.id) else open(order.id) },

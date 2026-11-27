@@ -37,7 +37,7 @@ internal class WorkAgenda(project: Project, balance: Balance, val today: LocalDa
             add(AgendaEntry(stage.id, AgendaKind.STAGE, stage.name, stage.plannedEnd,
                 detail = "${stage.status} · ${stage.progress}% concluído"))
         }
-        project.purchases.filter { it.deliveryExpected != null && it.receivedDate == null }.forEach { order ->
+        project.purchases.filter { it.deliveryExpected != null && it.receivedPercent < 100 }.forEach { order ->
             add(AgendaEntry(order.id, AgendaKind.DELIVERY, order.name, order.deliveryExpected, detail = order.supplier))
         }
         CostPaymentCalendar(project).pending.forEach { payment ->
