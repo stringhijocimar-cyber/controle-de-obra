@@ -163,9 +163,10 @@ class CostCalendarFlowTest {
     }
 
     private fun scrollTo(tag: String) {
-        if (app.onAllNodesWithTag("flow-table-body").fetchSemanticsNodes().isNotEmpty())
+        if (app.onAllNodesWithTag("flow-table-body").fetchSemanticsNodes().isNotEmpty()) {
+            app.onNodeWithTag("flow-table-body").performScrollTo()
             app.onNodeWithTag("flow-table-body").performScrollToNode(hasTestTag(tag))
-        else app.onNode(hasScrollAction()).performScrollToNode(hasTestTag(tag))
+        } else app.onNode(hasScrollAction()).performScrollToNode(hasTestTag(tag))
         // Expanded weeks can be taller than the viewport; bring the matched child into view too.
         app.onNodeWithTag(tag).performScrollTo().assertIsDisplayed()
     }

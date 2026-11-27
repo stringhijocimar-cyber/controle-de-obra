@@ -1,5 +1,8 @@
 package br.com.obracontrol
 
+import android.graphics.Bitmap
+import java.io.File
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.test.assertCountEquals
@@ -16,6 +19,10 @@ import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertTextEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -44,17 +51,26 @@ class GanttFlowTest {
             app.onNodeWithText("Gantt").performClick()
             app.onNodeWithText("Cobertura de teste").assertIsDisplayed()
             app.onNodeWithText(260_000L.brl()).assertIsDisplayed()
-            app.onNodeWithText("Datas a definir").performScrollTo().assertIsDisplayed()
+            val stageList = app.onNode(hasScrollAction() and SemanticsMatcher.keyIsDefined(SemanticsProperties.VerticalScrollAxisRange))
+            stageList.performScrollToNode(hasText("Datas a definir"))
+            app.onNodeWithText("Datas a definir").assertIsDisplayed()
+            stageList.performScrollToNode(hasText(stage.name))
             val planned = "${stage.plannedStart.dateText()} a ${stage.plannedEnd.dateText()}"
             val actual = "${stage.actualStart.dateText()} a ${stage.actualEnd.dateText()}"
             val spend = "Pago ${paid.amount.brl()} em ${paid.date.dateText()} · A pagar ${200_000L.brl()} em ${stage.dueDate.dateText()}"
             val bars = app.onNodeWithContentDescription("Previsto $planned · Realizado $actual · $spend", useUnmergedTree = true)
-            val bitmap = bars.performScrollTo().captureToImage().toPixelMap()
+            val capture = bars.captureToImage()
+            val folder = File(app.activity.filesDir, "screenshots").apply { mkdirs() }
+            File(folder, "gantt-colors.png").outputStream().use { capture.asAndroidBitmap().compress(Bitmap.CompressFormat.PNG, 100, it) }
+            File(folder, "gantt-screen.png").outputStream().use { app.activity.window.decorView.rootView.let { _ ->
+                androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot().compress(Bitmap.CompressFormat.PNG, 100, it)
+            } }
+            val bitmap = capture.toPixelMap()
             val colors = mutableSetOf(Blue.toArgb(), Green.toArgb(), Navy.toArgb(), Amber.toArgb())
             for (y in 0 until bitmap.height step 2) {
                 for (x in 0 until bitmap.width step 2) colors.remove(bitmap[x, y].toArgb())
             }
-            assertTrue("As barras e os dois pontos de pagamento devem ser visíveis", colors.isEmpty())
+            assertTrue("Missing colors: $colors; size: ${bitmap.width}x${bitmap.height}", colors.isEmpty())
 
             bars.performTouchInput { swipeLeft() }
             app.onNodeWithText("Cobertura de teste").assertIsDisplayed()
