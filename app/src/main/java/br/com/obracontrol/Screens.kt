@@ -282,7 +282,7 @@ internal fun Dashboard(
                 ProgressBar("Avanço físico médio", percent(physical), physical, Green)
                 val general = project.generalStageProgress / 100.0
                 ProgressBar("Avanço geral das etapas", percent(general), general, Blue)
-                Detail("O avanço geral combina execução e materiais recebidos com os pesos de cada etapa. É a média simples das etapas.")
+                Detail("O avanço geral combina mão de obra e materiais/serviços vinculados com os pesos de cada etapa. É a média simples das etapas.")
                 Detail("${total.completed} de ${project.stages.size} etapas concluídas")
                 Spacer(Modifier.height(3.dp))
                 val financial = if (total.total > 0) total.paid.toDouble() / total.total else 0.0
@@ -356,7 +356,7 @@ internal fun StageList(project: Project, total: Balance, today: LocalDate, add: 
     val spend = remember(project, total) { LaborSpendCalendar(project, total) }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val pageScroll = rememberScrollState()
-        val ganttHeight = maxOf(600.dp * maxOf(1f, LocalDensity.current.fontScale), maxHeight * 0.9f)
+        val ganttHeight = maxOf(480.dp * maxOf(1f, LocalDensity.current.fontScale), maxHeight * 0.9f)
         LaunchedEffect(view) { pageScroll.scrollTo(0) }
         Column(if (view == StageView.GANTT) Modifier.fillMaxSize().verticalScroll(pageScroll) else Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp),

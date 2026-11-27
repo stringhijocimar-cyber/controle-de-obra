@@ -15,18 +15,18 @@ internal data class StageProgress(
 ) {
     val executionWeight get() = 100 - materialWeight
     val general: Double get() = materials?.let { (execution * executionWeight + it * materialWeight) / 100.0 } ?: execution.toDouble()
-    val materialsText get() = materials?.let(::stagePercent) ?: "Sem materiais"
+    val materialsText get() = materials?.let(::stagePercent) ?: "Sem materiais/serviços"
     val generalText get() = stagePercent(general)
-    val weightsText get() = if (materials == null) "Execução 100%" else "Execução $executionWeight% / materiais $materialWeight%"
+    val weightsText get() = if (materials == null) "Mão de obra 100%" else "Mão de obra $executionWeight% / materiais e serviços $materialWeight%"
     val basisText get() = when {
-        materials == null -> "Vincule as compras de material a esta etapa para incluir o recebimento no avanço geral."
-        byValue -> "Materiais recebidos ponderados pelo valor previsto de cada compra."
-        else -> "Materiais recebidos pela média das compras; há compras sem valor positivo definido."
+        materials == null -> "Vincule materiais e serviços a esta etapa para incluir seus percentuais no avanço geral."
+        byValue -> "Materiais recebidos e serviços concluídos, ponderados pelo valor previsto de cada compra."
+        else -> "Materiais e serviços pela média dos percentuais das compras; há compras sem valor positivo definido."
     }
 }
 
 internal fun Project.stageProgress(stage: Stage): StageProgress {
-    val materials = purchases.filter { it.stageId == stage.id && it.nature == CostNature.MATERIAL }
+    val materials = purchases.filter { it.stageId == stage.id }
     val byValue = materials.isNotEmpty() && materials.all { (it.forecast ?: 0) > 0 }
     val received = when {
         materials.isEmpty() -> null
@@ -38,7 +38,7 @@ internal fun Project.stageProgress(stage: Stage): StageProgress {
 }
 
 internal val Project.generalStageProgress: Double get() = stages.map { stageProgress(it).general }.average().takeUnless(Double::isNaN) ?: 0.0
-internal val Project.unlinkedMaterials: Int get() = purchases.count { it.nature == CostNature.MATERIAL && it.stageId == null }
+internal val Project.unlinkedMaterials: Int get() = purchases.count { it.stageId == null }
 
 internal fun stagePercent(value: Double): String = NumberFormat.getPercentInstance(brazil).apply {
     maximumFractionDigits = 1

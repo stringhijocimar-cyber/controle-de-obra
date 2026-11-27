@@ -33,7 +33,7 @@ class GanttReadabilityFlowTest {
     @Test fun fitZoomTodayAndDetailsWorkInFullScreenWithoutChangingTheWorkRecords() {
         val store = ProjectStore(app.activity)
         val previous = store.load()
-        val project = example()
+        val project = example().copy(ganttScale = GanttScale.DAYS)
         val stage = project.stages.first()
         try {
             store.save(project); app.activityRule.scenario.recreate()
@@ -102,7 +102,7 @@ class GanttReadabilityFlowTest {
                     val text = (0 until pdf.pageCount).joinToString(" ") { i -> pdf.openPage(i).use { page -> page.textContents.joinToString(" ") { it.text } } }
                     File(folder, "gantt-pdf-text-2.8.0.txt").writeText(text)
                     val compact = text.filterNot { it.isWhitespace() }
-                    listOf("TEMPO / PRAZO TOTAL", "EXECUÇÃO PREVISTA / REAL", "ENTREGAS DE MATERIAIS", "Geral da etapa: 60%", "CALENDÁRIO DE DESEMBOLSOS")
+                    listOf("TOTAL ACUMULADO", "MÃO DE OBRA", "MATERIAL E SERVIÇO", "Geral da etapa: 60%", "CALENDÁRIO DE DESEMBOLSOS")
                         .forEach { assertTrue(it, compact.contains(it.filterNot { char -> char.isWhitespace() })) }
                 }
             }

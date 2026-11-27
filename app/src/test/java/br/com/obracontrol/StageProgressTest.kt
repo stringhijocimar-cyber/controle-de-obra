@@ -24,17 +24,18 @@ class StageProgressTest {
         assertEquals(60.0, project.generalStageProgress, 0.0001)
     }
 
-    @Test fun servicesAndMaterialsOfOtherStagesNeverEnterTheMaterialPercentage() {
+    @Test fun linkedServicesEnterTheCombinedPercentageAndOtherStagesAndUnlinkedPurchasesStayOut() {
         val service = Purchase(name = "Serviço", nature = CostNature.SERVICE, stageId = stage.id, total = 900_000, receivedDate = today)
         val other = Stage(name = "Outra etapa", progress = 20)
         val unrelated = Purchase(name = "Outro material", total = 2_000_000, stageId = other.id, receivedProgress = 0)
         val unlinked = Purchase(name = "Sem etapa", total = 1_000_000, receivedProgress = 0)
         val next = project.copy(stages = listOf(stage, other), purchases = project.purchases + listOf(service, unrelated, unlinked))
         next.validate()
-        assertEquals(project.stageProgress(stage), next.stageProgress(stage))
+        assertEquals(1220.0 / 13.0, next.stageProgress(stage).materials!!, 0.0001)
+        assertEquals((40.0 + 1220.0 / 13.0) / 2.0, next.stageProgress(stage).general, 0.0001)
         assertEquals(1, next.unlinkedMaterials)
         assertEquals(10.0, next.stageProgress(other).general, 0.0001)
-        assertEquals(35.0, next.generalStageProgress, 0.0001)
+        assertEquals(((40.0 + 1220.0 / 13.0) / 2.0 + 10.0) / 2.0, next.generalStageProgress, 0.0001)
     }
 
     @Test fun moneyAndPurchaseTermsDoNotCreateDeliveryOrExecutionProgress() {

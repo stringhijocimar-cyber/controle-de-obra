@@ -13,8 +13,8 @@ android {
         applicationId = "br.com.obracontrol.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 280
-        versionName = "2.8.0"
+        versionCode = 290
+        versionName = "2.9.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

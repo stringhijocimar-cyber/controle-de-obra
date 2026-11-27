@@ -402,7 +402,7 @@ internal fun StageTable(project: Project, balance: Balance, today: LocalDate, ed
         costColumn("A pagar"), TableColumn("Tipo", 84.dp), TableColumn("Execução", 70.dp, true), TableColumn("Andamento", 130.dp),
         TableColumn("Início previsto", 108.dp), TableColumn("Fim previsto", 108.dp),
         TableColumn("Início real", 108.dp), TableColumn("Fim real", 108.dp), TableColumn("Pagamento", 108.dp), TableColumn("Pago a maior", 105.dp, numeric = true),
-        TableColumn("Materiais", 90.dp, numeric = true), TableColumn("Geral", 90.dp, numeric = true))
+        TableColumn("Mat./serv.", 90.dp, numeric = true), TableColumn("Geral", 90.dp, numeric = true))
     val rows = project.stages.map { stage ->
         val paid = balance.paid(CostKind.LABOR, stage.id)
         val pending = stage.budget?.let { (it - paid).coerceAtLeast(0) }

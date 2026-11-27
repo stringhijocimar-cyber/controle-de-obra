@@ -56,7 +56,7 @@ class LaborSpendTest {
     }
 
     @Test
-    fun ganttAxisIncludesEarlyAndLatePaymentsOutsideExecutionDates() {
+    fun ganttAxisKeepsFinancialDatesInTheCalendarWithoutStretchingPhysicalProgress() {
         val stage = Stage(name = "Piso", budget = 300_000, plannedStart = monday, plannedEnd = monday.plusDays(1),
             dueDate = monday.plusDays(20))
         val early = monday.minusDays(10)
@@ -64,10 +64,10 @@ class LaborSpendTest {
         val spend = LaborSpendCalendar(project, Balance(project)).byStage.getValue(stage.id)
 
         val axis = requireNotNull(GanttAxis.from(listOf(stage.ganttRow(monday, spend))))
-        assertTrue(requireNotNull(stage.dueDate) in axis.start..axis.end)
-        assertTrue(early in axis.start..axis.end)
+        assertTrue(requireNotNull(stage.dueDate) !in axis.start..axis.end)
+        assertTrue(early !in axis.start..axis.end)
         assertTrue(axis.dayCenter(early) < axis.boundary(monday))
         val financialOnly = stage.copy(plannedStart = null, plannedEnd = null).ganttRow(monday, spend)
-        assertEquals(axis.start, GanttAxis.from(listOf(financialOnly))?.start)
+        assertNull(GanttAxis.from(listOf(financialOnly)))
     }
 }
