@@ -56,7 +56,7 @@ class GanttFlowTest {
             val actual = "${stage.actualStart.dateText()} a ${stage.actualEnd.dateText()}"
             val spend = "Pago ${paid.amount.brl()} em ${paid.date.dateText()} · A pagar ${200_000L.brl()} em ${stage.dueDate.dateText()}"
             val bars = app.onNodeWithContentDescription("Previsto $planned · Realizado $actual · $spend", useUnmergedTree = true)
-            val bitmap = bars.performScrollTo().captureToImage().toPixelMap()
+            val bitmap = bars.captureToImage().toPixelMap()
             val colors = mutableSetOf(Blue.toArgb(), Green.toArgb(), Navy.toArgb(), Amber.toArgb())
             for (y in 0 until bitmap.height step 2) {
                 for (x in 0 until bitmap.width step 2) colors.remove(bitmap[x, y].toArgb())
