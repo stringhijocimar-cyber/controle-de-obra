@@ -437,7 +437,7 @@ internal fun PurchaseTableScreen(
         TableColumn("Quem pagou", 120.dp), TableColumn("Método", 110.dp), TableColumn("Vencimento", 108.dp),
         TableColumn("Fornecedor", 150.dp), TableColumn("Entrega", 108.dp),
         TableColumn("Anexos", 60.dp, true), TableColumn("Documento", 150.dp), TableColumn("Pago a maior", 105.dp, numeric = true),
-        TableColumn("Recebido (%)", 105.dp, numeric = true))
+        TableColumn("Recebido / concluído (%)", 150.dp, numeric = true))
     val rows = project.purchases.map { order ->
         val paid = balance.paid(CostKind.MATERIAL, order.id)
         val position = InstallmentBalance(order, paid)
@@ -449,7 +449,7 @@ internal fun PurchaseTableScreen(
                 due.dateOr(), order.supplier.textOr(),
                 order.receivedDate?.let { "✓ ${it.dateText()}" } ?: order.deliveryExpected.dateOr(),
                 order.documents.size.toString(), order.document.textOr(), position.credit.tableMoney(),
-                if (order.nature == CostNature.MATERIAL) stagePercent(order.receivedPercent.toDouble()) else "—"),
+                stagePercent(order.receivedPercent.toDouble())),
             "Abrir compra", { open(order.id) }, costs = listOf(order.forecast, paid, position.remaining),
             detail = listOfNotNull(order.nature.label, order.tableInstallments().takeUnless { it == "—" }).joinToString(" · "),
             settle = { if (order.forecast != null && order.forecast!! > paid) complete(CostKind.MATERIAL, order.id) else open(order.id) },

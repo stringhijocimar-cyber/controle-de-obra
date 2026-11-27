@@ -56,7 +56,11 @@ class GanttThreeBarsFlowTest {
             screenshot("Gantt-Semanas-2.9.0.png")
             tab("Dias"); screenshot("Gantt-Dias-2.9.0.png"); tab("Semanas")
             app.onNodeWithTag("close-full-screen").performClick()
+            app.activityRule.scenario.onActivity { it.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT }
+            app.waitUntil(10_000) { app.activity.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT }
+            app.waitForIdle()
             tab("Compras")
+            app.onNodeWithTag("financial-table-body").performScrollToNode(hasTestTag("table-row-${project.purchases.last().id}"))
             app.onNodeWithTag("table-row-${project.purchases.last().id}").performSemanticsAction(SemanticsActions.OnClick) { it() }
             app.onNodeWithText("Serviço concluído (%)").performScrollTo().performTextReplacement("100")
             app.onNodeWithText("Salvar").performSemanticsAction(SemanticsActions.OnClick) { it() }
