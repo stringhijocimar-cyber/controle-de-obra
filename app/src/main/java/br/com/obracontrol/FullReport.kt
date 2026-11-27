@@ -18,10 +18,11 @@ import androidx.compose.ui.graphics.toArgb
 internal object FullReport {
     private const val WIDTH = 842
     private const val HEIGHT = 595
-    private const val LEFT = 34f
+    private const val LEFT = 18f
     private const val RIGHT = WIDTH - LEFT
     private const val CONTENT = RIGHT - LEFT
-    private const val BOTTOM = 550f
+    private const val TOP = 69f
+    private const val BOTTOM = 562f
     private val ink = Navy.toArgb()
     private val muted = Muted.toArgb()
     private val light = Color.rgb(241, 245, 248)
@@ -50,7 +51,6 @@ internal object FullReport {
                 report.purchaseInstallments()
                 report.projections()
                 report.costPaymentCalendar()
-                report.weeklyMatrix()
                 report.planning()
                 report.materials()
                 report.payments()
@@ -104,13 +104,13 @@ internal object FullReport {
             number++
             page = pdf.startPage(PdfDocument.PageInfo.Builder(WIDTH, HEIGHT, number).create())
             canvas.drawColor(Color.WHITE)
-            box(0f, 0f, WIDTH.toFloat(), 65f, ink, 0f)
-            text(LEFT, 32f, title + if (continuation) " (continuação)" else "", 19f, Color.WHITE, true, CONTENT)
-            text(LEFT, 51f, subtitle, 10f, Color.rgb(216, 232, 243), width = CONTENT)
-            box(LEFT, 565f, CONTENT, 1f, track, 0f)
-            text(LEFT, 581f, "${project.name}  |  ObraControl  |  ${today.dateText()}", 8.5f, muted, width = CONTENT - 92)
-            text(RIGHT - 75, 581f, "Página $number", 8.5f, muted, width = 75f, end = true)
-            y = 87f
+            box(0f, 0f, WIDTH.toFloat(), 54f, ink, 0f)
+            text(LEFT, 25f, title + if (continuation) " (continuação)" else "", 16.5f, Color.WHITE, true, CONTENT)
+            text(LEFT, 43f, subtitle, 9.3f, Color.rgb(216, 232, 243), width = CONTENT)
+            box(LEFT, 573f, CONTENT, 0.7f, track, 0f)
+            text(LEFT, 586f, "${project.name}  |  ObraControl  |  ${today.dateText()}", 8f, muted, width = CONTENT - 92)
+            text(RIGHT - 75, 586f, "Página $number", 8f, muted, width = 75f, end = true)
+            y = TOP
         }
 
         private fun ensure(height: Float) {
@@ -191,7 +191,7 @@ internal object FullReport {
             box(LEFT, y, CONTENT, height, if (warning) goldTint else greenTint)
             text(LEFT + 13, y + 18, label, 11f, if (warning) gold else green, true, CONTENT - 26)
             lines.forEachIndexed { index, line -> text(LEFT + 13, y + 36 + 14 * index, line) }
-            y += height + 14f
+            y += height + 10f
         }
 
         private fun tiles(vararg cells: Tile) {
@@ -204,7 +204,7 @@ internal object FullReport {
                 text(x + 11, y + 44f, cell.value, 17f, cell.color, true, width - 22)
                 text(x + 11, y + 63f, cell.detail, 8.6f, muted, width = width - 22)
             }
-            y += 99f
+            y += 90f
         }
 
         private fun bars(entries: List<Bar>, x: Float, top: Float, width: Float, labelWidth: Float = 160f) {
@@ -255,16 +255,17 @@ internal object FullReport {
             else -> null
         }
 
-        private fun table(columns: List<String>, widths: List<Float>, rows: List<List<String>>, empty: String,
+        private fun table(columns: List<String>, columnWidths: List<Float>, rows: List<List<String>>, empty: String,
             totals: Map<Int, String> = emptyMap(), emphasizedRows: Set<Int> = emptySet()) {
             if (rows.isEmpty()) {
                 paragraph(empty)
                 return
             }
-            require(columns.size == widths.size && rows.all { it.size == columns.size })
+            require(columns.size == columnWidths.size && rows.all { it.size == columns.size })
+            val widths = columnWidths.map { it * CONTENT / columnWidths.sum() }
             val caption = tableHeading
             tableHeading = null
-            val freshTop = 87f + if (caption != null) 25f else 0f
+            val freshTop = TOP + if (caption != null) 25f else 0f
             val cellPadding = 8f
             val fontSize = 9.4f
             val lineHeight = 12.5f
@@ -397,14 +398,15 @@ internal object FullReport {
             section("PAINEL DE CONTROLE  |  ${project.name.uppercase(brazil)}",
                 "Prestação de contas e acompanhamento da execução  •  Base: ${project.referenceDate.dateOr(today.dateText())}")
             tiles(
-                Tile("PREVISÃO PARCIAL", total.total.brl(), "Compras e mão de obra"),
+                Tile("CUSTO TOTAL CONHECIDO", total.total.brl(), "Materiais, serviços e mão de obra"),
                 Tile("TOTAL JÁ PAGO", total.paid.brl(), "${percent(ratio)} da previsão", green),
-                Tile("SALDO LÍQUIDO", total.remaining.brl(), "Previsão parcial menos pagamentos", blue),
+                Tile("TOTAL A PAGAR", sumText(total.disbursements.map { it.amount }), "Saldos por custo; sem compensar excessos", blue),
                 Tile("ACRÉSCIMO DECLARADO", total.extras.brl(), "Compras marcadas como acréscimo", gold),
             )
             text(LEFT, y + 14, "COMPOSIÇÃO DOS CUSTOS", 12f, ink, true)
-            bars(listOf(Bar("Compras pagas", total.materialPaid, green), Bar("Compras a pagar", total.materialToPay, blue),
-                Bar("Mão de obra prevista", total.laborForecast, gold)), LEFT, y + 27f, 474f)
+            bars(ManagementReportSummary(project, today).groups.mapIndexed { index, group ->
+                Bar(group.category.label, group.forecast, listOf(blue, green, gold)[index])
+            }, LEFT, y + 27f, 474f)
             box(534f, y, RIGHT - 534f, 148f, light, 6f)
             text(546f, y + 18, "QUEM PAGOU", 11f, ink, true)
             if (total.payers.isEmpty()) text(546f, y + 40, "Nenhum pagamento registrado.", 9f, muted)
@@ -415,6 +417,7 @@ internal object FullReport {
             }
             if (total.payers.size > 3) text(546f, y + 138f, "Confira todos os registros na seção de pagamentos.", 8.4f, muted, width = 252f)
             y += 164f
+            if (total.overpaidByCost > 0) paragraph("Pago a maior: ${total.overpaidByCost.brl()} · Saldo líquido: ${total.remaining.brl()}. Os excessos não quitam outros custos.", gold)
             val latest = project.stages.filter { it.progress == 100 }.maxByOrNull { it.actualEnd ?: LocalDate.MIN }
             val marker = latest?.let { " Última etapa concluída: ${it.name}, em ${it.actualEnd.dateOr()}." }.orEmpty()
             callout("MARCO DA OBRA", "Início: ${project.start.dateOr()} • ${total.completed} de ${project.stages.size} etapas concluídas • Avanço físico médio de ${percent(total.physicalProgress / 100)}.$marker")
@@ -754,54 +757,91 @@ internal object FullReport {
             barSection("COMPRAS A ADQUIRIR OU PAGAR", total.projectedPurchases.mapNotNull { purchase ->
                 total.materialOutstanding(purchase)?.takeIf { it > 0 }?.let { Bar(purchase.name, it, blue) }
             }, "Nenhuma compra com saldo conhecido.")
-            heading("CALENDÁRIO DE DESEMBOLSOS")
-            table(listOf("REFERÊNCIA", "TIPO", "DATA PREVISTA", "VALOR A PAGAR"),
-                listOf(355f, 137f, 136f, 146f), CostPaymentCalendar(project).pending.sortedWith(compareBy(nullsLast()) { it.date }).map {
-                    val date = it.date.dateOr("Sem data")
-                    listOf("${it.target.name}\n${it.label}", it.target.category.label,
-                        if (it.estimatedDate) "$date\nEstimativa pelo fim previsto" else date, it.amount.costText())
-                }, "Nenhum desembolso previsto foi cadastrado.",
-                totals = mapOf(3 to sumText(CostPaymentCalendar(project).pending.map { it.amount })))
-            heading("DESEMBOLSOS DE MÃO DE OBRA POR SEMANA")
-            table(listOf("SEMANA", "TOTAL PAGO", "SALDO CONHECIDO A PAGAR", "VALORES A DEFINIR"),
-                listOf(250f, 135f, 205f, 184f), laborSpend.weeks.map {
-                    listOf(it.label, it.paid.brl(), it.balance.brl(), it.undefined.toString())
-                }, "Nenhum desembolso de mão de obra registrado ou previsto.", totals = mapOf(
-                    1 to laborSpend.weeks.sumOf { it.paid }.brl(), 2 to laborSpend.weeks.sumOf { it.balance }.brl(),
-                    3 to laborSpend.weeks.sumOf { it.undefined }.toString()))
+            paragraph("Consulte o calendário mensal de desembolsos para os pagamentos realizados e os vencimentos dos saldos. Cada mês apresenta os totais e a agenda com os custos e as parcelas.")
             callout("CRITÉRIO DE CONTROLE", "Compras previstas permanecem no escopo da obra. Acréscimos são sinalizados apenas nas compras marcadas como acréscimo. Datas e valores em aberto aguardam confirmação.")
         }
 
         fun costPaymentCalendar() {
-            val calendar = CostPaymentCalendar(project)
-            section("CALENDÁRIO DE PAGAMENTOS | POR SEMANA", "Materiais, serviços e mão de obra com detalhamento de cada custo")
-            paragraph("Pago efetivo segue a data do pagamento. A pagar segue o vencimento do saldo. Parcelas quitadas antecipadamente não são cobradas novamente na semana prevista. Sem data e valores a definir permanecem identificados.")
-            table(listOf("SEMANA", "PAGO EFETIVO", "A PAGAR CONHECIDO", "TOTAL CONHECIDO", "A DEFINIR"),
-                listOf(250f, 125f, 160f, 155f, 84f), calendar.weeks.map { week ->
-                    listOf(week.label, week.paid.brl(), if (week.pending.entirelyUndefined) UNDEFINED else week.pending.known.brl(),
-                        week.knownTotal.brl(), week.pending.undefinedCount.toString())
-                }, "Nenhum custo ou pagamento cadastrado.", totals = mapOf(1 to total.paid.brl(),
-                    2 to sumText(calendar.pending.map { it.amount }), 3 to sumText(calendar.entries.map { it.amount }),
-                    4 to calendar.pending.count { it.amount == null }.toString()))
-            calendar.weeks.forEach { week ->
-                heading(week.label)
-                table(listOf("CUSTO / PARCELA", "TIPO", "DATA", "SITUAÇÃO", "VALOR"),
-                    listOf(335f, 112f, 105f, 100f, 122f), week.entries.map { entry ->
-                        listOf("${entry.target.name}\n${entry.label}", entry.target.category.label,
-                            entry.date.dateOr("Sem data") + if (entry.estimatedDate) "\nEstimativa pelo fim previsto" else "",
-                            if (entry.paid) "Pago" else "A pagar", entry.amount.costText())
-                    }, "", totals = mapOf(0 to "TOTAL DA SEMANA", 4 to sumText(week.entries.map { it.amount })))
+            val calendar = MonthlyDisbursementCalendar(project)
+            if (calendar.entries.isEmpty()) {
+                section("CALENDÁRIO DE DESEMBOLSOS", "Pagamentos realizados e vencimentos por dia")
+                paragraph("Nenhum desembolso cadastrado.")
+                return
             }
-            if (project.scheduledPayments.isNotEmpty()) {
-                heading("PROGRAMAÇÃO E QUITAÇÃO POR PARCELA")
-                paragraph("Abatido considera pagamentos vinculados à parcela e pagamentos anteriores distribuídos por ordem de vencimento. O histórico e os comprovantes continuam na prestação de contas.")
-                table(listOf("CUSTO / PARCELA", "VENCIMENTO", "PROGRAMADO", "ABATIDO", "A PAGAR", "CONCLUÍDO"),
-                    listOf(294f, 100f, 100f, 100f, 100f, 80f), calendar.positions.filter { it.schedule != null }.map { position ->
-                        listOf("${position.target.name}\n${position.label}", position.date.dateOr("Sem data"), position.gross.costText(),
-                            position.applied.brl(), position.remaining.costText(), if (position.completed) "Sim" else "Não")
-                    }, "", totals = calendar.positions.filter { it.schedule != null }.let { positions -> mapOf(
-                        2 to sumText(positions.map { it.gross }), 3 to positions.sumOf { it.applied }.brl(),
-                        4 to sumText(positions.map { it.remaining })) })
+            calendar.months.forEach { month ->
+                val label = month.month.format(DateTimeFormatter.ofPattern("MMMM / uuuu", brazil)).uppercase(brazil)
+                section("CALENDÁRIO DE DESEMBOLSOS", "$label · Meses com movimentação · Segunda-feira a domingo")
+                heading(label)
+                val pending = if (month.pending.entirelyUndefined) UNDEFINED else month.pending.known.brl() + if (month.pending.partial) " + ?" else ""
+                text(LEFT, y + 11f, "Pago no mês: ${month.paid.brl()}    |    A pagar no mês: $pending    |    ${month.entries.size} lançamento(s)", 10f, ink, true, CONTENT)
+                y += 25f
+                val dayWidth = CONTENT / 7f
+                box(LEFT, y, CONTENT, 22f, light, 0f)
+                listOf("SEGUNDA", "TERÇA", "QUARTA", "QUINTA", "SEXTA", "SÁBADO", "DOMINGO").forEachIndexed { index, day ->
+                    text(LEFT + index * dayWidth + 7f, y + 15f, day, 8.4f, muted, true, dayWidth - 14f)
+                }
+                y += 22f
+                val rowHeight = minOf(76f, (BOTTOM - y - 23f) / month.weeks.size)
+                month.weeks.forEach { week ->
+                    week.forEachIndexed { column, day ->
+                        val x = LEFT + column * dayWidth
+                        val inMonth = java.time.YearMonth.from(day.date) == month.month
+                        box(x, y, dayWidth, rowHeight, if (!inMonth) light else if (column >= 5) alternate else Color.WHITE, 0f)
+                        line(x, y, x + dayWidth, y, track)
+                        line(x, y, x, y + rowHeight, track)
+                        text(x + 7f, y + 15f, day.date.dayOfMonth.toString(), 11f, if (inMonth) ink else muted, inMonth)
+                        if (day.entries.isNotEmpty()) {
+                            if (day.paid > 0) text(x + 7f, y + 31f, "Pago ${day.paid.brl()}", 8.4f, green, true, dayWidth - 14f)
+                            if (day.pending.definedCount > 0 || day.pending.partial) {
+                                val amount = if (day.pending.entirelyUndefined) UNDEFINED else day.pending.known.brl() + if (day.pending.partial) " + ?" else ""
+                                text(x + 7f, y + 45f, "A pagar $amount", 8.4f, if (day.date < today) red else gold, true, dayWidth - 14f)
+                            }
+                            val estimates = day.entries.count { it.estimatedDate }
+                            text(x + 7f, y + rowHeight - 7f, "${day.entries.size} lanç." + if (estimates > 0) " · $estimates estim." else "", 7.6f, muted, width = dayWidth - 14f)
+                        }
+                        if (inMonth && day.date == today) {
+                            paint.color = blue
+                            paint.strokeWidth = 1.4f
+                            paint.style = Paint.Style.STROKE
+                            canvas.drawRect(x + 1f, y + 1f, x + dayWidth - 1f, y + rowHeight - 1f, paint)
+                            paint.style = Paint.Style.FILL
+                        }
+                    }
+                    line(RIGHT, y, RIGHT, y + rowHeight, track)
+                    y += rowHeight
+                }
+                line(LEFT, y, RIGHT, y, track)
+                text(LEFT, y + 16f, "Verde: pago na data real · Âmbar: a pagar · Vermelho: vencido · + ?: valor a definir · Detalhes na agenda do mês", 8.5f, muted, width = CONTENT)
+                y += 23f
+                calendarAgenda(month.entries, "AGENDA DE $label", "Custos, parcelas e responsáveis dos valores apresentados no calendário")
+            }
+            if (calendar.undated.isNotEmpty()) {
+                calendarAgenda(calendar.undated, "SEM DATA DEFINIDA", "Valores preservados fora da grade mensal até a data ser informada")
+            }
+        }
+
+        private fun calendarAgenda(entries: List<CashFlowEntry>, label: String, caption: String) {
+            section("CALENDÁRIO DE DESEMBOLSOS | AGENDA", label)
+            paragraph(caption)
+            val paid = entries.filter { it.paid }.sumOf { it.amount ?: 0 }
+            paragraph("Total pago: ${paid.brl()} · A pagar: ${sumText(entries.filterNot { it.paid }.map { it.amount })}")
+            entries.groupBy { it.date }.forEach { (date, rows) ->
+                ensure(70f)
+                heading(date.dateOr("SEM DATA DEFINIDA"))
+                rows.forEach { entry ->
+                    val payment = project.payments.firstOrNull { it.id == entry.paymentId }
+                    val purchase = project.purchases.firstOrNull { entry.target.kind == CostKind.MATERIAL && it.id == entry.target.id }
+                    val payer = if (entry.paid) payment?.payer else purchase?.payer
+                    val method = if (entry.paid) payment?.method else purchase?.method
+                    val stage = if (entry.target.kind == CostKind.LABOR) project.stageName(entry.target.id) else project.stageName(purchase?.stageId)
+                    val state = if (entry.paid) "PAGO" else if (date != null && date < today) "VENCIDO" else "A PAGAR"
+                    paragraph("$state · ${entry.amount.costText()} · ${entry.target.category.label} · ${entry.target.name} · ${entry.label}" +
+                        (stage?.let { " · Etapa: $it" } ?: "") +
+                        " · ${payer.textOr("Pagador a definir")} · ${method.textOr("Método a definir")}" +
+                        if (entry.estimatedDate) " · Vencimento estimado pelo fim da etapa" else "",
+                        if (entry.paid) green else if (date != null && date < today) red else ink)
+                }
+                y += 3f
             }
         }
 
@@ -843,34 +883,6 @@ internal object FullReport {
                 if (order.notes.isNotBlank()) paragraph(order.notes)
                 if (order.documents.isNotEmpty()) paragraph("Documentos anexados: ${order.documents.joinToString { it.name }}")
                 y += 7f
-            }
-        }
-
-        fun weeklyMatrix() {
-            val model = DisbursementTable(project)
-            section("DESEMBOLSOS  |  TABELA SEMANAL EM CAMADAS", "Material e Serviço · Mão de obra integra Serviço · Etapas e custos com seus subtotais")
-            paragraph("As linhas de tipo e etapa são subtotais; a última linha é o total da obra. Pago e a pagar são totais gerais. As colunas semanais somam pagamentos reais e saldos nos vencimentos.")
-            if (model.entries.isEmpty()) { paragraph("Nenhum desembolso cadastrado."); return }
-            val rows = model.visible(model.roots.flatMap { it.children }.map { it.key }.toSet() + model.roots.map { it.key })
-                .filter { it.first.layer != FlowLayer.ENTRY }
-            val windows = (0 until model.pageCount).flatMap { model.columns(it).chunked(3) }
-            windows.forEachIndexed { index, dates ->
-                if (index > 0) startPage(continuation = true)
-                val dated = dates.filterNotNull()
-                heading(if (dated.isEmpty()) "SEM DATA DEFINIDA" else "${dated.first().dateText()} A ${dated.last().plusDays(6).dateText()}")
-                val labels = dates.map { date -> if (date == null) "SEM DATA" else "S${date.get(java.time.temporal.WeekFields.ISO.weekOfWeekBasedYear())} ${date.format(shortDate)}" }
-                val weekWidth = 234f / dates.size.coerceAtLeast(1)
-                fun row(node: FlowNode, prefix: String): List<String> = listOf(prefix + node.label, model.people(node, false), model.people(node, true),
-                    node.paid.brl(), if (node.pending.entirelyUndefined) UNDEFINED else node.pending.known.brl() + if (node.pending.partial) " + ?" else "") +
-                    dates.map { date ->
-                        val amount = node.amounts(date, CashView.TOTAL)
-                        if (amount.entirelyUndefined) UNDEFINED else amount.known.brl() + if (amount.partial) " + ?" else ""
-                    }
-                table(listOf("ETAPA / CUSTO", "QUEM PAGA", "COMO PAGA", "PAGO EFETIVO", "A PAGAR") + labels,
-                    listOf(180f, 90f, 90f, 90f, 90f) + dates.map { weekWidth },
-                    rows.map { (node, depth) -> row(node, when (depth) { 1 -> "Etapa: "; 2 -> "Custo: "; else -> "" }) }, "",
-                    totals = row(model.total, "").mapIndexed { column, value -> column to if (column == 0) "TOTAL DA OBRA" else value }.toMap(),
-                    emphasizedRows = rows.indices.filter { rows[it].second < 2 }.toSet())
             }
         }
 
@@ -935,7 +947,7 @@ internal object FullReport {
             )
             table(listOf("REFERÊNCIA / TIPO", "VALOR", "DATA", "PAGADOR", "MEIO", "COMPROVANTE / OBSERVAÇÕES"),
                 listOf(194f, 90f, 81f, 109f, 98f, 202f), project.payments.sortedWith(compareBy(nullsLast()) { it.date }).map {
-                    listOf("${project.targetName(it)}\n${project.costNature(it.kind, it.targetId).label} · ${it.kind.label}", it.amount.brl(), it.date.dateOr(UNREPORTED),
+                    listOf("${project.targetName(it)}\n${project.costCategory(it.kind, it.targetId).label}", it.amount.brl(), it.date.dateOr(UNREPORTED),
                         it.payer.textOr(), it.method.textOr(), buildList {
                             if (it.receipt.isNotBlank()) add(it.receipt)
                             addAll(it.proofs.map { proof -> proof.name })

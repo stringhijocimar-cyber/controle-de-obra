@@ -105,8 +105,8 @@ class CostCalendarFlowTest {
             assertEquals(60_000L, Balance(store.load()).paid(CostKind.MATERIAL, service.id))
             assertTrue(CostPaymentCalendar(store.load()).pending.none { it.target.id == service.id })
             app.onNodeWithText("‹ Voltar").performClick()
-            scrollTo("flow-toggle-stage-SERVICE-${stage.id}")
-            app.onNodeWithTag("flow-toggle-stage-SERVICE-${stage.id}").performClick()
+            scrollTo("flow-toggle-stage-LABOR-${stage.id}")
+            app.onNodeWithTag("flow-toggle-stage-LABOR-${stage.id}").performClick()
             scrollTo("flow-row-cost-LABOR/${stage.id}")
             screenshot("calendario-camadas.png")
             app.onNodeWithText("Mão de obra da etapa").performClick()
@@ -134,8 +134,8 @@ class CostCalendarFlowTest {
                     val text = (0 until pdf.pageCount).joinToString("\n") { index ->
                         pdf.openPage(index).use { it.textContents.joinToString(" ") { block -> block.text } }
                     }
-                    assertTrue(text.contains("CALENDÁRIO DE PAGAMENTOS | POR SEMANA"))
-                    assertTrue(text.contains("PROGRAMAÇÃO E QUITAÇÃO POR PARCELA"))
+                    assertTrue(text.contains("CALENDÁRIO DE DESEMBOLSOS"))
+                    assertTrue(text.contains("CONTROLE DE PARCELAS"))
                     assertTrue(text.contains(stage.name) && text.contains(service.name) && text.contains(material.name))
                 }
             }

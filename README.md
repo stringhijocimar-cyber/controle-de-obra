@@ -2,6 +2,16 @@
 
 Aplicativo Android para planejar etapas e custos, acompanhar a execução da obra, controlar compras e pagamentos e emitir o relatório executivo em PDF. O cadastro e os modelos funcionam sem internet. O fluxo opcional com ChatGPT requer acesso ao serviço.
 
+## Versão 2.6.0 — pagamentos por categoria e calendário gerencial
+
+- **Pagamentos** mostra no topo o custo total conhecido da obra, o total pago e o total a pagar por custo. Valores sem preço e pagamentos a maior são sinalizados; excessos de um custo não quitam outro. Os totais gerais permanecem visíveis ao filtrar.
+- Os botões **Todos / Materiais / Mão de obra / Terceirizados** filtram **Registrados, A pagar, Parcelados e Semanas**. O subtotal da seleção aparece separado da visão geral. A tabela semanal distingue as três categorias.
+- **Mão de obra** é o orçamento da equipe na etapa; **Material** são os itens comprados; **Serviço terceirizado** é a contratação externa, como fabricação de pia, vidro sob encomenda, frete ou fabricação especializada. Um orçamento com material e instalação discriminados pode ser lançado em partes. Cadastre cada obrigação uma única vez. A classificação das compras existentes pode ser editada; não há inferência automática pelo nome.
+- O cadastro de pagamentos oferece as mesmas três categorias e mantém os vínculos existentes. Compras de materiais e serviços mantêm seus IDs e sua classificação no backup, sem migração de dados.
+- O PDF traz **calendário mensal com dias da semana**, totais diários pagos e a pagar, destaque de vencidos e uma **agenda de cada mês** com todos os custos, parcelas, responsáveis e métodos. Sem data e valores a definir permanecem identificados. Pagos usam a data real; saldos usam os vencimentos já conciliados. As antigas tabelas de desembolso são substituídas pela grade mensal e sua agenda.
+- As margens laterais do PDF passam de 34 para 18 pontos (cerca de 6 mm); o cabeçalho fica mais compacto e as tabelas se ajustam à largura útil. Títulos, cabeçalhos das tabelas e numeração se repetem nas continuações. Permanecem o resumo gerencial, gráficos, Gantt, balanço, projeções, parcelas, planejamento e aprovações, materiais, prestação de contas, pendências e diário.
+- A versão mantém o formato de backup **12**, a leitura dos formatos anteriores e a assinatura permanente do instalador.
+
 ## Versão 2.5.0 — execução, materiais e avanço geral por etapa
 
 - O Gantt mostra os percentuais de **Execução**, **Materiais recebidos** e **Geral** em cada etapa. A tabela de etapas, o painel e o relatório completo usam a mesma composição.

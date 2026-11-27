@@ -83,7 +83,7 @@ class GanttFlowTest {
             app.onNodeWithText("Calendário de desembolsos").assertIsDisplayed()
             app.onNodeWithTag("flow-paid-total", useUnmergedTree = true).assertTextEquals(20_000L.brl())
             app.onNodeWithTag("flow-pending-total", useUnmergedTree = true).assertTextEquals(100_000L.brl())
-            app.onNodeWithTag("flow-toggle-stage-SERVICE-${stage.id}").performClick()
+            app.onNodeWithTag("flow-toggle-stage-LABOR-${stage.id}").performClick()
             app.onNodeWithTag("flow-table-body").performScrollToNode(hasTestTag("flow-row-cost-LABOR/${stage.id}"))
             app.onNodeWithText("Mão de obra da etapa").performClick()
             app.onNodeWithText("Editar cadastro do custo").performClick()
