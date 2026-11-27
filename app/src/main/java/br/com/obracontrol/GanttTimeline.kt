@@ -56,7 +56,14 @@ internal class GanttTimeline(val axis: GanttAxis, val scale: GanttScale) {
     fun bands(row: Int, width: Float = preferredWidth): List<GanttDateBand> = when (row) {
         0 -> years
         1 -> months
-        2 -> weeks.filterIndexed { index, _ -> index % labelStride(width, 7f, 66f) == 0 }
+        2 -> {
+            val stride = labelStride(width, 7f, 66f)
+            weeks.filterIndexed { index, _ -> index % stride == 0 }.mapIndexed { index, band ->
+                val end = weeks.getOrNull((index + 1) * stride)?.start?.minusDays(1) ?: axis.end
+                band.copy(end = end, description = if (stride == 1) band.description
+                    else "${band.description} · Faixa até ${end.dateText()}")
+            }
+        }
         else -> {
             val step = labelStride(width, 1f, 30f).toLong()
             (0L until axis.days step step).map { offset ->
