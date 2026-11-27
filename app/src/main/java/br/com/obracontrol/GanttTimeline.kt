@@ -60,7 +60,9 @@ internal class GanttTimeline(val axis: GanttAxis, val scale: GanttScale) {
             val stride = labelStride(width, 7f, 66f)
             weeks.filterIndexed { index, _ -> index % stride == 0 }.mapIndexed { index, band ->
                 val end = weeks.getOrNull((index + 1) * stride)?.start?.minusDays(1) ?: axis.end
-                band.copy(end = end, description = if (stride == 1) band.description
+                val firstWeek = band.start.get(WeekFields.ISO.weekOfWeekBasedYear()).toString().padStart(2, '0')
+                val lastWeek = end.get(WeekFields.ISO.weekOfWeekBasedYear()).toString().padStart(2, '0')
+                band.copy(end = end, label = if (stride == 1) band.label else "S$firstWeek-$lastWeek", description = if (stride == 1) band.description
                     else "${band.description} · Faixa até ${end.dateText()}")
             }
         }
