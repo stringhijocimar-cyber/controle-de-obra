@@ -5,6 +5,7 @@ Aplicativo Android para planejar etapas e custos, acompanhar a execução da obr
 ## Versão 2.6.0 — pagamentos por categoria e calendário gerencial
 
 - **Pagamentos** mostra no topo o custo total conhecido da obra, o total pago e o total a pagar por custo. Valores sem preço e pagamentos a maior são sinalizados; excessos de um custo não quitam outro. Os totais gerais permanecem visíveis ao filtrar.
+- O resumo e as abas podem ser rolados para manter uma área de leitura da tabela em telas menores e com fontes ampliadas. Os totais reaparecem ao trocar a categoria ou a visualização.
 - Os botões **Todos / Materiais / Mão de obra / Terceirizados** filtram **Registrados, A pagar, Parcelados e Semanas**. O subtotal da seleção aparece separado da visão geral. A tabela semanal distingue as três categorias.
 - **Mão de obra** é o orçamento da equipe na etapa; **Material** são os itens comprados; **Serviço terceirizado** é a contratação externa, como fabricação de pia, vidro sob encomenda, frete ou fabricação especializada. Um orçamento com material e instalação discriminados pode ser lançado em partes. Cadastre cada obrigação uma única vez. A classificação das compras existentes pode ser editada; não há inferência automática pelo nome.
 - O cadastro de pagamentos oferece as mesmas três categorias e mantém os vínculos existentes. Compras de materiais e serviços mantêm seus IDs e sua classificação no backup, sem migração de dados.

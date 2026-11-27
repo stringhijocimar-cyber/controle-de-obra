@@ -35,15 +35,15 @@ class PaymentOrganizationFlowTest {
             app.activityRule.scenario.recreate()
             tab("Pagamentos")
             overallTotals()
-            app.onNodeWithTag("payments-category-MATERIAL").performClick()
-            app.onNodeWithTag("table-name-${project.payments[1].id}", useUnmergedTree = true).assertExists()
+            app.onNodeWithTag("payments-category-MATERIAL").performScrollTo().performClick()
+            app.onNodeWithTag("table-name-${project.payments[1].id}", useUnmergedTree = true).performScrollTo().assertIsDisplayed()
             app.onNodeWithTag("table-name-${project.payments[0].id}", useUnmergedTree = true).assertDoesNotExist()
             app.onNodeWithTag("table-name-${project.payments[2].id}", useUnmergedTree = true).assertDoesNotExist()
             app.onNodeWithTag("table-total-0").assertTextEquals(10_000L.brl())
             tab("A pagar")
             app.onNodeWithTag("table-total-0").assertTextEquals(50_000L.brl())
             overallTotals()
-            app.onNodeWithTag("payments-category-SERVICE").performClick()
+            app.onNodeWithTag("payments-category-SERVICE").performScrollTo().performClick()
             app.onNodeWithTag("table-total-0").assertTextEquals(160_000L.brl())
             tab("Parcelados")
             app.onNodeWithTag("table-total-0").assertTextEquals(240_000L.brl())
@@ -52,13 +52,13 @@ class PaymentOrganizationFlowTest {
             tab("Semanas")
             app.onNodeWithTag("flow-paid-total", useUnmergedTree = true).assertTextEquals(80_000L.brl())
             app.onNodeWithTag("flow-pending-total", useUnmergedTree = true).assertTextEquals(160_000L.brl())
-            app.onNodeWithTag("payments-category-LABOR").performClick()
+            app.onNodeWithTag("payments-category-LABOR").performScrollTo().performClick()
             app.onNodeWithTag("flow-paid-total", useUnmergedTree = true).assertTextEquals(20_000L.brl())
             app.onNodeWithTag("flow-pending-total", useUnmergedTree = true).assertTextEquals(80_000L.brl())
             tab("Registrados")
             app.onNodeWithTag("table-total-0").assertTextEquals(20_000L.brl())
             overallTotals()
-            app.onNodeWithTag("payments-category-ALL").performClick()
+            app.onNodeWithTag("payments-category-ALL").performScrollTo().performClick()
             screenshot("pagamentos-visao-geral-2.6.0.png")
             assertEquals(project, store.load())
             assertEquals(project, ProjectCodec.decode(ProjectCodec.encode(store.load())))
@@ -96,7 +96,10 @@ class PaymentOrganizationFlowTest {
                 assertFalse(text.contains("TABELA SEMANAL EM CAMADAS"))
                 many.forEach { assertTrue(it.name, text.contains(it.name)) }
                 assertTrue(pages.count { it.contains("CALENDÁRIO DE DESEMBOLSOS | AGENDA") && it.contains("NOVEMBRO / 2026") } >= 2)
-                pages.forEachIndexed { index, content -> assertTrue("Rodapé da página ${index + 1}", content.contains("Página ${index + 1}")) }
+                pages.forEachIndexed { index, content ->
+                    assertTrue("Rodapé da página ${index + 1}: ${content.takeLast(180)}",
+                        content.filterNot { it.isWhitespace() }.contains("Página${index + 1}"))
+                }
                 val calendarIndex = pages.indexOfFirst { it.contains("SEGUNDA") && it.contains("NOVEMBRO / 2026") }
                 renderer.openPage(calendarIndex).use { page ->
                     val image = Bitmap.createBitmap(page.width * 2, page.height * 2, Bitmap.Config.ARGB_8888)
@@ -109,11 +112,15 @@ class PaymentOrganizationFlowTest {
     }
 
     private fun overallTotals() {
-        app.onNodeWithTag("payments-overview-forecast").assertIsDisplayed().assertTextEquals(400_000L.brl())
+        app.onNodeWithTag("payments-overview-forecast").performScrollTo().assertIsDisplayed().assertTextEquals(400_000L.brl())
         app.onNodeWithTag("payments-overview-paid").assertIsDisplayed().assertTextEquals(110_000L.brl())
         app.onNodeWithTag("payments-overview-pending").assertIsDisplayed().assertTextEquals(290_000L.brl())
     }
-    private fun tab(label: String) = app.onNode(hasText(label) and SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab)).performClick()
+    private fun tab(label: String) {
+        val node = app.onNode(hasText(label) and SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab))
+        if (label != "Pagamentos") node.performScrollTo()
+        node.performClick()
+    }
     private fun folder() = File(app.activity.filesDir, "screenshots").apply { mkdirs() }
     private fun screenshot(name: String) {
         val image = app.onRoot().captureToImage().asAndroidBitmap()

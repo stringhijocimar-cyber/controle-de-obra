@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -33,6 +34,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -561,22 +563,27 @@ internal fun PaymentTableScreen(
                 editMethod = { edit(payment.id) }, editPaid = { edit(payment.id) })
         }
     }
-    Column(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            ListHeading("Pagamentos", "+ Novo", add, "Valores pagos e compromissos em aberto")
-            PaymentOverview(project, balance)
-            PaymentCategoryFilters(project, balance, category) { selectedCategory = it?.name.orEmpty() }
-            ViewTabs(PaymentView.entries.map { it.label }, view.ordinal) { selectedView = PaymentView.entries[it].name }
-            if (view == PaymentView.REGISTERED) TextButton(onClick = checkPayments, modifier = Modifier.height(32.dp), contentPadding = PaddingValues(2.dp)) {
-                Text("Conferir duplicados${if (repeatedIds.isNotEmpty()) " · ${repeatedIds.size} lançamentos semelhantes" else ""}", style = MaterialTheme.typography.labelMedium)
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val pageScroll = rememberScrollState()
+        val tableHeight = maxOf(420.dp, maxHeight * 0.75f)
+        LaunchedEffect(selectedView, selectedCategory) { pageScroll.scrollTo(0) }
+        Column(Modifier.fillMaxSize().verticalScroll(pageScroll)) {
+            Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                ListHeading("Pagamentos", "+ Novo", add, "Valores pagos e compromissos em aberto")
+                PaymentOverview(project, balance)
+                PaymentCategoryFilters(project, balance, category) { selectedCategory = it?.name.orEmpty() }
+                ViewTabs(PaymentView.entries.map { it.label }, view.ordinal) { selectedView = PaymentView.entries[it].name }
+                if (view == PaymentView.REGISTERED) TextButton(onClick = checkPayments, modifier = Modifier.height(32.dp), contentPadding = PaddingValues(2.dp)) {
+                    Text("Conferir duplicados${if (repeatedIds.isNotEmpty()) " · ${repeatedIds.size} lançamentos semelhantes" else ""}", style = MaterialTheme.typography.labelMedium)
+                }
             }
-        }
-        Box(Modifier.weight(1f)) {
-            if (view == PaymentView.WEEKS) WeeklyDisbursementScreen(project, today, openCost, category)
-            else FinancialTable(if (installments) "Compra" else "Referência", columns, rows,
-                if (installments) "Nenhuma compra cadastrada como parcelada."
-                else if (outstanding) "Nenhum valor em aberto." else "Nenhum pagamento registrado.")
+            Box(Modifier.fillMaxWidth().height(tableHeight).padding(bottom = 12.dp)) {
+                if (view == PaymentView.WEEKS) WeeklyDisbursementScreen(project, today, openCost, category)
+                else FinancialTable(if (installments) "Compra" else "Referência", columns, rows,
+                    if (installments) "Nenhuma compra cadastrada como parcelada."
+                    else if (outstanding) "Nenhum valor em aberto." else "Nenhum pagamento registrado.")
+            }
         }
     }
 }

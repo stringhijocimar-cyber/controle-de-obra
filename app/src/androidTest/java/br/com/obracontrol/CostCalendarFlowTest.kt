@@ -81,7 +81,7 @@ class CostCalendarFlowTest {
             store.save(project)
             app.activityRule.scenario.recreate()
             app.onNode(hasText("Pagamentos") and hasClickAction()).performClick()
-            app.onNodeWithText("Semanas").performClick()
+            app.onNodeWithText("Semanas").performScrollTo().performClick()
             app.onNodeWithTag("flow-paid-total", useUnmergedTree = true).assertTextEquals(30_000L.brl())
             app.onNodeWithTag("flow-pending-total", useUnmergedTree = true).assertTextEquals("${160_000L.brl()} + ?")
             screenshot("calendario-semanal.png")
@@ -143,7 +143,7 @@ class CostCalendarFlowTest {
             app.activityRule.scenario.recreate()
             assertEquals(saved, store.load())
             app.onNode(hasText("Pagamentos") and hasClickAction()).performClick()
-            app.onNodeWithText("Semanas").performClick()
+            app.onNodeWithText("Semanas").performScrollTo().performClick()
             app.onNodeWithTag("flow-paid-total", useUnmergedTree = true).assertTextEquals(90_000L.brl())
             app.onNodeWithTag("flow-value-total-$monday-TOTAL", useUnmergedTree = true).assertTextEquals(130_000L.brl())
         } catch (failure: Throwable) {

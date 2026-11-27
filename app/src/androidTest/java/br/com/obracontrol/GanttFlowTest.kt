@@ -10,6 +10,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.onNodeWithTag
@@ -43,12 +44,12 @@ class GanttFlowTest {
             app.onNodeWithText("Gantt").performClick()
             app.onNodeWithText("Cobertura de teste").assertIsDisplayed()
             app.onNodeWithText(260_000L.brl()).assertIsDisplayed()
-            app.onNodeWithText("Datas a definir").assertIsDisplayed()
+            app.onNodeWithText("Datas a definir").performScrollTo().assertIsDisplayed()
             val planned = "${stage.plannedStart.dateText()} a ${stage.plannedEnd.dateText()}"
             val actual = "${stage.actualStart.dateText()} a ${stage.actualEnd.dateText()}"
             val spend = "Pago ${paid.amount.brl()} em ${paid.date.dateText()} · A pagar ${200_000L.brl()} em ${stage.dueDate.dateText()}"
             val bars = app.onNodeWithContentDescription("Previsto $planned · Realizado $actual · $spend", useUnmergedTree = true)
-            val bitmap = bars.captureToImage().toPixelMap()
+            val bitmap = bars.performScrollTo().captureToImage().toPixelMap()
             val colors = mutableSetOf(Blue.toArgb(), Green.toArgb(), Navy.toArgb(), Amber.toArgb())
             for (y in 0 until bitmap.height step 2) {
                 for (x in 0 until bitmap.width step 2) colors.remove(bitmap[x, y].toArgb())
