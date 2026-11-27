@@ -50,7 +50,7 @@ class GanttThreeBarsTest {
             val dayWidth = GanttTimeline(axis, GanttScale.DAYS).automaticWidth(viewport)
             assertEquals(viewport, weekWidth, 0.001f)
             assertTrue(dayWidth > weekWidth)
-            assertTrue(dayWidth / axis.days >= 27.99f)
+            assertTrue(dayWidth / axis.days >= 31.99f)
         }
         val long = requireNotNull(GanttAxis.from(listOf(stage.copy(plannedEnd = today.plusYears(20)).ganttRow(today))))
         GanttScale.entries.forEach { assertTrue(GanttTimeline(long, it).automaticWidth(220f) <= 24_000f) }

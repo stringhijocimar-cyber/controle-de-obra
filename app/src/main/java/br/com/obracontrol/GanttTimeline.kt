@@ -25,7 +25,7 @@ internal class GanttTimeline(val axis: GanttAxis, val scale: GanttScale) {
     }.coerceIn(280f, 24_000f)
 
     fun automaticWidth(viewport: Float): Float = when (scale) {
-        GanttScale.DAYS -> maxOf(viewport, axis.days * 28f)
+        GanttScale.DAYS -> maxOf(viewport, axis.days * 32f)
         GanttScale.WEEKS -> viewport * maxOf(1f, axis.days / (7f * 26f))
         GanttScale.MONTHS -> viewport * maxOf(1f, axis.days / (30.4375f * 18f))
     }.coerceAtMost(24_000f).coerceAtLeast(viewport)
