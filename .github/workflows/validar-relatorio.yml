@@ -15,12 +15,42 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
+      - name: Compilar testes antes do emulador
+        run: ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest
+      - name: Preparar diagnostico
+        run: |
+          cat > /tmp/validate-260.sh <<'SH'
+          #!/usr/bin/env bash
+          set +e
+          mkdir -p app/build/ui-screenshots
+          capture() {
+            local phase="$1"
+            app_pid=$(adb shell pidof br.com.obracontrol.app | tr -d '\r')
+            if [[ -n "$app_pid" ]]; then adb shell run-as br.com.obracontrol.app kill -3 "$app_pid"; fi
+            adb logcat -d -t 2500 > "app/build/ui-screenshots/logcat-$phase.txt"
+            adb exec-out screencap -p > "app/build/ui-screenshots/screen-$phase.png"
+            timeout 20s adb shell uiautomator dump /sdcard/window.xml
+            adb pull /sdcard/window.xml "app/build/ui-screenshots/window-$phase.xml"
+            adb exec-out run-as br.com.obracontrol.app tar -C files -cf - screenshots > "app/build/ui-screenshots/screenshots-$phase.tar"
+          }
+          adb shell wm size 1080x2400
+          adb shell wm density 440
+          timeout --kill-after=15s 150s ./gradlew :app:connectedDebugAndroidTest '-Pandroid.testInstrumentationRunnerArguments.class=br.com.obracontrol.ReportTablesFlowTest,br.com.obracontrol.PaymentOrganizationFlowTest#reportContainsMonthlyCalendarAndEveryAgendaEntryWithRepeatedPageHeaders'
+          report_result=$?
+          capture pdf
+          adb shell am force-stop br.com.obracontrol.app
+          timeout --kill-after=15s 150s ./gradlew :app:connectedDebugAndroidTest '-Pandroid.testInstrumentationRunnerArguments.class=br.com.obracontrol.PaymentOrganizationFlowTest#categoryFiltersApplyToAllPaymentViewsWhileOverallTotalsStayVisibleAndDataIsPreserved'
+          ui_result=$?
+          capture ui
+          echo "PDF result: $report_result / UI result: $ui_result"
+          [[ "$report_result" -eq 0 && "$ui_result" -eq 0 ]]
+          SH
       - name: Preparar emulador
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      - name: Conferir filtros, calendario e paginacao
+      - name: Conferir PDF e depois navegacao
         uses: ReactiveCircus/android-emulator-runner@c9c93e6ba9c4194322e114c40970d5983d9a07cc
         with:
           api-level: 35
@@ -28,17 +58,14 @@ jobs:
           arch: x86_64
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-boot-anim -noaudio -no-snapshot
-          script: |
-            adb shell wm size 1080x2400
-            adb shell wm density 440
-            validation_result=0; ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=br.com.obracontrol.PaymentOrganizationFlowTest,br.com.obracontrol.ReportTablesFlowTest || validation_result=$?; mkdir -p app/build/ui-screenshots; adb exec-out run-as br.com.obracontrol.app tar -C files -cf - screenshots > app/build/ui-screenshots/screenshots.tar; exit "$validation_result"
-      - name: Guardar PDFs e capturas
+          script: bash /tmp/validate-260.sh
+      - name: Guardar PDFs capturas e diagnostico
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: Validacao-Pagamentos-PDF
           path: |
-            app/build/ui-screenshots/screenshots.tar
+            app/build/ui-screenshots/
             app/build/outputs/androidTest-results/connected/
             app/build/reports/androidTests/connected/
           if-no-files-found: warn
