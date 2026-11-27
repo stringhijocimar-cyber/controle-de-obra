@@ -65,7 +65,7 @@ class PaymentOrganizationFlowTest {
         } finally { store.save(before) }
     }
 
-    @Test fun reportContainsMonthlyCalendarAndEveryAgendaEntryWithRepeatedPageHeaders() {
+    @Test fun reportContainsWeeklyCalendarAndEveryAgendaEntryWithRepeatedPageHeaders() {
         val stage = Stage(name = "Acabamento", budget = 600_000, progress = 40,
             plannedStart = today.minusDays(10), plannedEnd = today.plusDays(30), dueDate = today.plusDays(7))
         val material = Purchase(name = "Revestimento", total = 600_000, installmentCount = 3, stageId = stage.id, method = "Cartão", payer = "Pessoa A")
@@ -81,7 +81,7 @@ class PaymentOrganizationFlowTest {
             issues = listOf(Issue(title = "PAGINACAO-INICIO", action = List(320) { "Conferir execução e recebimentos antes de aprovar." }.joinToString(" ") + " PAGINACAO-FIM")))
         project.validate()
         val before = ProjectCodec.encode(project)
-        val pdf = File(folder(), "Relatorio-Gerencial-2.6.0-Exemplo.pdf")
+        val pdf = File(folder(), "Relatorio-Gerencial-2.7.0-Paginacao.pdf")
         pdf.outputStream().use { FullReport.write(it, project, today) }
         PdfRenderer(ParcelFileDescriptor.open(pdf, ParcelFileDescriptor.MODE_READ_ONLY)).use { renderer ->
             val pages = (0 until renderer.pageCount).map { index -> renderer.openPage(index).use { page ->
@@ -91,20 +91,20 @@ class PaymentOrganizationFlowTest {
             } }
             if (Build.VERSION.SDK_INT >= 35) {
                 val text = pages.joinToString(" ").replace(Regex("\\s+"), " ")
-                listOf("SEGUNDA", "DOMINGO", "NOVEMBRO / 2026", "DEZEMBRO / 2026", "JANEIRO / 2027", "SEM DATA DEFINIDA",
+                listOf("ETAPA / DESCRIÇÃO", "TOTAL DA OBRA", "27/11", "04/12", "08/01", "SEM DATA DEFINIDA",
                     "PAGINACAO-FIM", "QUEM PAGOU", "VISÃO GANTT", "PRESTAÇÃO DE CONTAS", "DIÁRIO DE OBRA").forEach { assertTrue(it, text.contains(it)) }
-                assertFalse(text.contains("TABELA SEMANAL EM CAMADAS"))
+                assertFalse(text.contains("SEGUNDA") && text.contains("DOMINGO"))
                 many.forEach { assertTrue(it.name, text.contains(it.name)) }
-                assertTrue(pages.count { it.contains("CALENDÁRIO DE DESEMBOLSOS | AGENDA") && it.contains("NOVEMBRO / 2026") } >= 2)
+                assertTrue(pages.count { it.contains("CALENDÁRIO DE DESEMBOLSOS | SEMANAS") && it.contains("ETAPA / DESCRIÇÃO") } >= 2)
                 pages.forEachIndexed { index, content ->
                     assertTrue("Rodapé da página ${index + 1}: ${content.takeLast(180)}",
                         content.filterNot { it.isWhitespace() }.contains("Página${index + 1}"))
                 }
-                val calendarIndex = pages.indexOfFirst { it.contains("SEGUNDA") && it.contains("NOVEMBRO / 2026") }
+                val calendarIndex = pages.indexOfFirst { it.contains("CALENDÁRIO DE DESEMBOLSOS | SEMANAS") && it.contains("ETAPA / DESCRIÇÃO") }
                 renderer.openPage(calendarIndex).use { page ->
                     val image = Bitmap.createBitmap(page.width * 2, page.height * 2, Bitmap.Config.ARGB_8888)
                     page.render(image, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-                    File(folder(), "calendario-mensal-2.6.0.png").outputStream().use { image.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                    File(folder(), "calendario-semanal-2.7.0.png").outputStream().use { image.compress(Bitmap.CompressFormat.PNG, 100, it) }
                 }
             }
         }

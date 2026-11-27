@@ -1,9 +1,7 @@
 package br.com.obracontrol
 
-import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit.WEEKS
-import java.time.temporal.TemporalAdjusters.previousOrSame
 
 internal enum class CashView(val label: String) { TOTAL("Total"), PENDING("A pagar"), PAID("Pago efetivo") }
 internal enum class FlowLayer { FAMILY, STAGE, COST, ENTRY }
@@ -14,15 +12,15 @@ internal data class FlowNode(
     val paid: Long get() = entries.filter { it.paid }.sumOf { it.amount ?: 0 }
     val pending: TableAmountTotal get() = tableAmountTotal(entries.filterNot { it.paid }.map { it.amount })
     fun amounts(week: LocalDate?, view: CashView): TableAmountTotal = tableAmountTotal(entries.filter {
-        it.date?.with(previousOrSame(DayOfWeek.MONDAY)) == week && (view == CashView.TOTAL || it.paid == (view == CashView.PAID))
+        it.date?.cashWeekEnding() == week && (view == CashView.TOTAL || it.paid == (view == CashView.PAID))
     }.map { it.amount })
 }
 
 internal class DisbursementTable(val project: Project, category: CostCategory? = null) {
     val entries = CostPaymentCalendar(project).entries.filter { category == null || it.target.category == category }
     val total = FlowNode("total", "TOTAL DA OBRA", FlowLayer.FAMILY, entries)
-    val firstWeek: LocalDate? = entries.mapNotNull { it.date }.minOrNull()?.with(previousOrSame(DayOfWeek.MONDAY))
-    val lastWeek: LocalDate? = entries.mapNotNull { it.date }.maxOrNull()?.with(previousOrSame(DayOfWeek.MONDAY))
+    val firstWeek: LocalDate? = entries.mapNotNull { it.date }.minOrNull()?.cashWeekEnding()
+    val lastWeek: LocalDate? = entries.mapNotNull { it.date }.maxOrNull()?.cashWeekEnding()
     val weekCount = if (firstWeek == null || lastWeek == null) 0 else WEEKS.between(firstWeek, lastWeek).toInt() + 1
     val pageCount = ((weekCount + 25) / 26).coerceAtLeast(1)
     fun columns(page: Int): List<LocalDate?> {

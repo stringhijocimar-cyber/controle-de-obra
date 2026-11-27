@@ -15,7 +15,19 @@ internal data class GanttRow(
     val planned: GanttPeriod?,
     val actual: GanttPeriod?,
     val spend: List<LaborSpendEntry>,
+    val deliveries: List<GanttDelivery> = emptyList(),
 ) {
+    val materialDates get() = deliveries.flatMap { listOfNotNull(it.expected, it.received) }
+    val materialPeriod get() = materialDates.takeIf { it.isNotEmpty() }?.let { GanttPeriod(it.min(), it.max()) }
+    val totalPeriod: GanttPeriod? get() {
+        val dates = listOfNotNull(planned?.start, planned?.end, actual?.start, actual?.end, stage.plannedEnd) + materialDates
+        return dates.takeIf { it.isNotEmpty() }?.let { GanttPeriod(it.min(), it.max()) }
+    }
+    fun elapsedDays(asOf: LocalDate): Long = totalPeriod?.let {
+        (DAYS.between(it.start, minOf(asOf, it.end)) + 1).coerceAtLeast(0)
+    } ?: 0
+    val totalDays get() = totalPeriod?.let { DAYS.between(it.start, it.end) + 1 } ?: 0
+    fun durationText(asOf: LocalDate) = if (totalPeriod == null) "Prazo a definir" else "${elapsedDays(asOf)} / $totalDays dias decorridos"
     val plannedDates: String get() = planned?.dates() ?: UNDEFINED
 
     val actualDates: String get() {
@@ -24,6 +36,14 @@ internal data class GanttRow(
         val detail = if (stage.progress < 100) "em curso" else "fim a confirmar"
         return "${period.start.dateText()} · $detail"
     }
+}
+
+internal data class GanttDelivery(val id: String, val name: String, val expected: LocalDate?, val received: LocalDate?, val progress: Int)
+
+internal fun Project.ganttRows(asOf: LocalDate, spend: LaborSpendCalendar): List<GanttRow> = stages.map { stage ->
+    stage.ganttRow(asOf, spend.byStage[stage.id].orEmpty()).copy(deliveries = purchases.filter {
+        it.stageId == stage.id && it.nature == CostNature.MATERIAL
+    }.map { GanttDelivery(it.id, it.name, it.deliveryExpected, it.receivedDate, it.receivedPercent) })
 }
 
 internal fun Stage.ganttRow(asOf: LocalDate, spend: List<LaborSpendEntry> = emptyList()): GanttRow {
@@ -58,7 +78,7 @@ internal class GanttAxis private constructor(val start: LocalDate, val end: Loca
 
     companion object {
         fun from(rows: List<GanttRow>): GanttAxis? {
-            val periods = rows.flatMap { listOfNotNull(it.planned, it.actual) }
+            val periods = rows.flatMap { listOfNotNull(it.planned, it.actual, it.totalPeriod) }
             val dates = rows.flatMap { row -> row.spend.mapNotNull { it.date } }
             val first = listOfNotNull(periods.minOfOrNull { it.start }, dates.minOrNull()).minOrNull() ?: return null
             val last = listOfNotNull(periods.maxOfOrNull { it.end }, dates.maxOrNull()).max()

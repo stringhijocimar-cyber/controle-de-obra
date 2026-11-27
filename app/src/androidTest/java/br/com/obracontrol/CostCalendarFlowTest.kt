@@ -145,7 +145,7 @@ class CostCalendarFlowTest {
             app.onNode(hasText("Pagamentos") and hasClickAction()).performClick()
             app.onNodeWithText("Semanas").performScrollTo().performClick()
             app.onNodeWithTag("flow-paid-total", useUnmergedTree = true).assertTextEquals(90_000L.brl())
-            app.onNodeWithTag("flow-value-total-$monday-TOTAL", useUnmergedTree = true).assertTextEquals(130_000L.brl())
+            app.onNodeWithTag("flow-value-total-${monday.cashWeekEnding()}-TOTAL", useUnmergedTree = true).assertTextEquals(130_000L.brl())
         } catch (failure: Throwable) {
             captureFailure()
             throw failure

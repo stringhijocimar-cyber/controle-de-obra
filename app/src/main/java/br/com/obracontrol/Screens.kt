@@ -356,7 +356,7 @@ internal fun StageList(project: Project, total: Balance, today: LocalDate, add: 
     val spend = remember(project, total) { LaborSpendCalendar(project, total) }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val pageScroll = rememberScrollState()
-        val ganttHeight = maxOf(520.dp * maxOf(1f, LocalDensity.current.fontScale), maxHeight * 0.9f)
+        val ganttHeight = maxOf(600.dp * maxOf(1f, LocalDensity.current.fontScale), maxHeight * 0.9f)
         LaunchedEffect(view) { pageScroll.scrollTo(0) }
         Column(if (view == StageView.GANTT) Modifier.fillMaxSize().verticalScroll(pageScroll) else Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp),
@@ -382,7 +382,7 @@ internal fun ExportScreen(busy: Boolean, pdf: () -> Unit, openPdf: (() -> Unit)?
         item {
             SheetCard {
                 IconBadge(AppSymbol.REPORT)
-                Heading("Relatório gerencial completo", "Resumo executivo, gráficos, Gantt, custos e parcelas. Calendário mensal de desembolsos, com pagos e vencimentos por dia e agenda detalhada. Cabeçalhos em cada página e margens menores. Inclui aprovações, compras, pagamentos, pendências e diário.")
+                Heading("Relatório gerencial completo", "Resumo executivo, gráficos, Gantt, custos e parcelas. Calendário semanal de desembolsos por categoria, etapa e custo, com totais por semana e agenda detalhada. Cabeçalhos em cada página e margens menores. Inclui aprovações, compras, pagamentos, pendências e diário.")
                 Detail("Escala do cronograma no relatório")
                 ViewTabs(GanttScale.entries.map { it.label }, scale.ordinal) { changeScale(GanttScale.entries[it]) }
                 Detail("Cabeçalho por ano e mês, com semanas ISO e dias conforme a escala. Em períodos extensos, o PDF espaça os rótulos para manter a leitura.")

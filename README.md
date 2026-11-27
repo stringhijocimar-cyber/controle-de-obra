@@ -2,6 +2,15 @@
 
 Aplicativo Android para planejar etapas e custos, acompanhar a execução da obra, controlar compras e pagamentos e emitir o relatório executivo em PDF. O cadastro e os modelos funcionam sem internet. O fluxo opcional com ChatGPT requer acesso ao serviço.
 
+## Versão 2.7.0 — calendário semanal e gráficos em tela cheia
+
+- O relatório usa a grade semanal da tela de pagamentos: **categoria → etapa → custo**, colunas por ano, mês e semana, pago efetivo, a pagar e total da obra. Cada bloco traz até seis semanas; cabeçalhos e totais se repetem nas continuações. A agenda completa mantém as datas, parcelas, responsáveis e métodos.
+- As colunas de desembolsos fecham na **sexta-feira**, exibindo somente o número da semana e a data. Cada coluna abrange o sábado anterior até a sexta indicada. Pagamentos do fim de semana entram na coluna seguinte; as datas dos cadastros e o total financeiro não mudam. O Gantt mantém o eixo de datas reais e as semanas ISO.
+- **Tela cheia** em Pagamentos → Semanas e Etapas → Gantt amplia o gráfico e oculta o cabeçalho e a navegação do aplicativo. Filtros, camadas, modo, página e rolagem são mantidos ao abrir e sair. Gire o aparelho para ampliar na horizontal. **Sair da tela cheia** ou o botão Voltar retornam à tela anterior; tocar em um custo ou etapa abre sua edição.
+- No Gantt, a faixa azul clara é o prazo total da etapa, da primeira execução ou entrega até a última data. O trecho azul preenchido mostra o tempo decorrido até hoje (até a data-base no PDF), com a contagem de dias ao lado. A execução permanece verde; a faixa roxa marca a janela de entregas dos materiais vinculados. Losangos vazados indicam datas previstas e preenchidos indicam datas reais, incluindo o término da execução. Pagamentos permanecem pontos separados.
+- Datas de material dependem de **Entrega prevista** e **Recebido em** em Compras. Um percentual de recebimento sem data não inventa um marco de chegada. Serviços terceirizados e materiais sem etapa não entram na janela de materiais. Os três percentuais de evolução e seus pesos são preservados.
+- Mantém o backup **formato 12**, cadastros, pagamentos, parcelas, anexos e a assinatura permanente da atualização.
+
 ## Versão 2.6.0 — pagamentos por categoria e calendário gerencial
 
 - **Pagamentos** mostra no topo o custo total conhecido da obra, o total pago e o total a pagar por custo. Valores sem preço e pagamentos a maior são sinalizados; excessos de um custo não quitam outro. Os totais gerais permanecem visíveis ao filtrar.
@@ -126,7 +135,7 @@ Para precificar, use cotações locais ou uma referência verificável com data 
 - Ao ativar **Registrar pagamento nesta compra**, informe o valor pago, a data e os comprovantes. O pagamento é salvo junto da compra e atualiza o painel, o saldo e a prestação de contas. Para pagamentos parciais, informe o valor efetivamente pago.
 - **Pagamentos** reúne as tabelas **Registrados** e **A pagar**. Os registros mostram valor, data, pagador, método, condição da compra e comprovantes. Em **A pagar**, toque no compromisso para registrar um pagamento já vinculado à etapa ou compra. O app aceita adiantamentos e pagamentos parciais.
 - **Pendências** registra ações e aponta valores em aberto, divergências de documentos, pagamentos a maior e etapas sem data ou valor.
-- **Relatório** gera o PDF completo com Gantt, desembolsos de mão de obra por semana, agenda e diário. Também exporta o cadastro e os anexos em ZIP e importa backups ZIP e JSON das versões anteriores.
+- **Relatório** gera o PDF completo com Gantt, calendário semanal de materiais, mão de obra e serviços terceirizados, agenda e diário. Também exporta o cadastro e os anexos em ZIP e importa backups ZIP e JSON das versões anteriores.
 
 O valor do documento tem prioridade sobre a soma dos itens. A diferença após descontos aparece na conciliação. O contrato global de mão de obra, quando preenchido, é a referência do balanço. Valores ainda a cotar permanecem em aberto. Pagamentos são somados pelos lançamentos, independentemente da etapa estar concluída.
 
