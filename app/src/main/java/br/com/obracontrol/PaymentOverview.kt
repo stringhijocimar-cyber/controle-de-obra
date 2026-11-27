@@ -17,11 +17,11 @@ internal fun PaymentOverview(project: Project, balance: Balance) {
     val undefined = project.purchases.count { it.forecast == null } +
         if (project.laborBudget == null) project.stages.count { it.budget == null } else 0
     Column(Modifier.fillMaxWidth().background(Navy, RoundedCornerShape(14.dp)).padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(if (undefined > 0) "Custo total conhecido" else "Custo total da obra", color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
+            Text(if (undefined > 0) "Custo total conhecido" else "Custo total da obra", color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp, lineHeight = 16.sp)
             Text(balance.total.brl(), Modifier.testTag("payments-overview-forecast"), color = Color.White,
-                fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                fontSize = 18.sp, lineHeight = 22.sp, fontWeight = FontWeight.Bold)
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             PaymentMetric("Total pago", balance.paid.brl(), "payments-overview-paid", Mint, Modifier.weight(1f))
@@ -29,10 +29,10 @@ internal fun PaymentOverview(project: Project, balance: Balance) {
                 if (balance.pendingByCost.entirelyUndefined) UNDEFINED else balance.pendingByCost.known.brl(),
                 "payments-overview-pending", Color(0xFFFFD899), Modifier.weight(1f))
         }
-        if (undefined > 0) Text("$undefined custo(s) a definir; previsão parcial.", color = Color.White.copy(alpha = 0.8f), fontSize = 10.sp)
-        if (balance.overpaidByCost > 0) Text("Pago a maior: ${balance.overpaidByCost.brl()} · conferir por custo", color = Color(0xFFFFD899), fontSize = 10.sp)
+        if (undefined > 0) Text("$undefined custo(s) a definir; previsão parcial.", color = Color.White.copy(alpha = 0.8f), fontSize = 10.sp, lineHeight = 14.sp)
+        if (balance.overpaidByCost > 0) Text("Pago a maior: ${balance.overpaidByCost.brl()} · conferir por custo", color = Color(0xFFFFD899), fontSize = 10.sp, lineHeight = 14.sp)
         if (project.laborBudget != null && balance.laborAllocated != project.laborBudget) {
-            Text("Contrato de mão de obra: conferir a distribuição por etapas.", color = Color(0xFFFFD899), fontSize = 10.sp)
+            Text("Contrato de mão de obra: conferir a distribuição por etapas.", color = Color(0xFFFFD899), fontSize = 10.sp, lineHeight = 14.sp)
         }
     }
 }
@@ -40,8 +40,8 @@ internal fun PaymentOverview(project: Project, balance: Balance) {
 @Composable
 private fun PaymentMetric(label: String, value: String, tag: String, color: Color, modifier: Modifier) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(label, color = Color.White.copy(alpha = 0.8f), fontSize = 10.sp)
-        Text(value, Modifier.testTag(tag), color = color, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Text(label, color = Color.White.copy(alpha = 0.8f), fontSize = 10.sp, lineHeight = 12.sp)
+        Text(value, Modifier.testTag(tag), color = color, fontSize = 16.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -66,7 +66,7 @@ internal fun PaymentCategoryFilters(project: Project, balance: Balance, category
             val partial = if (selected == CostCategory.LABOR) project.laborBudget == null && project.stages.any { it.budget == null }
                 else orders.any { it.forecast == null }
             Text("${selected.filterLabel}: ${forecast.brl()}${if (partial) " + ?" else ""} previstos · ${paid.brl()} pagos · $pendingText a pagar",
-                Modifier.testTag("payments-category-summary"), color = Muted, fontSize = 10.sp)
+                Modifier.testTag("payments-category-summary"), color = Muted, fontSize = 10.sp, lineHeight = 14.sp)
         }
     }
 }

@@ -42,7 +42,7 @@ class ReportTablesFlowTest {
             val text = pages.joinToString(" ").replace(Regex("\\s+"), " ")
             listOf("RESUMO GERENCIAL", "QUEM PAGOU", "COMO FOI PAGO", "VISÃO GANTT", "CRONOGRAMA FÍSICO-FINANCEIRO",
                 "CONTROLE DE PARCELAS", "CALENDÁRIO DE DESEMBOLSOS", "PRESTAÇÃO DE CONTAS", "PENDÊNCIAS", "AGENDA DA OBRA", "DIÁRIO DE OBRA",
-                "TOTAL DOS ITENS", "TOTAL DA OBRA", "PAGO A MAIOR", "A definir", "Pago a maior", "Atrasado").forEach { assertTrue(it, text.contains(it)) }
+                "TOTAL DOS ITENS", "CUSTO TOTAL CONHECIDO", "PAGO A MAIOR", "A definir", "Pago a maior", "Atrasado").forEach { assertTrue(it, text.contains(it)) }
             val accounts = pages.filter { it.contains("PRESTAÇÃO DE CONTAS") }.joinToString(" ")
             assertTrue(accounts.contains(400_000L.brl()))
             assertTrue(text.contains(20_000L.brl()))

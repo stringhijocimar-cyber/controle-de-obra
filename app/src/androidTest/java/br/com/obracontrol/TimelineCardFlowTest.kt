@@ -110,7 +110,7 @@ class TimelineCardFlowTest {
             assertEquals(project.payments, store.load().payments)
             assertEquals(project.scheduledPayments, store.load().scheduledPayments)
             app.onNode(hasText("Pagamentos") and hasClickAction()).performClick()
-            app.onNodeWithText("Registrados").performClick()
+            app.onNodeWithText("Registrados").performScrollTo().performClick()
             termsCell(payment.id).performScrollTo().performClick()
             app.onNodeWithText("Quantidade de parcelas da compra").performScrollTo().performTextReplacement("4")
             saveForm()

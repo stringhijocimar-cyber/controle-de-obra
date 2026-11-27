@@ -72,7 +72,7 @@ class ParcelFlagsFlowTest {
             File(folder, "parcelas-relatorio.pdf").outputStream().use { FullReport.write(it, undone) }
             app.activityRule.scenario.recreate()
             app.onNode(hasText("Pagamentos") and hasClickAction()).performClick()
-            app.onNodeWithText("Parcelados").performClick()
+            app.onNodeWithText("Parcelados").performScrollTo().performClick()
             app.onNodeWithTag("table-parcels-parcelado/${order.id}").performClick()
             app.onNodeWithTag("inline-parcel-flag-${order.id}-1").assertIsOn().assertIsDisplayed()
             app.onNodeWithTag("inline-parcel-flag-${order.id}-2").assertIsOff()
