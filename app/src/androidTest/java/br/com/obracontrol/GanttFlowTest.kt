@@ -16,10 +16,7 @@ import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.hasTestTag
-import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.SemanticsMatcher
-import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertTextEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -46,9 +43,10 @@ class GanttFlowTest {
             app.activityRule.scenario.recreate()
             app.onNodeWithText("Etapas").performClick()
             app.onNodeWithText("Gantt").performClick()
+            app.onNodeWithTag("gantt-table").performScrollTo()
             app.onNodeWithText("Cobertura de teste").assertIsDisplayed()
             app.onNodeWithText(260_000L.brl()).assertIsDisplayed()
-            val stageList = app.onNode(hasScrollAction() and SemanticsMatcher.keyIsDefined(SemanticsProperties.VerticalScrollAxisRange))
+            val stageList = app.onNodeWithTag("gantt-stage-list")
             stageList.performScrollToNode(hasText("Datas a definir"))
             app.onNodeWithText("Datas a definir").assertIsDisplayed()
             stageList.performScrollToNode(hasText(stage.name))

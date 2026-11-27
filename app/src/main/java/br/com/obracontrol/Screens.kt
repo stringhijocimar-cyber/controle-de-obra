@@ -7,9 +7,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -19,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -351,17 +354,22 @@ internal fun StageList(project: Project, total: Balance, today: LocalDate, add: 
     var view by rememberSaveable { mutableStateOf(StageView.LIST) }
     val chartScroll = rememberScrollState()
     val spend = remember(project, total) { LaborSpendCalendar(project, total) }
-    Column(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            ListHeading("Etapas da obra", "Nova etapa", add, "Execução e planejamento financeiro")
-            ViewTabs(StageView.entries.map { it.label }, view.ordinal) { view = StageView.entries[it] }
-        }
-        Box(Modifier.weight(1f)) {
-            when (view) {
-                StageView.LIST -> StageTable(project, total, today, edit, complete, reviewPaid)
-                StageView.GANTT -> StageGantt(project, spend, today, chartScroll, edit, project.ganttScale, changeScale)
-                StageView.SPEND -> WeeklyDisbursementScreen(project, today, openCost)
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val pageScroll = rememberScrollState()
+        val ganttHeight = maxOf(520.dp * maxOf(1f, LocalDensity.current.fontScale), maxHeight * 0.9f)
+        LaunchedEffect(view) { pageScroll.scrollTo(0) }
+        Column(if (view == StageView.GANTT) Modifier.fillMaxSize().verticalScroll(pageScroll) else Modifier.fillMaxSize()) {
+            Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                ListHeading("Etapas da obra", "Nova etapa", add, "Execução e planejamento financeiro")
+                ViewTabs(StageView.entries.map { it.label }, view.ordinal) { view = StageView.entries[it] }
+            }
+            Box(if (view == StageView.GANTT) Modifier.fillMaxWidth().height(ganttHeight) else Modifier.weight(1f)) {
+                when (view) {
+                    StageView.LIST -> StageTable(project, total, today, edit, complete, reviewPaid)
+                    StageView.GANTT -> StageGantt(project, spend, today, chartScroll, edit, project.ganttScale, changeScale)
+                    StageView.SPEND -> WeeklyDisbursementScreen(project, today, openCost)
+                }
             }
         }
     }
