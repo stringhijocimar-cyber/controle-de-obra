@@ -117,7 +117,7 @@ class FinancialIntegrationTest {
         assertTrue(missingDates.payments.isEmpty())
     }
 
-    @Test fun stagePaymentSchedulesStayLinkedToGanttWithoutCompletingPhysicalExecution() {
+    @Test fun stageSchedulesRemainInTheConsultationWithoutStretchingThePhysicalGantt() {
         val project = fixture()
         verify(project)
         val stage = project.stages.single()
@@ -126,7 +126,8 @@ class FinancialIntegrationTest {
         assertEquals(20_000L, gantt.spend.filter { it.paid }.sumOf { it.amount ?: 0 })
         assertEquals(80_000L, gantt.spend.filterNot { it.paid }.sumOf { it.amount ?: 0 })
         assertEquals(today.plusDays(7), project.nextPendingPosition(CostKind.LABOR, stage.id)?.date)
-        assertTrue(GanttAxis.from(listOf(gantt))!!.end >= today.plusDays(14))
+        assertTrue(GanttAxis.from(listOf(gantt))!!.end < today.plusDays(7))
+        assertTrue(gantt.spend.any { it.date?.let { date -> date >= today.plusDays(14) } == true })
         assertEquals(35, stage.progress)
     }
 }

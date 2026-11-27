@@ -77,24 +77,25 @@ internal fun StageGantt(
 ) {
     var fullScreen by rememberSaveable { mutableStateOf(false) }
     val listState = rememberLazyListState()
-    var zoomName by rememberSaveable { mutableStateOf(GanttZoom.NORMAL.name) }
+    var zoomName by rememberSaveable { mutableStateOf(GanttZoom.AUTO.name) }
     var zoomAnchor by remember { mutableStateOf<Float?>(null) }
     var help by rememberSaveable { mutableStateOf(false) }
     var selectedStage by rememberSaveable { mutableStateOf<String?>(null) }
     val detailRows = remember(project, spend, today) { project.ganttRows(today, spend) }
+    fun selectScale(next: GanttScale) { zoomName = GanttZoom.AUTO.name; zoomAnchor = 0f; changeScale(next) }
     val content: @Composable () -> Unit = {
         Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp).testTag("gantt-scale-selector"),
                 verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.weight(1f)) {
-                    if (fullScreen) CompactChartTabs(GanttScale.entries.map { it.label }, scale.ordinal) { changeScale(GanttScale.entries[it]) }
-                    else ViewTabs(GanttScale.entries.map { it.label }, scale.ordinal) { changeScale(GanttScale.entries[it]) }
+                    if (fullScreen) CompactChartTabs(GanttScale.entries.map { it.label }, scale.ordinal) { selectScale(GanttScale.entries[it]) }
+                    else ViewTabs(GanttScale.entries.map { it.label }, scale.ordinal) { selectScale(GanttScale.entries[it]) }
                 }
                 if (!fullScreen) TextButton(onClick = { fullScreen = true }, modifier = Modifier.testTag("gantt-full-screen")) { Text("Tela cheia") }
             }
-            if (!fullScreen) Text("Toque nas barras para consultar datas e entregas. No nome da etapa, você pode editar.",
+            if (!fullScreen) Text("Sólido: concluído. Suave: restante. Toque nas barras para consultar a etapa.",
                 Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.labelSmall, color = Muted)
-            if (!fullScreen && project.unlinkedMaterials > 0) Text("${project.unlinkedMaterials} compra(s) de material sem etapa vinculada.",
+            if (!fullScreen && project.unlinkedMaterials > 0) Text("${project.unlinkedMaterials} material(is)/serviço(s) sem etapa vinculada.",
                 Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.labelSmall, color = Amber)
             Box(Modifier.weight(1f)) {
                 StageGanttChart(project, spend, today, scroll, { fullScreen = false; edit(it) }, scale, listState,
@@ -128,13 +129,13 @@ private fun StageGanttChart(
             item {
                 SheetCard {
                     Detail(if (stages.isEmpty()) "Cadastre a primeira etapa para montar o cronograma."
-                        else "Informe as datas da execução ou do pagamento para montar o Gantt.")
+                        else "Informe as datas da etapa ou das entregas para montar a linha do tempo.")
                 }
             }
             itemsIndexed(rows, key = { _, row -> row.stage.id }) { _, row ->
                 SheetCard {
                     Heading(row.stage.name, "Datas a definir")
-                    StageProgressReadout(row.stage.id, evolution.getValue(row.stage.id))
+                    StageProgressReadout(row.stage.id, evolution.getValue(row.stage.id), bars = true)
                     LedgerLine("Mão de obra", row.stage.budget.costText())
                     TextButton(onClick = { edit(row.stage.id) }) { Text("Editar etapa") }
                 }
@@ -149,8 +150,10 @@ private fun StageGanttChart(
     BoxWithConstraints(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, bottom = 12.dp)) {
         val labelWidth = (maxWidth * 0.31f).coerceIn(124.dp, 172.dp)
         val viewport = (maxWidth - labelWidth).value
-        val chartWidth = zoom.width(viewport, timeline.preferredWidth).dp
-        val rowHeight = maxOf(184.dp, (184 * density.fontScale).dp)
+        val automatic = timeline.automaticWidth(viewport)
+        val chartWidth = zoom.width(viewport, timeline.preferredWidth, automatic).dp
+        val compactHeight = when (scale) { GanttScale.DAYS -> 168f; GanttScale.WEEKS -> 144f; GanttScale.MONTHS -> 136f }
+        val rowHeight = maxOf(compactHeight.dp, (compactHeight * density.fontScale).dp)
         LaunchedEffect(zoom, zoomAnchor, chartWidth) {
             zoomAnchor?.let { anchor ->
                 withFrameNanos { }
@@ -167,10 +170,10 @@ private fun StageGanttChart(
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                 TextButton(onClick = { chooseZoom(GanttZoom.FIT) }, modifier = Modifier.height(32.dp).testTag("gantt-fit"), contentPadding = PaddingValues(5.dp)) { Text("Ajustar") }
-                val smaller = zoom.next(viewport, timeline.preferredWidth, false)
+                val smaller = zoom.next(viewport, timeline.preferredWidth, false, automatic)
                 TextButton(enabled = smaller != null, onClick = { smaller?.let(::chooseZoom) }, modifier = Modifier.size(32.dp).testTag("gantt-zoom-out"), contentPadding = PaddingValues(0.dp)) { Text("−") }
                 Text(zoom.label, Modifier.testTag("gantt-zoom-label"), style = MaterialTheme.typography.labelSmall, color = Muted)
-                val larger = zoom.next(viewport, timeline.preferredWidth, true)
+                val larger = zoom.next(viewport, timeline.preferredWidth, true, automatic)
                 TextButton(enabled = larger != null, onClick = { larger?.let(::chooseZoom) }, modifier = Modifier.size(32.dp).testTag("gantt-zoom-in"), contentPadding = PaddingValues(0.dp)) { Text("+") }
                 if (marker != null) TextButton(onClick = {
                     val center = with(density) { (chartWidth.toPx() * axis.dayCenter(marker)).roundToInt() }
@@ -203,7 +206,7 @@ private fun StageGanttChart(
                             ) {
                                 Column(Modifier.width(labelWidth).padding(horizontal = 10.dp).clickable(onClickLabel = "Editar etapa") { edit(stage.id) }.testTag("gantt-edit-${stage.id}"), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                     Text(stage.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold,
-                                        maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                        maxLines = if (scale == GanttScale.DAYS) 2 else 1, overflow = TextOverflow.Ellipsis)
                                     val status = when {
                                         overdue -> "Atrasada"
                                         row.planned == null && row.actual == null -> "Datas a definir"
@@ -212,12 +215,10 @@ private fun StageGanttChart(
                                     Text(status, color = if (overdue) Amber else Muted,
                                         style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     StageProgressReadout(stage.id, evolution.getValue(stage.id))
-                                    Text(stage.budget.costText(), color = Navy, style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Bold)
-                                    Text(row.durationText(today), color = Muted, style = MaterialTheme.typography.labelSmall)
+                                    Text(if (row.totalPeriod == null) "Datas a definir" else "Prazo: ${row.totalDays} dias", color = Muted, style = MaterialTheme.typography.labelSmall)
                                 }
                                 Box(Modifier.weight(1f).horizontalScroll(scroll)) {
-                                    StageBars(timeline, today, row, chartWidth, rowHeight, scroll) { inspect(stage.id) }
+                                    StageBars(timeline, today, row, evolution.getValue(stage.id), chartWidth, rowHeight, scroll) { inspect(stage.id) }
                                 }
                             }
                             HorizontalDivider(color = Line)
@@ -230,20 +231,22 @@ private fun StageGanttChart(
 }
 
 @Composable
-private fun StageProgressReadout(id: String, progress: StageProgress) {
+private fun StageProgressReadout(id: String, progress: StageProgress, bars: Boolean = false) {
+    val items = listOf(
+        Triple("Total", progress.general, Blue) to "general",
+        Triple("Mão de obra", progress.execution.toDouble(), Green) to "execution",
+        Triple("Mat./serv.", progress.materials, MaterialArrival) to "materials")
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        listOf(Triple("Execução", stagePercent(progress.execution.toDouble()), Green),
-            Triple("Materiais", if (progress.materials == null) "—" else progress.materialsText, MaterialArrival),
-            Triple("Geral", progress.generalText, Navy)).forEachIndexed { index, (label, value, color) ->
+        items.forEach { (item, key) ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(label, Modifier.weight(1f), color = Muted, style = MaterialTheme.typography.labelSmall)
-                Text(value, Modifier.testTag("gantt-${listOf("execution", "materials", "general")[index]}-$id"),
-                    color = color, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                Text(item.first, Modifier.weight(1f), color = Muted, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(item.second?.let(::stagePercent) ?: "—", Modifier.testTag("gantt-$key-$id"),
+                    color = item.third, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
             }
+            if (bars) LinearProgressIndicator(progress = { ((item.second ?: 0.0) / 100).toFloat().coerceIn(0f, 1f) },
+                modifier = Modifier.fillMaxWidth().height(8.dp).testTag("gantt-meter-$key-$id"), color = item.third,
+                trackColor = item.third.copy(alpha = 0.18f), gapSize = 0.dp, drawStopIndicator = {})
         }
-        LinearProgressIndicator(progress = { (progress.general / 100).toFloat().coerceIn(0f, 1f) },
-            modifier = Modifier.fillMaxWidth().height(4.dp), color = Green, trackColor = Line,
-            gapSize = 0.dp, drawStopIndicator = {})
     }
 }
 
@@ -280,80 +283,55 @@ private fun DateAxis(timeline: GanttTimeline, width: Dp, height: Dp, scroll: Scr
 }
 
 @Composable
-private fun StageBars(timeline: GanttTimeline, asOf: LocalDate, row: GanttRow, width: Dp, height: Dp, scroll: ScrollState, inspect: () -> Unit) {
+private fun StageBars(timeline: GanttTimeline, asOf: LocalDate, row: GanttRow, progress: StageProgress,
+    width: Dp, height: Dp, scroll: ScrollState, inspect: () -> Unit) {
     val axis = timeline.axis
-    val labelSize = with(LocalDensity.current) { 9.sp.toPx() }
+    val bars = row.progressBars(progress)
+    val labelSize = with(LocalDensity.current) { 10.sp.toPx() }
     val labelPaint = remember(labelSize) { android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-        textSize = labelSize; color = Muted.toArgb(); typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
+        textSize = labelSize; typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
     } }
     val description = buildString {
         append("Previsto ${row.plannedDates} · Realizado ${row.actualDates}")
-        append(" · Prazo total ${row.totalPeriod?.dates() ?: UNDEFINED} · ${row.durationText(asOf)}")
-        row.deliveries.forEach { item -> append(" · Material ${item.name}: previsto ${item.expected.dateOr()}, recebido ${item.received.dateOr()}, ${item.progress}%") }
+        bars.forEach { append(" · ${it.part.label}: ${it.value}") }
+        row.deliveries.forEach { item -> append(" · ${item.nature.label} ${item.name}: previsto ${item.expected.dateOr()}, recebido ${item.received.dateOr()}, ${item.progress}%") }
         append(" · Fim da execução previsto ${row.stage.plannedEnd.dateOr()}, real ${row.stage.actualEnd.dateOr()}")
-        row.spend.forEach { item ->
-            append(" · ${item.status.label} ${item.amount.costText()} em ${item.date.dateOr("data a definir")}")
-        }
+        row.spend.forEach { append(" · ${it.status.label} ${it.amount.costText()} em ${it.date.dateOr()}") }
     }
-    Canvas(Modifier.size(width, height).testTag("gantt-bars-${row.stage.id}").clickable(onClickLabel = "Ver datas e entregas da etapa", onClick = inspect).semantics { contentDescription = description }) {
-        val lane = size.height / 4f
-        repeat(4) { index ->
+    Canvas(Modifier.size(width, height).testTag("gantt-bars-${row.stage.id}")
+        .clickable(onClickLabel = "Ver datas e avanço da etapa", onClick = inspect).semantics { contentDescription = description }) {
+        val lane = size.height / 3f
+        repeat(3) { index ->
             drawRect(if (index % 2 == 0) Color(0xFFFAFCFE) else Color.White,
                 Offset(0f, index * lane), Size(size.width, lane))
             if (index > 0) drawLine(Line.copy(alpha = 0.65f), Offset(0f, index * lane), Offset(size.width, index * lane), 0.5.dp.toPx())
         }
-        for (tick in timeline.gridDates(width.value)) {
-            val x = size.width * axis.boundary(tick)
+        timeline.gridDates(width.value).forEach { date ->
+            val x = size.width * axis.boundary(date)
             drawLine(Line, Offset(x, 0f), Offset(x, size.height), 0.8.dp.toPx())
         }
-        row.totalPeriod?.let { total ->
-            drawPeriod(total, axis, lane * 0.50f, Blue.copy(alpha = 0.18f))
-            if (asOf >= total.start) drawPeriod(GanttPeriod(total.start, minOf(asOf, total.end)), axis, lane * 0.50f, Blue)
+        bars.forEachIndexed { index, bar ->
+            val color = when (bar.part) { GanttPart.TOTAL -> Blue; GanttPart.LABOR -> Green; GanttPart.INPUTS -> MaterialArrival }
+            val top = lane * index + lane * 0.53f
+            val barHeight = 14.dp.toPx()
+            bar.period?.let { period ->
+                val left = size.width * axis.boundary(period.start)
+                val right = size.width * axis.boundary(period.end.plusDays(1))
+                val totalWidth = (right - left).coerceAtLeast(1.dp.toPx())
+                drawRoundRect(color.copy(alpha = 0.18f), Offset(left, top), Size(totalWidth, barHeight), CornerRadius(4.dp.toPx()))
+                if (bar.fraction > 0f) drawRoundRect(color, Offset(left, top), Size(totalWidth * bar.fraction, barHeight), CornerRadius(4.dp.toPx()))
+            }
+            labelPaint.color = color.toArgb()
+            val label = "${bar.part.label} · ${bar.value}"
+            val maxWidth = (scroll.viewportSize - 10.dp.toPx()).coerceAtLeast(0f)
+            val count = labelPaint.breakText(label, true, maxWidth, null)
+            val visibleLabel = if (count >= label.length) label else label.take((count - 1).coerceAtLeast(0)) + "…"
+            drawContext.canvas.nativeCanvas.drawText(visibleLabel, scroll.value + 5.dp.toPx(), index * lane + maxOf(labelSize * 1.35f, 15.dp.toPx()), labelPaint)
         }
-        row.planned?.let { drawPeriod(it, axis, lane * 1.50f, Green.copy(alpha = 0.48f), planned = true) }
-        row.actual?.let { drawPeriod(it, axis, lane * 1.50f, Green) }
         asOf.takeIf { it in axis.start..axis.end }?.let {
             val x = size.width * axis.dayCenter(it)
-            drawLine(Muted, Offset(x, 0f), Offset(x, size.height), strokeWidth = 1.5.dp.toPx(),
+            drawLine(Muted, Offset(x, 0f), Offset(x, size.height), strokeWidth = 1.1.dp.toPx(),
                 pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx())))
         }
-        row.materialPeriod?.let { drawPeriod(it, axis, lane * 2.50f, MaterialArrival.copy(alpha = 0.22f)) }
-        row.deliveries.forEach { item ->
-            item.expected?.let { drawMilestone(it, axis, lane * 2.50f + 6.dp.toPx(), MaterialArrival, false) }
-            item.received?.let { drawMilestone(it, axis, lane * 2.50f + 6.dp.toPx(), MaterialArrival, true) }
-        }
-        row.stage.plannedEnd?.let { drawMilestone(it, axis, lane * 1.50f + 6.dp.toPx(), Green, false) }
-        row.stage.actualEnd?.let { drawMilestone(it, axis, lane * 1.50f + 6.dp.toPx(), Green, true) }
-        row.spend.forEach { item ->
-            item.date?.let { date ->
-                val x = size.width * axis.dayCenter(date)
-                val y = lane * 3.50f + if (item.paid) 0.dp.toPx() else 8.dp.toPx()
-                drawCircle(if (item.paid) Navy else Amber, 4.dp.toPx(), Offset(x, y))
-            }
-        }
-        listOf("Tempo decorrido / prazo total", "Execução prevista / realizada", "Entregas de materiais", "Pagamentos · pago / a pagar").forEachIndexed { index, label ->
-            val width = (scroll.viewportSize - 10.dp.toPx()).coerceAtLeast(0f)
-            val count = labelPaint.breakText(label, true, width, null)
-            val visibleLabel = if (count >= label.length) label else label.take((count - 1).coerceAtLeast(0)) + "…"
-            drawContext.canvas.nativeCanvas.drawText(visibleLabel, scroll.value + 5.dp.toPx(), index * lane + maxOf(labelSize * 1.35f, 13.dp.toPx()), labelPaint)
-        }
     }
-}
-
-private fun DrawScope.drawPeriod(period: GanttPeriod, axis: GanttAxis, y: Float, color: Color, planned: Boolean = false) {
-    val minWidth = 2.dp.toPx()
-    val left = (size.width * axis.boundary(period.start)).coerceIn(0f, (size.width - minWidth).coerceAtLeast(0f))
-    val right = (size.width * axis.boundary(period.end.plusDays(1))).coerceAtMost(size.width)
-    val width = (right - left).coerceAtLeast(minWidth)
-    val corner = 4.dp.toPx()
-    drawRoundRect(color, Offset(left, y), Size(width, 12.dp.toPx()), CornerRadius(corner),
-        style = if (planned) Stroke(1.2.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx()))) else androidx.compose.ui.graphics.drawscope.Fill)
-}
-
-private fun DrawScope.drawMilestone(date: LocalDate, axis: GanttAxis, y: Float, color: Color, real: Boolean) {
-    val x = size.width * axis.dayCenter(date)
-    val radius = 4.5.dp.toPx()
-    val path = Path().apply { moveTo(x, y - radius); lineTo(x + radius, y); lineTo(x, y + radius); lineTo(x - radius, y); close() }
-    drawPath(path, if (real) color else Color.White)
-    if (!real) drawPath(path, color, style = Stroke(1.5.dp.toPx()))
 }

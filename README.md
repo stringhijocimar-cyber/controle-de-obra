@@ -2,6 +2,15 @@
 
 Aplicativo Android para planejar etapas e custos, acompanhar a execução da obra, controlar compras e pagamentos e emitir o relatório executivo em PDF. O cadastro e os modelos funcionam sem internet. O fluxo opcional com ChatGPT requer acesso ao serviço.
 
+## Versão 2.9.0 — três barras de avanço e escala automática
+
+- Cada etapa apresenta **três barras**: **Total acumulado** (azul), **Mão de obra** (verde) e **Material e serviço** (roxo). A parte sólida corresponde ao percentual concluído; o restante usa a mesma cor em tom suave. O azul representa avanço geral, não dias decorridos. As barras usam o mesmo prazo da etapa para comparar os percentuais.
+- A escala automática adapta o gráfico à tela: **Semanas** compacta o período, **Dias** amplia as colunas e a altura das linhas e **Meses** fornece visão geral. Trocar a escala reativa o modo automático. Ajustar e os controles de zoom continuam disponíveis. Os pagamentos não estendem o eixo físico do Gantt.
+- A mão de obra usa **Avanço físico (%)** na etapa. A terceira barra reúne materiais recebidos e serviços terceirizados concluídos, vinculados à etapa. Em compras de serviço, informe **Serviço concluído (%)** ou **Serviço concluído em**; a data final indica 100%. Informar percentual parcial remove a data de conclusão, assim como no material.
+- O total pondera mão de obra e materiais/serviços pelos pesos da etapa (padrão 50% / 50%). O campo passa a **Peso de materiais e serviços (%)** e conserva o valor existente. Compras com valor positivo definido são ponderadas pelo valor; faltando preço, o critério informado usa média dos percentuais. Sem materiais/serviços vinculados, o total acompanha a mão de obra e a terceira barra fica identificada como sem itens.
+- Serviços terceirizados agora participam da terceira barra e do avanço geral. Os percentuais anteriores dessas compras são preservados; sem percentual ou conclusão registrada, contam como zero. Pagamentos não contam como conclusão física.
+- O PDF usa as mesmas três barras. Valores pagos, vencimentos e parcelas permanecem completos no calendário financeiro e na consulta. Mantém datas, IDs, anexos, histórico, formato de backup 12 e assinatura permanente.
+
 ## Versão 2.8.0 — leitura e navegação do Gantt
 
 - O Gantt passa a usar quatro faixas identificadas em cada etapa: **tempo / prazo total**, **execução prevista / realizada**, **entregas de materiais** e **pagamentos**. O contorno verde tracejado indica o período previsto; a barra verde mantém o realizado. A faixa azul clara mostra o prazo total e o preenchimento mostra os dias decorridos. Losangos vazados continuam sendo previsões e preenchidos são datas reais.

@@ -282,7 +282,7 @@ internal object FullReport {
             val fontSize = 9.4f
             val lineHeight = 12.5f
             val numeric = columns.map { label ->
-                listOf("VALOR", "TOTAL", "PAGO", "PREÇO", "SUBTOTAL", "SALDO", "ESTIMATIVA", "APROVADO", "PREVISÃO", "EXECUÇÃO", "MATERIAIS", "GERAL",
+                listOf("VALOR", "TOTAL", "PAGO", "PREÇO", "SUBTOTAL", "SALDO", "ESTIMATIVA", "APROVADO", "PREVISÃO", "MÃO DE OBRA", "MAT./SERV.", "GERAL",
                     "QUANTIDADE", "CRÉDITO", "ABATIDO", "PROGRAMADO", "A PAGAR", "A DEFINIR", "PARCELAS", "AVANÇO")
                     .any { it in label } || Regex("S[0-9]+.*").matches(label)
             }
@@ -434,7 +434,7 @@ internal object FullReport {
             val marker = latest?.let { " Última etapa concluída: ${it.name}, em ${it.actualEnd.dateOr()}." }.orEmpty()
             callout("MARCO DA OBRA", "Início: ${project.start.dateOr()} • ${total.completed} de ${project.stages.size} etapas concluídas • Avanço físico médio de ${percent(total.physicalProgress / 100)}.$marker")
             paragraph("O avanço físico é a média simples dos percentuais das etapas. Os valores a cotar aparecem como pendências.")
-            paragraph("Avanço geral das etapas: ${stagePercent(project.generalStageProgress)}. Combina execução e materiais recebidos com os pesos de cada etapa; a média da obra atribui o mesmo peso a cada etapa.")
+            paragraph("Avanço geral das etapas: ${stagePercent(project.generalStageProgress)}. Combina mão de obra e materiais/serviços com os pesos de cada etapa; a média da obra atribui o mesmo peso a cada etapa.")
         }
 
         fun paymentCharts() {
@@ -594,15 +594,15 @@ internal object FullReport {
 
         fun schedule() {
             section("CRONOGRAMA FÍSICO  |  VISÃO GANTT",
-                "Azul: tempo / prazo · Verde: previsto / real · Roxo: entregas · Pontos: pago / a pagar · Linha vertical: data-base")
+                "3 barras: total acumulado, mão de obra e material/serviço · Sólido: concluído · Suave: restante")
             val asOf = project.referenceDate ?: today
             val rows = project.ganttRows(asOf, laborSpend)
             val axis = GanttAxis.from(rows)
             val timeline = axis?.let { GanttTimeline(it, project.ganttScale) }
             paragraph("Escala: ${project.ganttScale.label}. Cabeçalho: ano, mês" + if (project.ganttScale == GanttScale.MONTHS) "." else ", semana ISO" + if (project.ganttScale == GanttScale.DAYS) " e dia." else ".")
-            paragraph("Avanço geral da obra: ${stagePercent(project.generalStageProgress)}. Execução e materiais recebidos aparecem separados; os pesos podem ser ajustados por etapa. Materiais sem etapa vinculada: ${project.unlinkedMaterials}.")
+            paragraph("Avanço geral da obra: ${stagePercent(project.generalStageProgress)}. Mão de obra e materiais/serviços aparecem separados; os pesos podem ser ajustados por etapa. Materiais/serviços sem etapa vinculada: ${project.unlinkedMaterials}.")
             if (rows.isEmpty()) paragraph("Nenhuma etapa cadastrada.")
-            if (rows.isNotEmpty() && axis == null) paragraph("Informe as datas da execução ou do pagamento para montar o Gantt.")
+            if (rows.isNotEmpty() && axis == null) paragraph("Informe as datas da etapa ou das entregas para montar o Gantt.")
             if (rows.isNotEmpty()) {
                 val graphLeft = 258f
                 val graphRight = 621f
@@ -619,55 +619,23 @@ internal object FullReport {
                         if (index % 2 == 0) box(LEFT, band, CONTENT, bandHeight, light, 1f)
                         text(LEFT + 7, band + 13, "${batch * rowsPerPage + index + 1}. ${row.stage.name}", 9.7f, ink, true, graphLeft - LEFT - 16f)
                         val evolution = project.stageProgress(row.stage)
-                        text(LEFT + 7, band + 25, "Execução: ${stagePercent(evolution.execution.toDouble())}", 8.5f, green, width = 200f)
-                        text(LEFT + 7, band + 37, "Materiais: ${evolution.materialsText}", 8.5f, MaterialArrival.toArgb(), width = 200f)
+                        text(LEFT + 7, band + 25, "Mão de obra: ${stagePercent(evolution.execution.toDouble())}", 8.5f, green, width = 200f)
+                        text(LEFT + 7, band + 37, "Materiais/serviços: ${evolution.materialsText}", 8.5f, MaterialArrival.toArgb(), width = 200f)
                         text(LEFT + 7, band + 50, "Geral da etapa: ${evolution.generalText}", 9f, ink, true, width = 200f)
                         text(LEFT + 7, band + 65, row.durationText(asOf), 8.2f, muted, width = 200f)
                         if (axis != null) {
-                            fun bar(period: GanttPeriod, offset: Float, color: Int) {
-                                val left = x(axis.boundary(period.start))
-                                val right = x(axis.boundary(period.end.plusDays(1)))
-                                box(left, band + offset, (right - left).coerceAtLeast(1.5f), 8f, color, 2f)
-                            }
-                            fun milestone(date: LocalDate, offset: Float, color: Int, real: Boolean) {
-                                val center = x(axis.dayCenter(date))
-                                val top = band + offset
-                                val path = android.graphics.Path().apply { moveTo(center, top - 3.5f); lineTo(center + 3.5f, top); lineTo(center, top + 3.5f); lineTo(center - 3.5f, top); close() }
-                                paint.color = if (real) color else Color.WHITE
-                                canvas.drawPath(path, paint)
-                                if (!real) {
-                                    paint.color = color; paint.style = Paint.Style.STROKE; paint.strokeWidth = 1.1f
-                                    canvas.drawPath(path, paint)
-                                    paint.style = Paint.Style.FILL
+                            row.progressBars(evolution).forEachIndexed { lane, bar ->
+                                val color = when (bar.part) { GanttPart.TOTAL -> blue; GanttPart.LABOR -> green; GanttPart.INPUTS -> MaterialArrival.toArgb() }
+                                val label = "${bar.part.label.uppercase(brazil)} · ${bar.value}"
+                                text(graphLeft + 4f, band + 10f + lane * 28f, label, 7f, color, true, graphRight - graphLeft - 8f)
+                                bar.period?.let { period ->
+                                    val left = x(axis.boundary(period.start))
+                                    val right = x(axis.boundary(period.end.plusDays(1)))
+                                    val width = (right - left).coerceAtLeast(1f)
+                                    val tint = when (bar.part) { GanttPart.TOTAL -> Color.rgb(220, 234, 246); GanttPart.LABOR -> greenTint; GanttPart.INPUTS -> Color.rgb(234, 224, 244) }
+                                    box(left, band + 15f + lane * 28f, width, 10f, tint, 2f)
+                                    if (bar.fraction > 0f) box(left, band + 15f + lane * 28f, width * bar.fraction, 10f, color, 2f)
                                 }
-                            }
-                            listOf("TEMPO / PRAZO TOTAL", "EXECUÇÃO PREVISTA / REAL", "ENTREGAS DE MATERIAIS", "PAGAMENTOS").forEachIndexed { lane, label ->
-                                text(graphLeft + 4f, band + 7f + lane * 22f, label, 6.6f, muted, width = graphRight - graphLeft - 8f)
-                            }
-                            row.planned?.let { period ->
-                                paint.color = green; paint.strokeWidth = 0.9f; paint.style = Paint.Style.STROKE
-                                paint.pathEffect = DashPathEffect(floatArrayOf(3f, 2f), 0f)
-                                canvas.drawRoundRect(x(axis.boundary(period.start)), band + 33f,
-                                    x(axis.boundary(period.end.plusDays(1))), band + 41f, 2f, 2f, paint)
-                                paint.pathEffect = null; paint.style = Paint.Style.FILL
-                            }
-                            row.totalPeriod?.let { period ->
-                                bar(period, 11f, Color.rgb(220, 234, 246))
-                                if (asOf >= period.start) bar(GanttPeriod(period.start, minOf(asOf, period.end)), 11f, blue)
-                            }
-                            row.actual?.let { bar(it, 33f, green) }
-                            row.materialPeriod?.let { bar(it, 55f, Color.rgb(234, 224, 244)) }
-                            row.deliveries.forEach { delivery ->
-                                delivery.expected?.let { milestone(it, 59f, MaterialArrival.toArgb(), false) }
-                                delivery.received?.let { milestone(it, 59f, MaterialArrival.toArgb(), true) }
-                            }
-                            row.stage.plannedEnd?.let { milestone(it, 37f, green, false) }
-                            row.stage.actualEnd?.let { milestone(it, 37f, green, true) }
-                            for (event in row.spend) {
-                                val date = event.date ?: continue
-                                val center = x(axis.dayCenter(date))
-                                paint.color = if (event.paid) ink else gold
-                                canvas.drawCircle(center, band + if (event.paid) 79f else 84f, 2.7f, paint)
                             }
                         }
                         text(graphRight + 9, band + 13, "Prev. ${row.plannedDates}", 8.2f, if (row.planned == null) muted else blue, width = 174f)
@@ -695,7 +663,7 @@ internal object FullReport {
             val completed = project.stages.filter { it.actualEnd != null }.maxOfOrNull { it.actualEnd!! }
             val forecast = project.stages.mapNotNull { it.plannedEnd }.maxOrNull()
             callout("MARCOS E PREVISÕES", "Início da obra: ${project.start.dateOr()}. Última conclusão registrada: ${completed.dateOr()}. Última data prevista informada: ${forecast.dateOr()}.")
-            paragraph("O prazo total vai da primeira data de execução ou entrega até a última. O preenchimento azul indica os dias decorridos até a data-base. O contorno verde tracejado mostra a execução prevista e a barra verde mostra a execução real. Losangos vazados são previsões; preenchidos são datas reais. Recebimentos sem data não geram marcos. Pagamentos permanecem pontos financeiros separados.")
+            paragraph("As três barras usam o prazo total da etapa. A parte sólida mostra o percentual concluído e a parte suave mostra o restante. O azul é o avanço geral ponderado, o verde é a mão de obra e o roxo combina recebimento de materiais e conclusão de serviços vinculados. Pagamentos não alteram os percentuais e permanecem no calendário financeiro e na prestação de contas.")
             paragraph("Semanas ISO começam na segunda-feira. Na virada do ano, o número da semana pode pertencer ao ano anterior ou seguinte. Em períodos extensos, rótulos intermediários são espaçados; o cronograma integral pode ser ampliado no app.")
         }
 
@@ -727,14 +695,14 @@ internal object FullReport {
             if (project.stages.size > 4) startPage(continuation = true)
             tableTitle("EVOLUÇÃO DAS ETAPAS | EXECUÇÃO E MATERIAIS")
             val evolutions = project.stages.map { project.stageProgress(it) }
-            table(listOf("ETAPA", "EXECUÇÃO", "MATERIAIS", "GERAL", "PESOS", "APURAÇÃO DOS MATERIAIS"),
+            table(listOf("ETAPA", "MÃO DE OBRA", "MAT./SERV.", "GERAL", "PESOS", "APURAÇÃO DOS MATERIAIS"),
                 listOf(220f, 88f, 88f, 88f, 132f, 158f), project.stages.zip(evolutions).map { (stage, evolution) ->
                     listOf(stage.name, stagePercent(evolution.execution.toDouble()), evolution.materialsText, evolution.generalText,
                         evolution.weightsText, evolution.basisText)
                 }, "Nenhuma etapa cadastrada.", totals = mapOf(0 to "MÉDIA DAS ETAPAS", 1 to stagePercent(total.physicalProgress),
                     2 to evolutions.mapNotNull { it.materials }.takeIf { it.isNotEmpty() }?.average()?.let(::stagePercent).orEmpty(),
                     3 to stagePercent(project.generalStageProgress)))
-            paragraph("O avanço geral é a média ponderada da execução e do recebimento dos materiais da etapa. Sem compras de material vinculadas, considera apenas a execução. A coluna Materiais da última linha considera as etapas com material. Pagamentos não alteram esses percentuais.")
+            paragraph("O avanço geral pondera mão de obra e recebimento/conclusão de materiais e serviços. Sem compras vinculadas, acompanha a mão de obra. A coluna Mat./serv. considera as etapas com esses itens. Pagamentos não alteram esses percentuais.")
             tableTitle("CONCILIAÇÃO E CRONOGRAMA FÍSICO-FINANCEIRO")
             table(listOf("ETAPA / OBSERVAÇÕES", "PREVISTO", "REALIZADO", "AVANÇO", "VALOR PREVISTO", "PAGO EFETIVO", "A PAGAR / VENCIMENTO", "PAGO A MAIOR"),
                 listOf(171f, 90f, 90f, 65f, 94f, 90f, 95f, 79f), project.stages.map { stage ->
@@ -943,7 +911,7 @@ internal object FullReport {
                 if (order.deliveryExpected != null || order.receivedDate != null) {
                     paragraph("Entrega prevista: ${order.deliveryExpected.dateOr()}  •  Recebido em: ${order.receivedDate.dateOr()}")
                 }
-                if (order.nature == CostNature.MATERIAL) paragraph("Material recebido: ${stagePercent(order.receivedPercent.toDouble())}. Alimenta o avanço dos materiais da etapa vinculada.")
+                paragraph("${if (order.nature == CostNature.SERVICE) "Serviço concluído" else "Material recebido"}: ${stagePercent(order.receivedPercent.toDouble())}. Alimenta o avanço de materiais e serviços da etapa vinculada.")
                 if (order.method.isNotBlank() || order.payer.isNotBlank()) {
                     paragraph("Método de pagamento: ${order.method.textOr()}  •  Quem pagou: ${order.payer.textOr()}")
                 }

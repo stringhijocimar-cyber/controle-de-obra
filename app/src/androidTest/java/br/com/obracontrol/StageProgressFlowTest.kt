@@ -30,14 +30,14 @@ class StageProgressFlowTest {
         val tiles = Purchase(name = "Piso de exemplo", stageId = stage.id, total = 300_000, receivedProgress = 100)
         val grout = Purchase(name = "Rejunte de exemplo", stageId = stage.id, total = 100_000, receivedProgress = 20)
         val service = Purchase(name = "Serviço de exemplo", nature = CostNature.SERVICE, stageId = stage.id,
-            total = 900_000, receivedDate = today)
+            total = 100_000, receivedProgress = 50)
         val project = Project(name = "Obra de exemplo - dados fictícios", stages = listOf(stage), purchases = listOf(tiles, grout, service),
             payments = listOf(Payment(targetId = stage.id, amount = 50_000, date = today, payer = "Pessoa A", method = "Pix")))
         try {
             store.save(project)
             app.activityRule.scenario.recreate()
             gantt()
-            values(stage.id, 40.0, 80.0, 60.0)
+            values(stage.id, 40.0, 74.0, 57.0)
             screenshot("gantt-evolucao-2.5.0.png")
             navigate("Compras")
             app.onNodeWithTag("table-row-${grout.id}").performSemanticsAction(SemanticsActions.OnClick) { it() }
@@ -45,11 +45,11 @@ class StageProgressFlowTest {
             save()
             assertEquals(60, store.load().purchases.first { it.id == grout.id }.receivedProgress)
             gantt()
-            values(stage.id, 40.0, 90.0, 65.0)
+            values(stage.id, 40.0, 82.0, 61.0)
             app.onNodeWithText(stage.name).performClick()
-            app.onNodeWithText("Peso dos materiais no avanço geral (%)").performScrollTo().performTextReplacement("40")
+            app.onNodeWithText("Peso de materiais e serviços (%)").performScrollTo().performTextReplacement("40")
             save()
-            values(stage.id, 40.0, 90.0, 60.0)
+            values(stage.id, 40.0, 82.0, 56.8)
             val saved = store.load()
             assertEquals(project.payments, saved.payments)
             assertEquals(project.scheduledPayments, saved.scheduledPayments)
@@ -65,9 +65,9 @@ class StageProgressFlowTest {
                 if (Build.VERSION.SDK_INT >= 35) {
                     val pages = (0 until renderer.pageCount).map { index -> renderer.openPage(index).use { page -> page.textContents.joinToString(" ") { it.text } } }
                     val chart = pages.first { it.contains("VISÃO GANTT") }
-                    assertTrue(chart.contains("Execução: ${stagePercent(40.0)}"))
-                    assertTrue(chart.contains("Materiais: ${stagePercent(90.0)}"))
-                    assertTrue(chart.contains("Geral da etapa: ${stagePercent(60.0)}"))
+                    assertTrue(chart.contains("Mão de obra: ${stagePercent(40.0)}"))
+                    assertTrue(chart.contains("Materiais/serviços: ${stagePercent(82.0)}"))
+                    assertTrue(chart.contains("Geral da etapa: ${stagePercent(56.8)}"))
                     assertTrue(pages.any { it.contains("EVOLUÇÃO DAS ETAPAS") })
                 }
             }

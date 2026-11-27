@@ -47,7 +47,7 @@ class GanttFlowTest {
             app.onNodeWithText("Gantt").performClick()
             app.onNodeWithTag("gantt-table").performScrollTo()
             app.onNodeWithText("Cobertura de teste").assertIsDisplayed()
-            app.onNodeWithText(260_000L.brl()).assertIsDisplayed()
+            app.onNodeWithTag("gantt-general-${stage.id}", useUnmergedTree = true).assertTextEquals("100%")
             val stageList = app.onNodeWithTag("gantt-stage-list")
             stageList.performScrollToNode(hasText("Datas a definir"))
             app.onNodeWithText("Datas a definir").assertIsDisplayed()
@@ -59,11 +59,11 @@ class GanttFlowTest {
                 .assert(hasContentDescription("Previsto $planned · Realizado $actual", substring = true))
                 .assert(hasContentDescription(spend, substring = true))
             val bitmap = bars.captureToImage().toPixelMap()
-            val colors = mutableSetOf(Blue.toArgb(), Green.toArgb(), Navy.toArgb(), Amber.toArgb())
+            val colors = mutableSetOf(Blue.toArgb(), Green.toArgb())
             for (y in 0 until bitmap.height step 2) {
                 for (x in 0 until bitmap.width step 2) colors.remove(bitmap[x, y].toArgb())
             }
-            assertTrue("As barras e os dois pontos de pagamento devem ser visíveis", colors.isEmpty())
+            assertTrue("As barras de total e mão de obra concluídas devem estar visíveis", colors.isEmpty())
 
             bars.performTouchInput { swipeLeft() }
             app.onNodeWithText("Cobertura de teste").assertIsDisplayed()

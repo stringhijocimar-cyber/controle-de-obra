@@ -38,12 +38,12 @@ internal data class GanttRow(
     }
 }
 
-internal data class GanttDelivery(val id: String, val name: String, val expected: LocalDate?, val received: LocalDate?, val progress: Int)
+internal data class GanttDelivery(val id: String, val name: String, val expected: LocalDate?, val received: LocalDate?, val progress: Int, val nature: CostNature = CostNature.MATERIAL)
 
 internal fun Project.ganttRows(asOf: LocalDate, spend: LaborSpendCalendar): List<GanttRow> = stages.map { stage ->
     stage.ganttRow(asOf, spend.byStage[stage.id].orEmpty()).copy(deliveries = purchases.filter {
-        it.stageId == stage.id && it.nature == CostNature.MATERIAL
-    }.map { GanttDelivery(it.id, it.name, it.deliveryExpected, it.receivedDate, it.receivedPercent) })
+        it.stageId == stage.id
+    }.map { GanttDelivery(it.id, it.name, it.deliveryExpected, it.receivedDate, it.receivedPercent, it.nature) })
 }
 
 internal fun Stage.ganttRow(asOf: LocalDate, spend: List<LaborSpendEntry> = emptyList()): GanttRow {
@@ -79,9 +79,8 @@ internal class GanttAxis private constructor(val start: LocalDate, val end: Loca
     companion object {
         fun from(rows: List<GanttRow>): GanttAxis? {
             val periods = rows.flatMap { listOfNotNull(it.planned, it.actual, it.totalPeriod) }
-            val dates = rows.flatMap { row -> row.spend.mapNotNull { it.date } }
-            val first = listOfNotNull(periods.minOfOrNull { it.start }, dates.minOrNull()).minOrNull() ?: return null
-            val last = listOfNotNull(periods.maxOfOrNull { it.end }, dates.maxOrNull()).max()
+            val first = periods.minOfOrNull { it.start } ?: return null
+            val last = periods.maxOf { it.end }
             if (DAYS.between(first, last) < 14) {
                 return GanttAxis(first, maxOf(last, first.plusDays(6)))
             }

@@ -193,13 +193,13 @@ private fun StageEditor(stage: Stage, project: Project, remove: (() -> Unit)?, s
     }) {
         Field("Nome da etapa", name, { name = it })
         Field("Avanço físico (%)", completion, { completion = it }, KeyboardType.Number)
-        Detail("Percentual executado de mão de obra e serviços. O recebimento dos materiais é apurado nas compras vinculadas.")
-        Field("Peso dos materiais no avanço geral (%)", materialWeight, { materialWeight = it }, KeyboardType.Number)
+        Detail("Percentual concluído da mão de obra da etapa. Materiais e serviços terceirizados são apurados nas compras vinculadas.")
+        Field("Peso de materiais e serviços (%)", materialWeight, { materialWeight = it }, KeyboardType.Number)
         val evolution = project.stageProgress(stage.copy(progress = (completion.toIntOrNull() ?: stage.progress).coerceIn(0, 100),
             materialWeight = (materialWeight.toIntOrNull() ?: stage.materialWeight).coerceIn(0, 100)))
-        LedgerLine("Materiais recebidos", evolution.materialsText)
+        LedgerLine("Materiais e serviços", evolution.materialsText)
         LedgerLine("Avanço geral da etapa", evolution.generalText)
-        Detail("${evolution.weightsText}. ${evolution.basisText} O padrão é 50% para execução e 50% para materiais; ajuste os pesos conforme a etapa.")
+        Detail("${evolution.weightsText}. ${evolution.basisText} O padrão é 50% para mão de obra e 50% para materiais e serviços; ajuste os pesos conforme a etapa.")
         Field("Valor da etapa (R$)", budget, { budget = it }, KeyboardType.Decimal)
         CalendarField("Início previsto", plannedStart, { plannedStart = it })
         CalendarField("Fim previsto", plannedEnd, { plannedEnd = it })
@@ -270,7 +270,7 @@ private fun PurchaseEditor(
     fun readFields() = order.copy(name = name.trim(), supplier = supplier.trim(), document = document.trim(),
         documentDate = parseDate(documentDate), dueDate = parseDate(dueDate),
         deliveryExpected = parseDate(delivery), receivedDate = parseDate(received),
-        receivedProgress = if (nature != CostNature.MATERIAL.name) order.receivedProgress else if (receivedProgress.isBlank()) null
+        receivedProgress = if (receivedProgress.isBlank()) null
             else receivedProgress.toIntOrNull() ?: throw IllegalArgumentException("Informe o recebimento em número inteiro de 0 a 100."),
         stageId = stageId.takeIf(String::isNotBlank), total = parseMoney(total),
         discount = parseMoney(discount) ?: 0, extra = extra, notes = notes.trim(), documents = documents,
@@ -314,17 +314,17 @@ private fun PurchaseEditor(
         Field("Número ou referência do documento", document, { document = it })
         CalendarField("Data do documento", documentDate, { documentDate = it })
         CalendarField("Pagamento previsto", dueDate, { dueDate = it })
-        CalendarField("Entrega prevista", delivery, { delivery = it })
-        CalendarField("Recebido em", received, {
+        CalendarField(if (nature == CostNature.SERVICE.name) "Entrega/conclusão prevista" else "Entrega prevista", delivery, { delivery = it })
+        CalendarField(if (nature == CostNature.SERVICE.name) "Serviço concluído em" else "Recebido em", received, {
             received = it
-            if (it.isNotBlank() && nature == CostNature.MATERIAL.name) receivedProgress = "100"
+            if (it.isNotBlank()) receivedProgress = "100"
         })
-        if (nature == CostNature.MATERIAL.name) {
-            Field("Material recebido (%)", receivedProgress, {
+        run {
+            Field(if (nature == CostNature.SERVICE.name) "Serviço concluído (%)" else "Material recebido (%)", receivedProgress, {
                 receivedProgress = it
                 if (it.toIntOrNull()?.let { value -> value in 0..99 } == true) received = ""
             }, KeyboardType.Number)
-            Detail("Informe de 0 a 100 para entregas parciais. A data de recebimento indica entrega completa. Este percentual alimenta o avanço dos materiais da etapa vinculada.")
+            Detail("Informe de 0 a 100 para recebimento de material ou conclusão de serviço. A data final indica 100%. O percentual compõe a barra Materiais e serviços da etapa vinculada.")
         }
         Select("Etapa vinculada", stageId, project.stageOptions()) { stageId = it }
         HorizontalDivider()
