@@ -16,6 +16,11 @@ import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.onNode
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertTextEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -44,7 +49,10 @@ class GanttFlowTest {
             app.onNodeWithText("Gantt").performClick()
             app.onNodeWithText("Cobertura de teste").assertIsDisplayed()
             app.onNodeWithText(260_000L.brl()).assertIsDisplayed()
-            app.onNodeWithText("Datas a definir").performScrollTo().assertIsDisplayed()
+            val stageList = app.onNode(hasScrollAction() and SemanticsMatcher.keyIsDefined(SemanticsProperties.VerticalScrollAxisRange))
+            stageList.performScrollToNode(hasText("Datas a definir"))
+            app.onNodeWithText("Datas a definir").assertIsDisplayed()
+            stageList.performScrollToNode(hasText(stage.name))
             val planned = "${stage.plannedStart.dateText()} a ${stage.plannedEnd.dateText()}"
             val actual = "${stage.actualStart.dateText()} a ${stage.actualEnd.dateText()}"
             val spend = "Pago ${paid.amount.brl()} em ${paid.date.dateText()} · A pagar ${200_000L.brl()} em ${stage.dueDate.dateText()}"

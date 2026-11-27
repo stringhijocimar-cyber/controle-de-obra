@@ -70,7 +70,7 @@ class FinancialTablesTest {
             store.save(Project())
             app.activityRule.scenario.recreate()
             app.onNode(hasText("Pagamentos") and hasClickAction()).performClick()
-            app.onNodeWithTag("table-total-0").assertIsDisplayed().assertTextEquals(0L.brl())
+            app.onNodeWithTag("table-total-0").performScrollTo().assertIsDisplayed().assertTextEquals(0L.brl())
         } finally {
             store.save(previous)
         }
