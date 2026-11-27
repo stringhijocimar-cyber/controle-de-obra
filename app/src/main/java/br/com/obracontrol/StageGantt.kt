@@ -109,7 +109,7 @@ private fun StageGanttChart(
     BoxWithConstraints(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, bottom = 12.dp)) {
         val labelWidth = (maxWidth * 0.39f).coerceIn(105.dp, 188.dp)
         val chartWidth = maxOf(maxWidth - labelWidth, timeline.preferredWidth.dp)
-        val rowHeight = maxOf(126.dp, (134 * density.fontScale).dp)
+        val rowHeight = maxOf(154.dp, (154 * density.fontScale).dp)
         val headerHeight = maxOf(24.dp, (24 * density.fontScale).dp) * timeline.rowCount
         Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -133,7 +133,7 @@ private fun StageGanttChart(
                 color = Muted, style = MaterialTheme.typography.labelSmall)
             if (timeline.condensed) Detail("Período extenso: algumas datas intermediárias ficam ocultas para manter a leitura.")
             Surface(
-                modifier = Modifier.fillMaxWidth().weight(1f),
+                modifier = Modifier.fillMaxWidth().weight(1f).testTag("gantt-table"),
                 shape = RoundedCornerShape(14.dp),
                 color = Color.White,
             ) {
@@ -145,7 +145,7 @@ private fun StageGanttChart(
                             DateAxis(timeline, chartWidth, headerHeight, scroll)
                         }
                     }
-                    LazyColumn(Modifier.fillMaxSize()) {
+                    LazyColumn(Modifier.fillMaxSize().testTag("gantt-stage-list")) {
                         itemsIndexed(rows, key = { _, row -> row.stage.id }) { index, row ->
                             val stage = row.stage
                             val overdue = stage.progress < 100 && stage.plannedEnd?.let { it < today } == true

@@ -81,6 +81,8 @@ class PaymentRepairFlowTest {
             app.onNodeWithText("Novo").performClick()
             app.onNodeWithText("Tipo de custo").assertExists()
             app.onNodeWithText("Etapa vinculada").assertExists()
+            app.onNodeWithText("Tipo de custo").performClick()
+            app.onNodeWithText(CostCategory.SERVICE.label).performClick()
             app.onNodeWithText("Custo vinculado").performClick()
             app.onNodeWithText(service.name).performClick()
             app.onNodeWithText("Valor pago (R$)").performScrollTo().performTextInput("10,00")

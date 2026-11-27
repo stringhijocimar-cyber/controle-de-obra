@@ -70,7 +70,7 @@ class FinancialTablesTest {
             store.save(Project())
             app.activityRule.scenario.recreate()
             app.onNode(hasText("Pagamentos") and hasClickAction()).performClick()
-            app.onNodeWithTag("table-total-0").assertIsDisplayed().assertTextEquals(0L.brl())
+            app.onNodeWithTag("table-total-0").performScrollTo().assertIsDisplayed().assertTextEquals(0L.brl())
         } finally {
             store.save(previous)
         }
@@ -118,7 +118,7 @@ class FinancialTablesTest {
             assertEquals(payment.copy(amount = 5_000), savedPayment)
             assertEquals(10_000L, Balance(store.load()).materialOutstanding(savedPurchase))
 
-            app.onNodeWithText("A pagar").performClick()
+            app.onNodeWithText("A pagar").performScrollTo().performClick()
             editCost("${CostKind.MATERIAL}/${purchase.id}")
             app.onNodeWithText("Nome da compra ou serviço").performTextReplacement("Compra revisada")
             saveEditedRecord()
@@ -235,7 +235,7 @@ class FinancialTablesTest {
             app.onNodeWithTag("table-total-0").assertTextEquals(24_000L.brl())
             screenshot("pagamentos.png")
             wideScreenshot("pagamentos-planilha.png")
-            app.onNodeWithText("A pagar").performClick()
+            app.onNodeWithText("A pagar").performScrollTo().performClick()
             app.onNodeWithTag("table-total-0").assertTextEquals(231_800L.brl())
             app.onNodeWithText("Perfis metálicos").assertIsDisplayed()
             screenshot("pagamentos-em-aberto.png")

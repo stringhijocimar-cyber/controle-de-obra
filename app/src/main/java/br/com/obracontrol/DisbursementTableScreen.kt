@@ -33,9 +33,9 @@ private val flowDate = DateTimeFormatter.ofPattern("dd/MM", brazil)
 private val flowMonth = DateTimeFormatter.ofPattern("MMM/yy", brazil)
 
 @Composable
-internal fun WeeklyDisbursementScreen(project: Project, today: LocalDate, openCost: (CostKind, String) -> Unit) {
-    val table = remember(project) { DisbursementTable(project) }
-    var open by rememberSaveable { mutableStateOf(ArrayList(table.roots.map { it.key })) }
+internal fun WeeklyDisbursementScreen(project: Project, today: LocalDate, openCost: (CostKind, String) -> Unit, category: CostCategory? = null) {
+    val table = remember(project, category) { DisbursementTable(project, category) }
+    var open by rememberSaveable(category) { mutableStateOf(ArrayList(table.roots.map { it.key })) }
     var view by rememberSaveable { mutableStateOf(CashView.TOTAL.name) }
     var page by rememberSaveable { mutableStateOf(0) }
     var info by rememberSaveable { mutableStateOf(false) }
@@ -49,7 +49,7 @@ internal fun WeeklyDisbursementScreen(project: Project, today: LocalDate, openCo
     val width = FlowMetaWidth * 4 + FlowWeekWidth * columns.size
     fun toggle(key: String) { open = ArrayList(if (key in open) open - key else open + key) }
     if (info) AlertDialog(onDismissRequest = { info = false }, title = { Text("Como ler os desembolsos") },
-        text = { Text("Abra + para ver tipo, etapa, custo e pagamentos ou parcelas. Total soma o pago na data real e o saldo no vencimento. Mão de obra integra Serviço. Deslize para ver as semanas ou os responsáveis; valores e responsáveis desconhecidos ficam a definir.") },
+        text = { Text("Abra + para ver categoria, etapa, custo e pagamentos ou parcelas. Total soma o pago na data real e o saldo no vencimento. Materiais, mão de obra e serviços terceirizados aparecem separados. Deslize para ver as semanas ou os responsáveis; valores e responsáveis desconhecidos ficam a definir.") },
         confirmButton = { TextButton(onClick = { info = false }) { Text("Entendi") } })
     Column(Modifier.fillMaxSize().padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
         Text("Calendário de desembolsos", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)

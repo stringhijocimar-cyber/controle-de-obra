@@ -105,9 +105,12 @@ class StageProgressFlowTest {
     private fun gantt() { navigate("Etapas"); app.onNodeWithText("Gantt").performSemanticsAction(SemanticsActions.OnClick) { it() } }
     private fun save() { app.onNodeWithText("Salvar").performSemanticsAction(SemanticsActions.OnClick) { it() } }
     private fun values(id: String, execution: Double, materials: Double, general: Double) {
-        app.onNodeWithTag("gantt-execution-$id", useUnmergedTree = true).assertTextEquals(stagePercent(execution))
-        app.onNodeWithTag("gantt-materials-$id", useUnmergedTree = true).assertTextEquals(stagePercent(materials))
-        app.onNodeWithTag("gantt-general-$id", useUnmergedTree = true).assertTextEquals(stagePercent(general))
+        if (app.onAllNodesWithTag("gantt-table").fetchSemanticsNodes().isNotEmpty()) {
+            app.onNodeWithTag("gantt-table").performScrollTo()
+        }
+        app.onNodeWithTag("gantt-execution-$id", useUnmergedTree = true).assertIsDisplayed().assertTextEquals(stagePercent(execution))
+        app.onNodeWithTag("gantt-materials-$id", useUnmergedTree = true).assertIsDisplayed().assertTextEquals(stagePercent(materials))
+        app.onNodeWithTag("gantt-general-$id", useUnmergedTree = true).assertIsDisplayed().assertTextEquals(stagePercent(general))
     }
     private fun folder() = File(app.activity.filesDir, "screenshots").apply { mkdirs() }
     private fun screenshot(name: String) {

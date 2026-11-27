@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -33,6 +34,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -409,7 +411,7 @@ internal fun StageTable(project: Project, balance: Balance, today: LocalDate, ed
         val position = project.nextPendingPosition(CostKind.LABOR, stage.id)
         val due = if (position != null) position.date else stage.dueDate
         FinancialRow(stage.id, stage.name, financialStatus(stage.budget, paid, due.takeUnless { position?.estimatedDate == true }, today),
-            listOf(stage.budget.tableMoney(), paid.tableMoney(), pending.tableMoney(), CostNature.SERVICE.label,
+            listOf(stage.budget.tableMoney(), paid.tableMoney(), pending.tableMoney(), CostCategory.LABOR.label,
                 "${stage.progress}%", stage.status, stage.plannedStart.dateOr(), stage.plannedEnd.dateOr(),
                 stage.actualStart.dateOr(), stage.actualEnd.dateOr(), due.dateOr() + if (position?.estimatedDate == true) " · estim." else "", credit.tableMoney(),
                 evolution.materialsText, evolution.generalText),
@@ -487,6 +489,9 @@ internal fun PaymentTableScreen(
     checkPayments: () -> Unit,
 ) {
     var selectedView by rememberSaveable { mutableStateOf(PaymentView.REGISTERED.name) }
+    var selectedCategory by rememberSaveable { mutableStateOf("") }
+    val category = CostCategory.entries.firstOrNull { it.name == selectedCategory }
+    fun matches(kind: CostKind, id: String) = category == null || project.costCategory(kind, id) == category
     val view = PaymentView.valueOf(selectedView)
     val outstanding = view == PaymentView.OUTSTANDING
     val installments = view == PaymentView.INSTALLMENTS
@@ -506,7 +511,7 @@ internal fun PaymentTableScreen(
             TableColumn("Origem", 105.dp), TableColumn("Anexos", 60.dp, true), TableColumn("Comprovante", 150.dp))
     }
     val rows = if (installments) {
-        project.installmentBalances(balance).map { position ->
+        project.installmentBalances(balance).filter { matches(CostKind.MATERIAL, it.purchase.id) }.map { position ->
             val order = position.purchase
             val due = project.purchaseNextDue(order)
             FinancialRow("parcelado/${order.id}", order.name, financialStatus(position.total, position.paid, due, today),
@@ -523,7 +528,7 @@ internal fun PaymentTableScreen(
                     { editParcels(order.id) }, { reviewPaid(CostKind.MATERIAL, order.id) }) })
         }
     } else if (outstanding) {
-        balance.disbursements.map { entry ->
+        balance.disbursements.filter { matches(it.kind, it.targetId) }.map { entry ->
             val purchase = purchases[entry.targetId]
             val paid = balance.paid(entry.kind, entry.targetId)
             val value = if (entry.kind == CostKind.MATERIAL) purchase?.forecast
@@ -531,47 +536,54 @@ internal fun PaymentTableScreen(
             val due = entry.forecastDate.dateOr("Sem data")
             FinancialRow("${entry.kind}/${entry.targetId}", entry.name,
                 financialStatus(value, paid, entry.date, today),
-                listOf(entry.amount.tableMoney(), paid.tableMoney(), project.costNature(entry.kind, entry.targetId).label, purchase?.tableInstallments() ?: "—", due,
+                listOf(entry.amount.tableMoney(), paid.tableMoney(), project.costCategory(entry.kind, entry.targetId).label, purchase?.tableInstallments() ?: "—", due,
                     if (entry.forecastDate == null) "Sem data" else if (entry.dateEstimated) "Estimativa" else "Informada",
                     purchase?.installmentText() ?: "—", entry.kind.label),
                 "Registrar pagamento", { payTarget(entry.kind, entry.targetId) },
                 edit = { editCost(entry.kind, entry.targetId) }, costs = listOf(entry.amount, paid),
-                detail = listOfNotNull(project.costNature(entry.kind, entry.targetId).label,
+                detail = listOfNotNull(project.costCategory(entry.kind, entry.targetId).label,
                     purchase?.tableInstallments()?.takeUnless { it == "—" }).joinToString(" · "),
                 settle = { if (value != null && entry.amount != null && entry.amount > 0) complete(entry.kind, entry.targetId) else editCost(entry.kind, entry.targetId) },
                 editTerms = { editTerms(entry.kind, entry.targetId) }, editPaid = { reviewPaid(entry.kind, entry.targetId) })
         }
     } else {
-        project.payments.sortedWith(compareBy(nullsLast(reverseOrder())) { it.date }).map { payment ->
+        project.payments.filter { matches(it.kind, it.targetId) }.sortedWith(compareBy(nullsLast(reverseOrder())) { it.date }).map { payment ->
             val laborPlans = project.scheduledPayments.filter { it.kind == CostKind.LABOR && it.targetId == payment.targetId }
             val terms = if (payment.kind == CostKind.MATERIAL) purchases[payment.targetId]?.installmentText().orEmpty()
                 else if (laborPlans.isEmpty()) "—" else "${laborPlans.size} vencimentos programados"
             FinancialRow(payment.id, project.targetName(payment), FinancialStatus.PAID,
-                listOf(payment.amount.tableMoney(), project.costNature(payment.kind, payment.targetId).label, payment.date.dateOr(UNREPORTED), payment.payer.textOr(), payment.method.textOr(),
+                listOf(payment.amount.tableMoney(), project.costCategory(payment.kind, payment.targetId).label, payment.date.dateOr(UNREPORTED), payment.payer.textOr(), payment.method.textOr(),
                     if (payment.kind == CostKind.MATERIAL) purchases[payment.targetId]?.tableInstallments() ?: "—"
                         else laborPlans.takeIf { it.isNotEmpty() }?.size?.toString() ?: "—",
                     terms, payment.kind.label, payment.proofs.size.toString(), payment.receipt.textOr()),
                 "Editar pagamento", { edit(payment.id) }, costs = listOf(payment.amount),
                 detail = (if (payment.scheduleId != null) project.paymentParcelLabel(payment) else payment.date.dateOr("Sem data")) +
-                    if (payment.id in repeatedIds) " · Conferir repetição" else " · ${project.costNature(payment.kind, payment.targetId).label}",
+                    if (payment.id in repeatedIds) " · Conferir repetição" else " · ${project.costCategory(payment.kind, payment.targetId).label}",
                 editTerms = { editTerms(payment.kind, payment.targetId) },
                 editMethod = { edit(payment.id) }, editPaid = { edit(payment.id) })
         }
     }
-    Column(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            ListHeading("Pagamentos", "+ Novo", add, "Valores pagos e compromissos em aberto")
-            ViewTabs(PaymentView.entries.map { it.label }, view.ordinal) { selectedView = PaymentView.entries[it].name }
-            if (view == PaymentView.REGISTERED) TextButton(onClick = checkPayments, modifier = Modifier.height(32.dp), contentPadding = PaddingValues(2.dp)) {
-                Text("Conferir duplicados${if (repeatedIds.isNotEmpty()) " · ${repeatedIds.size} lançamentos semelhantes" else ""}", style = MaterialTheme.typography.labelMedium)
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val pageScroll = rememberScrollState()
+        val tableHeight = maxOf(420.dp, maxHeight * 0.75f)
+        LaunchedEffect(selectedView, selectedCategory) { pageScroll.scrollTo(0) }
+        Column(Modifier.fillMaxSize().verticalScroll(pageScroll)) {
+            Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                ListHeading("Pagamentos", "+ Novo", add, "Valores pagos e compromissos em aberto")
+                PaymentOverview(project, balance)
+                PaymentCategoryFilters(project, balance, category) { selectedCategory = it?.name.orEmpty() }
+                ViewTabs(PaymentView.entries.map { it.label }, view.ordinal) { selectedView = PaymentView.entries[it].name }
+                if (view == PaymentView.REGISTERED) TextButton(onClick = checkPayments, modifier = Modifier.height(32.dp), contentPadding = PaddingValues(2.dp)) {
+                    Text("Conferir duplicados${if (repeatedIds.isNotEmpty()) " · ${repeatedIds.size} lançamentos semelhantes" else ""}", style = MaterialTheme.typography.labelMedium)
+                }
             }
-        }
-        Box(Modifier.weight(1f)) {
-            if (view == PaymentView.WEEKS) WeeklyDisbursementScreen(project, today, openCost)
-            else FinancialTable(if (installments) "Compra" else "Referência", columns, rows,
-                if (installments) "Nenhuma compra cadastrada como parcelada."
-                else if (outstanding) "Nenhum valor em aberto." else "Nenhum pagamento registrado.")
+            Box(Modifier.fillMaxWidth().height(tableHeight).padding(bottom = 12.dp)) {
+                if (view == PaymentView.WEEKS) WeeklyDisbursementScreen(project, today, openCost, category)
+                else FinancialTable(if (installments) "Compra" else "Referência", columns, rows,
+                    if (installments) "Nenhuma compra cadastrada como parcelada."
+                    else if (outstanding) "Nenhum valor em aberto." else "Nenhum pagamento registrado.")
+            }
         }
     }
 }

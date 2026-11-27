@@ -21,7 +21,7 @@ class CostNatureTest {
         val original = Project(stages = listOf(stage), purchases = listOf(order),
             payments = listOf(Payment(kind = CostKind.MATERIAL, targetId = order.id, amount = 25_000)))
         val service = original.copy(purchases = listOf(order.copy(nature = CostNature.SERVICE)))
-        assertEquals(11, JSONObject(ProjectCodec.encode(service)).getInt("version"))
+        assertEquals(12, JSONObject(ProjectCodec.encode(service)).getInt("version"))
         assertEquals(service, ProjectCodec.decode(ProjectCodec.encode(service)))
         assertEquals(Balance(original).total, Balance(service).total)
         assertEquals(Balance(original).paid, Balance(service).paid)

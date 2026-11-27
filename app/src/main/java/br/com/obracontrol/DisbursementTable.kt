@@ -18,8 +18,8 @@ internal data class FlowNode(
     }.map { it.amount })
 }
 
-internal class DisbursementTable(val project: Project) {
-    val entries = CostPaymentCalendar(project).entries
+internal class DisbursementTable(val project: Project, category: CostCategory? = null) {
+    val entries = CostPaymentCalendar(project).entries.filter { category == null || it.target.category == category }
     val total = FlowNode("total", "TOTAL DA OBRA", FlowLayer.FAMILY, entries)
     val firstWeek: LocalDate? = entries.mapNotNull { it.date }.minOrNull()?.with(previousOrSame(DayOfWeek.MONDAY))
     val lastWeek: LocalDate? = entries.mapNotNull { it.date }.maxOrNull()?.with(previousOrSame(DayOfWeek.MONDAY))
@@ -30,8 +30,8 @@ internal class DisbursementTable(val project: Project) {
         val weeks = if (firstWeek == null) emptyList() else (index * 26 until minOf((index + 1) * 26, weekCount)).map { firstWeek.plusWeeks(it.toLong()) }
         return weeks + if (index == pageCount - 1 && entries.any { it.date == null }) listOf(null) else emptyList()
     }
-    val roots: List<FlowNode> = CostNature.entries.mapNotNull { family ->
-        val all = entries.filter { project.costNature(it.target.kind, it.target.id) == family }
+    val roots: List<FlowNode> = CostCategory.entries.mapNotNull { family ->
+        val all = entries.filter { it.target.category == family }
         if (all.isEmpty()) null else {
             val stages = all.groupBy { entry -> if (entry.target.kind == CostKind.LABOR) entry.target.id
                 else project.purchases.firstOrNull { it.id == entry.target.id }?.stageId }

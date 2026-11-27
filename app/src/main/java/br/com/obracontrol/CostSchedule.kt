@@ -5,7 +5,7 @@ import java.time.LocalDate
 import java.time.temporal.TemporalAdjusters.previousOrSame
 
 internal enum class CostCategory(val label: String) {
-    MATERIAL("Material"), SERVICE("Serviço"), LABOR("Mão de obra")
+    MATERIAL("Material"), SERVICE("Serviço terceirizado"), LABOR("Mão de obra")
 }
 
 internal data class CostTarget(

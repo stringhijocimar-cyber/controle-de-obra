@@ -303,6 +303,7 @@ private fun PurchaseEditor(
     Form(remove = remove, deletePrompt = "Excluir esta compra e os seus itens?", available = !processing, save = { saveFields(null) }) {
         Field("Nome da compra ou serviço", name, { name = it })
         Select("Tipo de custo", nature, CostNature.entries.map { it.name to it.label }) { nature = it }
+        Detail("Material: itens comprados para a obra. Serviço terceirizado: pia ou vidro sob encomenda, frete e fabricação externa. Se o orçamento separar material e instalação, cadastre cada parte na sua categoria. A mão de obra da equipe fica na etapa; evite cadastrar o mesmo custo duas vezes.")
         DocumentEditor(DocumentUse.PURCHASE, documents, { documents = it }, { processing = it }) { amount, field ->
             if (field == MoneyField.DISCOUNT) discount = amount.cents.moneyInput()
             else total = amount.cents.moneyInput()
@@ -440,14 +441,14 @@ private fun PaymentEditor(
     var processing by remember { mutableStateOf(false) }
     val order = project.purchases.firstOrNull { kind == CostKind.MATERIAL.name && it.id == target }
     val linked = project.linkedCosts().firstOrNull { it.kind.name == kind && it.id == target }
-    var nature by rememberSaveable { mutableStateOf((linked?.nature ?: if (kind == CostKind.LABOR.name) CostNature.SERVICE else CostNature.MATERIAL).name) }
+    var category by rememberSaveable { mutableStateOf((linked?.category ?: if (kind == CostKind.LABOR.name) CostCategory.LABOR else CostCategory.MATERIAL).name) }
     var stageFilter by rememberSaveable { mutableStateOf(linked?.stageId ?: if (kind == CostKind.LABOR.name) project.stages.firstOrNull()?.id.orEmpty() else "") }
     var editingTerms by rememberSaveable(kind, target) { mutableStateOf(false) }
     var purchaseMethod by rememberSaveable(kind, target) { mutableStateOf(order?.method.orEmpty()) }
     var purchaseCondition by rememberSaveable(kind, target) { mutableStateOf(order?.termsKey() ?: "unknown") }
     var purchaseCount by rememberSaveable(kind, target) { mutableStateOf(order?.installmentCount?.toString().orEmpty()) }
     var purchaseTotal by rememberSaveable(kind, target) { mutableStateOf(order?.total.moneyInput()) }
-    val targets = project.linkedCostOptions(CostNature.valueOf(nature), stageFilter)
+    val targets = project.linkedCostOptions(CostCategory.valueOf(category), stageFilter)
     fun readPayment() = payment.copy(kind = CostKind.valueOf(kind), targetId = target, amount = parseMoney(amount) ?: 0,
         date = parseDate(date), payer = payer.trim(), method = method.trim(), receipt = receipt.trim(), notes = notes.trim(), proofs = proofs,
         scheduleId = scheduleId)
@@ -459,13 +460,17 @@ private fun PaymentEditor(
                 readPurchaseTerms(order, purchaseMethod, purchaseCondition, purchaseCount, purchaseTotal) else null, allowSimilar)
     }) {
         Detail("Registre aqui somente valores já pagos. As parcelas futuras permanecem em A pagar.")
-        Select("Tipo de custo", nature, CostNature.entries.map { it.name to it.label }) {
-            if (nature != it) { nature = it; target = ""; scheduleId = null }
+        Select("Tipo de custo", category, CostCategory.entries.map { it.name to it.label }) {
+            if (category != it) { category = it; target = ""; scheduleId = null }
         }
         Select("Etapa vinculada", stageFilter, project.stageOptions()) {
             if (stageFilter != it) { stageFilter = it; target = ""; scheduleId = null }
         }
-        if (nature == CostNature.SERVICE.name) Detail("Mão de obra é um serviço. Selecione a mão de obra da etapa ou o serviço contratado já cadastrado.")
+        Detail(when (CostCategory.valueOf(category)) {
+            CostCategory.LABOR -> "Selecione a mão de obra já orçada na etapa."
+            CostCategory.SERVICE -> "Selecione a contratação externa cadastrada em Compras: pia, vidro sob encomenda, fabricação ou outro serviço."
+            CostCategory.MATERIAL -> "Selecione o material cadastrado em Compras."
+        })
         if (targets.isEmpty()) Detail("Nenhum custo desse tipo vinculado à etapa selecionada. Confira o vínculo no cadastro de Compras.")
         else Select("Custo vinculado", "${kind}/$target", targets.map { it.key to it.label }) { key ->
             val selected = targets.first { it.key == key }
@@ -474,7 +479,7 @@ private fun PaymentEditor(
         val plans = project.scheduledPayments.filter { it.kind.name == kind && it.targetId == target }
         if (plans.isNotEmpty()) Select("Parcela vinculada", scheduleId.orEmpty(), listOf("" to "Sem parcela específica") +
             plans.map { it.id to "${it.label} · ${it.date.dateOr("Sem data")}" }) { scheduleId = it.takeIf(String::isNotBlank) }
-        if (target.isNotBlank()) Detail("Tipo de custo: ${project.costNature(CostKind.valueOf(kind), target).label}")
+        if (target.isNotBlank()) Detail("Tipo de custo: ${project.costCategory(CostKind.valueOf(kind), target).label}")
         Field("Valor pago (R$)", amount, { amount = it }, KeyboardType.Decimal)
         CalendarField("Data do pagamento", date, { date = it })
         PaymentDetailsFields(project, payer, { payer = it }, method, { method = it }) { person ->

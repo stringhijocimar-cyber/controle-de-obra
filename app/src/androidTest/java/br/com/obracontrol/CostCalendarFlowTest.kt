@@ -81,7 +81,7 @@ class CostCalendarFlowTest {
             store.save(project)
             app.activityRule.scenario.recreate()
             app.onNode(hasText("Pagamentos") and hasClickAction()).performClick()
-            app.onNodeWithText("Semanas").performClick()
+            app.onNodeWithText("Semanas").performScrollTo().performClick()
             app.onNodeWithTag("flow-paid-total", useUnmergedTree = true).assertTextEquals(30_000L.brl())
             app.onNodeWithTag("flow-pending-total", useUnmergedTree = true).assertTextEquals("${160_000L.brl()} + ?")
             screenshot("calendario-semanal.png")
@@ -105,8 +105,8 @@ class CostCalendarFlowTest {
             assertEquals(60_000L, Balance(store.load()).paid(CostKind.MATERIAL, service.id))
             assertTrue(CostPaymentCalendar(store.load()).pending.none { it.target.id == service.id })
             app.onNodeWithText("‹ Voltar").performClick()
-            scrollTo("flow-toggle-stage-SERVICE-${stage.id}")
-            app.onNodeWithTag("flow-toggle-stage-SERVICE-${stage.id}").performClick()
+            scrollTo("flow-toggle-stage-LABOR-${stage.id}")
+            app.onNodeWithTag("flow-toggle-stage-LABOR-${stage.id}").performClick()
             scrollTo("flow-row-cost-LABOR/${stage.id}")
             screenshot("calendario-camadas.png")
             app.onNodeWithText("Mão de obra da etapa").performClick()
@@ -134,8 +134,8 @@ class CostCalendarFlowTest {
                     val text = (0 until pdf.pageCount).joinToString("\n") { index ->
                         pdf.openPage(index).use { it.textContents.joinToString(" ") { block -> block.text } }
                     }
-                    assertTrue(text.contains("CALENDÁRIO DE PAGAMENTOS | POR SEMANA"))
-                    assertTrue(text.contains("PROGRAMAÇÃO E QUITAÇÃO POR PARCELA"))
+                    assertTrue(text.contains("CALENDÁRIO DE DESEMBOLSOS"))
+                    assertTrue(text.contains("CONTROLE DE PARCELAS"))
                     assertTrue(text.contains(stage.name) && text.contains(service.name) && text.contains(material.name))
                 }
             }
@@ -143,7 +143,7 @@ class CostCalendarFlowTest {
             app.activityRule.scenario.recreate()
             assertEquals(saved, store.load())
             app.onNode(hasText("Pagamentos") and hasClickAction()).performClick()
-            app.onNodeWithText("Semanas").performClick()
+            app.onNodeWithText("Semanas").performScrollTo().performClick()
             app.onNodeWithTag("flow-paid-total", useUnmergedTree = true).assertTextEquals(90_000L.brl())
             app.onNodeWithTag("flow-value-total-$monday-TOTAL", useUnmergedTree = true).assertTextEquals(130_000L.brl())
         } catch (failure: Throwable) {
@@ -163,9 +163,10 @@ class CostCalendarFlowTest {
     }
 
     private fun scrollTo(tag: String) {
-        if (app.onAllNodesWithTag("flow-table-body").fetchSemanticsNodes().isNotEmpty())
+        if (app.onAllNodesWithTag("flow-table-body").fetchSemanticsNodes().isNotEmpty()) {
+            app.onNodeWithTag("flow-table-body").performScrollTo()
             app.onNodeWithTag("flow-table-body").performScrollToNode(hasTestTag(tag))
-        else app.onNode(hasScrollAction()).performScrollToNode(hasTestTag(tag))
+        } else app.onNode(hasScrollAction()).performScrollToNode(hasTestTag(tag))
         // Expanded weeks can be taller than the viewport; bring the matched child into view too.
         app.onNodeWithTag(tag).performScrollTo().assertIsDisplayed()
     }

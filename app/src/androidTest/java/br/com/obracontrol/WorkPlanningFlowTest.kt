@@ -152,7 +152,7 @@ class WorkPlanningFlowTest {
                     val text = (0 until pdf.pageCount).joinToString("\n") { index -> pdf.openPage(index).use { it.textContents.joinToString(" ") { block -> block.text } } }
                     assertTrue(text.contains("PLANEJAMENTO E ORÇAMENTO POR ETAPA"))
                     assertTrue(text.contains("HISTÓRICO DE APROVAÇÃO"))
-                    assertTrue(text.contains("CALENDÁRIO DE PAGAMENTOS | POR SEMANA"))
+                    assertTrue(text.contains("CALENDÁRIO DE DESEMBOLSOS"))
                     assertTrue(text.contains("PAGAMENTOS | PRESTAÇÃO DE CONTAS") || text.contains("PAGAMENTOS  |  PRESTAÇÃO DE CONTAS"))
                 }
             }

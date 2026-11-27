@@ -49,6 +49,11 @@ internal fun Project.stageOptions(): List<Pair<String, String>> = listOf("" to "
 
 internal data class LinkedCost(val kind: CostKind, val id: String, val stageId: String?, val nature: CostNature, val label: String) {
     val key: String get() = "${kind.name}/$id"
+    val category: CostCategory get() = when {
+        kind == CostKind.LABOR -> CostCategory.LABOR
+        nature == CostNature.SERVICE -> CostCategory.SERVICE
+        else -> CostCategory.MATERIAL
+    }
 }
 internal fun Project.linkedCosts(): List<LinkedCost> =
     stages.map { LinkedCost(CostKind.LABOR, it.id, it.id, CostNature.SERVICE, "Mão de obra · ${it.name}") } +
@@ -56,3 +61,6 @@ internal fun Project.linkedCosts(): List<LinkedCost> =
 
 internal fun Project.linkedCostOptions(nature: CostNature, stageId: String): List<LinkedCost> =
     linkedCosts().filter { it.nature == nature && it.stageId.orEmpty() == stageId }
+
+internal fun Project.linkedCostOptions(category: CostCategory, stageId: String): List<LinkedCost> =
+    linkedCosts().filter { it.category == category && it.stageId.orEmpty() == stageId }

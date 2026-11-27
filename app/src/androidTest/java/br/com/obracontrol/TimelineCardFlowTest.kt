@@ -81,7 +81,7 @@ class TimelineCardFlowTest {
                         val text = (0 until pdf.pageCount).joinToString("\n") { page -> pdf.openPage(page).use { it.textContents.joinToString(" ") { block -> block.text } } }
                         File(folder, "relatorio-texto-${scale.name.lowercase()}.txt").writeText(text)
                         listOf("RESUMO GERENCIAL", "PROGRAMAÇÃO FINANCEIRA", "CARTÃO E PARCELAMENTOS", "CRONOGRAMA FÍSICO",
-                            "PRESTAÇÃO DE CONTAS", "CALENDÁRIO DE PAGAMENTOS", "DIÁRIO DE OBRA").forEach { assertTrue(it, text.contains(it)) }
+                            "PRESTAÇÃO DE CONTAS", "CALENDÁRIO DE DESEMBOLSOS", "DIÁRIO DE OBRA").forEach { assertTrue(it, text.contains(it)) }
                         assertTrue("Escala ${scale.label}", Regex("Escala\\s*:\\s*${Regex.escape(scale.label)}").containsMatchIn(text))
                         assertTrue(text.contains("2026") && text.contains("2027"))
                     }
@@ -110,7 +110,7 @@ class TimelineCardFlowTest {
             assertEquals(project.payments, store.load().payments)
             assertEquals(project.scheduledPayments, store.load().scheduledPayments)
             app.onNode(hasText("Pagamentos") and hasClickAction()).performClick()
-            app.onNodeWithText("Registrados").performClick()
+            app.onNodeWithText("Registrados").performScrollTo().performClick()
             termsCell(payment.id).performScrollTo().performClick()
             app.onNodeWithText("Quantidade de parcelas da compra").performScrollTo().performTextReplacement("4")
             saveForm()

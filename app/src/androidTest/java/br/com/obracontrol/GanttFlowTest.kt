@@ -10,11 +10,13 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.assertTextEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -41,9 +43,13 @@ class GanttFlowTest {
             app.activityRule.scenario.recreate()
             app.onNodeWithText("Etapas").performClick()
             app.onNodeWithText("Gantt").performClick()
+            app.onNodeWithTag("gantt-table").performScrollTo()
             app.onNodeWithText("Cobertura de teste").assertIsDisplayed()
             app.onNodeWithText(260_000L.brl()).assertIsDisplayed()
+            val stageList = app.onNodeWithTag("gantt-stage-list")
+            stageList.performScrollToNode(hasText("Datas a definir"))
             app.onNodeWithText("Datas a definir").assertIsDisplayed()
+            stageList.performScrollToNode(hasText(stage.name))
             val planned = "${stage.plannedStart.dateText()} a ${stage.plannedEnd.dateText()}"
             val actual = "${stage.actualStart.dateText()} a ${stage.actualEnd.dateText()}"
             val spend = "Pago ${paid.amount.brl()} em ${paid.date.dateText()} · A pagar ${200_000L.brl()} em ${stage.dueDate.dateText()}"
@@ -83,7 +89,7 @@ class GanttFlowTest {
             app.onNodeWithText("Calendário de desembolsos").assertIsDisplayed()
             app.onNodeWithTag("flow-paid-total", useUnmergedTree = true).assertTextEquals(20_000L.brl())
             app.onNodeWithTag("flow-pending-total", useUnmergedTree = true).assertTextEquals(100_000L.brl())
-            app.onNodeWithTag("flow-toggle-stage-SERVICE-${stage.id}").performClick()
+            app.onNodeWithTag("flow-toggle-stage-LABOR-${stage.id}").performClick()
             app.onNodeWithTag("flow-table-body").performScrollToNode(hasTestTag("flow-row-cost-LABOR/${stage.id}"))
             app.onNodeWithText("Mão de obra da etapa").performClick()
             app.onNodeWithText("Editar cadastro do custo").performClick()

@@ -90,7 +90,7 @@ class PaymentReviewTest {
         }
         model.roots.forEach(::verify)
         assertEquals(Balance(project).paid, model.total.paid)
-        assertEquals(setOf("Material", "Serviço"), model.roots.map { it.label }.toSet())
+        assertEquals(CostCategory.entries.map { it.label }.toSet(), model.roots.map { it.label }.toSet())
         assertEquals(2, model.pageCount)
         assertEquals(26, model.columns(0).size)
         assertNull(model.columns(1).last())

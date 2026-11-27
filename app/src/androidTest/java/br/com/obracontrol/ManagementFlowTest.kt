@@ -78,8 +78,8 @@ class ManagementFlowTest {
                     }
                     val gantt = pages.single { it.contains("VISÃO GANTT") }
                     assertTrue(gantt.contains(stage.name) && gantt.replace('\u00a0', ' ').contains(120_000L.brl()))
-                    assertTrue(pages.any { it.contains("DESEMBOLSOS DE MÃO DE OBRA POR SEMANA") })
-                    assertTrue(pages.any { it.contains("Estimativa pelo fim previsto") })
+                    assertTrue(pages.any { it.contains("CALENDÁRIO DE DESEMBOLSOS") })
+                    assertTrue(pages.joinToString(" ").replace(Regex("\\s+"), " ").contains("Vencimento estimado pelo fim da etapa"))
                     assertTrue(pages.any { it.contains("Método de pagamento") && it.contains("Pagador de teste") })
                     assertTrue(pages.any { it.contains("CONDIÇÕES DE PAGAMENTO DAS COMPRAS") })
                     assertTrue(pages.any { it.contains("PARCELADOS | PAGOS E A PAGAR") && it.contains("PAGO EFETIVO") })
