@@ -1,0 +1,44 @@
+name: Validar pagamentos e PDF 2.6.0
+on:
+  push:
+    branches: [codex/validar-relatorio-2.6.0]
+permissions:
+  contents: read
+jobs:
+  pagamentos-relatorio:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Preparar emulador
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Conferir filtros, calendario e paginacao
+        uses: ReactiveCircus/android-emulator-runner@c9c93e6ba9c4194322e114c40970d5983d9a07cc
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-boot-anim -noaudio -no-snapshot
+          script: |
+            adb shell wm size 1080x2400
+            adb shell wm density 440
+            validation_result=0; ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=br.com.obracontrol.PaymentOrganizationFlowTest,br.com.obracontrol.ReportTablesFlowTest || validation_result=$?; mkdir -p app/build/ui-screenshots; adb exec-out run-as br.com.obracontrol.app tar -C files -cf - screenshots > app/build/ui-screenshots/screenshots.tar; exit "$validation_result"
+      - name: Guardar PDFs e capturas
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Validacao-Pagamentos-PDF
+          path: |
+            app/build/ui-screenshots/screenshots.tar
+            app/build/outputs/androidTest-results/connected/
+            app/build/reports/androidTests/connected/
+          if-no-files-found: warn
